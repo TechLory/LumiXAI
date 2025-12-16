@@ -1,0 +1,20 @@
+# Base
+numpy
+pandas
+scipy
+matplotlib
+tqdm
+ipykernel
+jupyter
+
+# App GUI
+streamlit
+
+# HuggingFace
+transformers
+diffusers
+accelerate
+
+# Attributors
+captum
+daam
