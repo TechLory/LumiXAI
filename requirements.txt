@@ -18,4 +18,4 @@ accelerate
 
 # Attributors
 captum
-daam # Error installing it with in poetry.
+daam
