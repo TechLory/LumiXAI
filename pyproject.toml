@@ -1,0 +1,47 @@
+[project]
+name = "xai-project"
+version = "0.1.0"
+description = "XAI Framework Environment"
+authors = [
+    {name = "Lorenzo Gatta",email = "lorenzo.gatta@studenti.unimi.it"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+
+# --- Core Data Science (Safe Stack) ---
+numpy = "<2.0.0"
+pandas = "^2.2"
+scipy = "^1.10"
+matplotlib = "^3.8"
+tqdm = "*"
+
+# --- Development Tools ---
+ipykernel = "*"
+jupyter = "*"
+
+# --- GUI ---
+streamlit = "^1.30"
+
+# --- AI & HuggingFace ---
+torch = "2.2.2" # For macos x86_64 
+transformers = "*"
+diffusers = "*"
+accelerate = "*"
+
+# --- XAI ---
+captum = "*"
+# DAAM can fail.
+daam = "*" 
+
+# --- For llvmlite
+numba = "0.60.0"
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
