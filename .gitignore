@@ -47,3 +47,7 @@ output/
 
 # MacOS
 .DS_Store
+
+# Priv
+frontend/tests
+backend/tests

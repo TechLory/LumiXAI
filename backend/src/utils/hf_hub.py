@@ -1,55 +1,44 @@
-"""
-Hugging Face Hub Utilities Module
-
-This module provides utility functions for interacting with the
-Hugging Face Hub API, including model search functionality.
-"""
-
-from typing import List, Optional
+from typing import List, Dict
 from huggingface_hub import HfApi
 
-
-def search_hf_models(
-    search_query: str, 
-    task_filter: Optional[str] = None, 
-    limit: int = 10
-) -> List[str]:
+def search_hf_models(query: str, limit: int = 10) -> List[Dict[str, str]]:
     """
-    Search for models on the Hugging Face Hub.
-
-    Queries the Hugging Face Hub API to retrieve a list of model identifiers
-    matching the specified search criteria, sorted by download count.
-
-    Args:
-        search_query: The search term to filter models by name or description.
-        task_filter: Optional task type filter (e.g., "text-classification",
-            "image-classification"). Accepts a string or list of tags.
-        limit: Maximum number of results to return. Defaults to 10.
-
+    Search HF models and return useful metadata.
+    Docs: https://huggingface.co/docs/huggingface_hub/package_reference/hf_api
+    
     Returns:
-        A list of model identifiers (strings) matching the search criteria.
-        Returns an empty list if an error occurs during the API call.
+        Dictionary : [{'id': '...', 'task': '...', 'likes': 1200}, ...]
     """
-    # Initialize the Hugging Face Hub API client.
     api = HfApi()
     
+    if not query or len(query.strip()) < 2:
+        return []
+
     try:
-        # Query the Hub for models matching the specified criteria.
+        # Search models ordered by downloads (most popular first)
         models = api.list_models(
-            search=search_query,
-            # Apply optional task-based filtering.
-            filter=task_filter,
-            # Sort results by popularity (download count).
+            search=query,
             sort="downloads",
-            # Use descending order to prioritize most downloaded models.
             direction=-1,
-            limit=limit
+            limit=limit,
+            full=False # (Less data to speed up the response)
         )
-        
-        # Extract and return the model identifiers from the response.
-        # Note: list_models returns a generator or list of ModelInfo objects.
-        return [model.modelId for model in models]
+
+        #print(models)  # Debug: print the raw model data
+        #return []
+
+        results = []
+        for m in models:
+            results.append({
+                "id": m.modelId, # type: ignore
+                # The task (e.g., 'text-classification'):
+                "task": m.pipeline_tag if m.pipeline_tag else "unknown",
+                "likes": m.likes,
+                "downloads": m.downloads
+            })
+            
+        return results
     
     except Exception as e:
-        print(f"❌ Error searching HF Hub: {e}")
+        print(f"Error searching HF Hub: {e}")
         return []

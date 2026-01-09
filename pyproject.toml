@@ -24,6 +24,8 @@ jupyter = "*"
 
 # --- GUI ---
 streamlit = "^1.30"
+fastapi = "^0.128.0"
+uvicorn = "^0.40.0"
 
 # --- AI & HuggingFace ---
 torch = "2.2.2" # For macos x86_64 
@@ -33,7 +35,6 @@ accelerate = "*"
 
 # --- XAI ---
 captum = "*"
-# DAAM can fail.
 daam = "*" 
 
 # --- For llvmlite
