@@ -13,15 +13,25 @@ export default function Tooltip({ iconName, tooltipText }: { iconName?: string; 
       textColor = 'text-red-500';
       iconCode = 'bxs-error';
       break;
+    case 'stop':
+      backgroundColor = 'bg-neutral-400';
+      textColor = 'text-neutral-500';
+      iconCode = "bx-x";
+      break;
     case 'success':
       backgroundColor = 'bg-green-400';
       textColor = 'text-green-400';
       iconCode = 'bx-check';
       break;
+    case 'success-unverified':
+      backgroundColor = 'bg-yellow-400';
+      textColor = 'text-yellow-400';
+      iconCode = 'bx-check';
+      break;
     case 'loading':
       backgroundColor = 'bg-neutral-400';
       textColor = 'text-neutral-300';
-      iconCode = 'bx-loader-alt bx-spin';
+      iconCode = 'bx-loader-alt animate-spin';
       break;
     default:
       backgroundColor = 'bg-neutral-400';

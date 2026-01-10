@@ -15,7 +15,7 @@ def search_hf_models(query: str, limit: int = 10) -> List[Dict[str, str]]:
         return []
 
     try:
-        # Search models ordered by downloads (most popular first)
+        # Search models ordered by downloads
         models = api.list_models(
             search=query,
             sort="downloads",
@@ -23,9 +23,6 @@ def search_hf_models(query: str, limit: int = 10) -> List[Dict[str, str]]:
             limit=limit,
             full=False # (Less data to speed up the response)
         )
-
-        #print(models)  # Debug: print the raw model data
-        #return []
 
         results = []
         for m in models:

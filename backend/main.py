@@ -10,11 +10,10 @@ from src.utils.hf_hub import search_hf_models
 
 # --- 1. REGISTRY ---
 AVAILABLE_WRAPPERS = {
-    "Hugging Face (Transformers)": HFTextWrapper,
-    "test1 Hugging Face (Diffusers)": HFTextWrapper,  # For testing purposes
-    "test2": HFTextWrapper,  # For testing purposes
-    "test3": HFTextWrapper  # For testing purposes
-
+    "hf_text": {"name": "Hugging Face (Transformers)", "class": HFTextWrapper},
+    "hf_diffusers": {"name": "Hugging Face (Diffusers)", "class": HFTextWrapper},
+    "test1": {"name": "Test Wrapper 1", "class": HFTextWrapper},
+    "test2": {"name": "Test Wrapper 2", "class": HFTextWrapper},
 }
 
 AVAILABLE_ATTRIBUTORS = {
@@ -72,15 +71,20 @@ def get_manifest():
     Return the available wrappers and attributors.
     """
     return {
-        "wrappers": list(AVAILABLE_WRAPPERS.keys()),
-        "attributors": list(AVAILABLE_ATTRIBUTORS.keys())
+        "wrappers": [{"id": key, "name": value["name"]} for key, value in AVAILABLE_WRAPPERS.items()],
+        "attributors": [{"id": key, "name": value.__name__} for key, value in AVAILABLE_ATTRIBUTORS.items()]
     }
 
 @app.get("/api/search", response_model=List[SearchResult])
-def search_models(q: str):
+def search_models(source: str, q: str):
     """
     Endpoint for search (Google-style)
     """
+
+    print(f"Search request - source: {source}, query: {q}")
+
+    # QUI SWITCH SULLE VARIE FONTI DI MODELLI
+    # TODO
     results = search_hf_models(query=q, limit=20)
     return results
 

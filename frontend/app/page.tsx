@@ -7,6 +7,7 @@ import Header from "./components/Header";
 import ConfigurationPanel from "./components/ConfigurationPanel";
 import InferencePanel from "./components/InferencePanel";
 import VisualizationResult from "./components/VisualizationResult";
+import ModelSelector from "./components/ModelSelector";
 
 enum Status {
   // booting
@@ -34,7 +35,7 @@ export default function Home() {
   const [preChecks, setPreChecks] = useState<Status[]>([]);
 
   // objects
-  const [manifest, setManifest] = useState<{ wrappers: string[], attributors: string[] } | null>(null);
+  const [manifest, setManifest] = useState<{ wrappers: { id: string; name: string }[]; attributors: { id: string; name: string }[] } | null>(null); // TOFIX: da aggiornare attributor con id e name in main.py
 
   // user selections
   const [selectedWrapper, setSelectedWrapper] = useState("");
@@ -161,6 +162,12 @@ export default function Home() {
             <div className="px-5 font-mono text-green-500 text-sm">System ready.</div>
             <div className="mt-20">
 
+              <div className="px-5 font-mono text-sm text-neutral-400">
+                <pre>{JSON.stringify(manifest, null, 2)}</pre>
+              </div>
+
+
+
               <ConfigurationPanel
                 manifest={manifest}
                 selectedWrapper={selectedWrapper}
@@ -176,15 +183,14 @@ export default function Home() {
 
               <VisualizationResult result={outputResult} />
 
+
+
+
+
+
             </div>
           </>
         )}
-
-
-
-
-
-
       </div>
     </div >
   );
