@@ -1,7 +1,43 @@
-### Setting up python environment
-1. ```pyenv install 3.11.9```
-2. ```poetry local 3.11.9```
-3. ```poetry init -n```
-4. ```poetry config virtualenvs.in-project true```
-5. ```poetry env use $(pyenv which python)```
-6. ```poetry install```
+# Modular XAI Framework
+
+## Overview
+A modular full-stack framework designed to unify and simplify the Explainable AI (XAI) workflow. Its extensible architecture provides a standardized environment to interpret diverse model sources (such as Hugging Face) and integrate various attribution methods, serving as a flexible bridge between complex AI models and human interpretability.
+
+* **Backend**: FastAPI, PyTorch, Transformers, Captum.
+* **Frontend**: Next.js (React), Tailwind CSS.
+
+## Quick Start
+
+### Prerequisites
+* Python 3.10+ & Poetry
+* Node.js 18+ & npm
+
+### Installation & Running
+
+**1. Backend (Port 8000)**
+```bash
+cd backend
+poetry install
+poetry run uvicorn main:app --reload
+```
+
+**2. Frontend (Port 3000)**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Access the UI at [http://localhost:3000](http://localhost:3000).
+
+## Extensibility
+The framework uses a **Registry Pattern** in `backend/main.py` for easy expansion.
+
+* **Add Models**: Create a class inheriting from `BaseWrapper` in `src/xai_framework/wrappers/` and register it in `AVAILABLE_WRAPPERS`.
+* **Add XAI Methods**: Create a class inheriting from `BaseAttributor` in `src/xai_framework/attributors/` and register it in `AVAILABLE_ATTRIBUTORS`.
+
+
+## License
+This project is developed as part of a research thesis at the **University of Milan (Unimi)**.
+
+## Contact
+For any issues, bugs, or questions regarding this framework, please contact me at lorenzo.gatta@studenti.unimi.it or open an issue on GitHub.
