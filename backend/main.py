@@ -2,23 +2,36 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Any, Dict
+from src.utils.hf_hub import search_hf_models
+from huggingface_hub import HfApi
 
 # --- IMPORTS ---
 from src.wrappers.hf_text import HFTextWrapper
 from src.attributors.captum_grad import CaptumGradientsAttributor
-from src.utils.hf_hub import search_hf_models
 
 # --- 1. REGISTRY ---
 AVAILABLE_WRAPPERS = {
-    "hf_text": {"name": "Hugging Face (Transformers)", "class": HFTextWrapper},
-    "hf_diffusers": {"name": "Hugging Face (Diffusers)", "class": HFTextWrapper},
-    "test1": {"name": "Test Wrapper 1", "class": HFTextWrapper},
-    "test2": {"name": "Test Wrapper 2", "class": HFTextWrapper},
+    "hf_text": HFTextWrapper,
 }
 
+AVAILABLE_SOURCES = [
+    {
+        "id": "huggingface", 
+        "name": "Hugging Face Hub", 
+        "type": "remote"
+    },
+    {
+        "id": "custom_wrapper", 
+        "name": "Custom Model (Local) -DEMO-", 
+        "type": "local"
+    }
+]
+
 AVAILABLE_ATTRIBUTORS = {
-    "captum_integrated_gradients": CaptumGradientsAttributor,
-    # "daam_attention": DaamAttributor (next)
+    "captum_ig": {
+        "name": "Integrated Gradients (Captum)", 
+        "class": CaptumGradientsAttributor
+    },
 }
 
 # --- 2. GLOBAL STATE ---
@@ -35,9 +48,13 @@ class SearchResult(BaseModel):
     downloads: int
 
 class LoadRequest(BaseModel):
-    wrapper_id: str      # Es: "hf_text" rivedere id!!!1
-    model_name: str      # Es: "distilbert..."
+    source: str
+    model_name: str
     device: str = "cpu"
+
+class AttributorRequest(BaseModel):
+    attributor_id: str
+    params: Optional[Dict[str, Any]] = {}
 
 class ExplainRequest(BaseModel):
     text: str
@@ -68,66 +85,133 @@ def health_check():
 @app.get("/api/manifest")
 def get_manifest():
     """
-    Return the available wrappers and attributors.
+    Return the available sources and attributors.
     """
     return {
-        "wrappers": [{"id": key, "name": value["name"]} for key, value in AVAILABLE_WRAPPERS.items()],
-        "attributors": [{"id": key, "name": value.__name__} for key, value in AVAILABLE_ATTRIBUTORS.items()]
+        "sources": AVAILABLE_SOURCES,
+        "attributors": [
+            {"id": key, "name": value["name"]} 
+            for key, value in AVAILABLE_ATTRIBUTORS.items()
+        ]
     }
 
 @app.get("/api/search", response_model=List[SearchResult])
 def search_models(source: str, q: str):
     """
-    Endpoint for search (Google-style)
+    Endpoint for search.
+    Dispatches to the appropriate search function based on source.
     """
 
     print(f"Search request - source: {source}, query: {q}")
 
-    # QUI SWITCH SULLE VARIE FONTI DI MODELLI
-    # TODO
-    results = search_hf_models(query=q, limit=20)
-    return results
+    match source:
+        case "huggingface":
+            return search_hf_models(query=q, limit=10)
+        case "custom_demo":
+            ## CUSTOM IMPLEMENTATION
+            return []
+        case _:
+            print(f"Unknown source: {source}")
+            return []
 
 @app.post("/api/load")
 def load_model(req: LoadRequest):
-    """Load the model in memory"""
+    """
+    Dispatcher
+    """
     try:
-        # 1. Retrieve the class from the Registry
-        if req.wrapper_id not in AVAILABLE_WRAPPERS:
-            raise HTTPException(400, "Wrapper ID not found")
-        
-        WrapperClass = AVAILABLE_WRAPPERS[req.wrapper_id]
-        
-        # 2. Instantiate the class
-        print(f"Loading {req.model_name} with {req.wrapper_id}...")
-        wrapper_instance = WrapperClass(req.model_name, req.device)
-        
-        # 3. Save in state
+        wrapper_instance = None
+        wrapper_name = "unknown"
+        detected_task = "unknown"
+
+        ### HUGGING FACE HUB
+        if req.source == "huggingface":            
+            # 1. get model type info from HF Hub
+            api = HfApi()
+            try:
+                info = api.model_info(req.model_name)
+                detected_task = info.pipeline_tag
+            except Exception:
+                detected_task = "text-classification" # Failed: assuming text-classification
+
+            # 2. Logical Switch (Dispatcher)
+            match detected_task:
+                case "text-classification" | "fill-mask" | "token-classification" | "question-answering" | "summarization" | "translation" | "text-generation":
+                    from src.wrappers.hf_text import HFTextWrapper
+                    wrapper_instance = HFTextWrapper(req.model_name, req.device)
+                    wrapper_name = "hf_text"
+            
+                case "text-to-image" | "image-classification":
+                    # from src.wrappers.hf_image import HFImageWrapper
+                    # wrapper_instance = HFImageWrapper(req.model_name, req.device)
+                    # wrapper_name = "hf_image"
+                    pass
+
+                case _:
+                    # Fallback to generic text wrapper
+                    from src.wrappers.hf_text import HFTextWrapper
+                    wrapper_instance = HFTextWrapper(req.model_name, req.device)
+                    wrapper_name = "hf_text (fallback)"
+
+        ### OTHER SOURCES...
+        #### CUSTOM WRAPPER (DEMO)
+        elif req.source == "custom_wrapper":
+            # from src.wrappers.custom_wrapper import CustomWrapper
+            # wrapper_instance = CustomWrapper(req.model_name, req.device)
+            raise HTTPException(501, "Custom Wrapper not available at the moment")
+
+        ### UNSUPPORTED SOURCE
+        else:
+            raise HTTPException(400, f"Source '{req.source}' not supported")
+
+        # SET GLOBAL STATE
         app_state["active_wrapper"] = wrapper_instance
+        app_state["active_attributor"] = None
         
-        # Reset attributor when the model changes
-        app_state["active_attributor"] = None 
-        
-        return {"status": "loaded", "model": req.model_name}
+        return {
+            "status": "loaded",
+            "model": req.model_name,
+            "wrapper": wrapper_name,
+            "detected_task": detected_task if req.source == "huggingface" else "custom"
+        }
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Load Error: {e}")
         raise HTTPException(500, str(e))
 
 @app.post("/api/set_attributor")
-def set_attributor(attributor_id: str):
-    """Set active attributor"""
-    if not app_state["active_wrapper"]:
-        raise HTTPException(400, "Load a model first!")
-    
-    if attributor_id not in AVAILABLE_ATTRIBUTORS:
-        raise HTTPException(400, "Attributor ID not found")
+def set_attributor(req: AttributorRequest):
+    """
+    Set the active attributor.
+    Requires an active model wrapper.
+    """
 
-    AttrClass = AVAILABLE_ATTRIBUTORS[attributor_id]
+    print(req.attributor_id)
+
+    if not app_state["active_wrapper"]:
+        raise HTTPException(400, "No model loaded.")
     
-    # Instantiate the attributor passing the active wrapper
-    app_state["active_attributor"] = AttrClass(app_state["active_wrapper"])
+    if req.attributor_id not in AVAILABLE_ATTRIBUTORS:
+        raise HTTPException(400, f"Attributor ID ({req.attributor_id}) not found")
+
+    try:
+        attributor_entry = AVAILABLE_ATTRIBUTORS[req.attributor_id]
+        AttrClass = attributor_entry["class"]
+            
+        active_wrapper = app_state["active_wrapper"]
+        attributor_instance = AttrClass(active_wrapper)
+
+        app_state["active_attributor"] = attributor_instance
+
+        return {
+            "status": "active", 
+            "id": req.attributor_id, 
+            "name": attributor_entry["name"]
+        }
     
-    return {"status": "attributor_set", "id": attributor_id}
+    except Exception as e:
+        print(f"(backend) Error setting attributor: {e}")
+        raise HTTPException(500, str(e))
 
 @app.post("/api/explain", response_model=ExplanationResponse)
 def explain(req: ExplainRequest):

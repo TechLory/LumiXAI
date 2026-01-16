@@ -8,6 +8,7 @@ import ConfigurationPanel from "./components/ConfigurationPanel";
 import InferencePanel from "./components/InferencePanel";
 import VisualizationResult from "./components/VisualizationResult";
 import ModelSelector from "./components/ModelSelector";
+import { log } from "console";
 
 enum Status {
   // booting
@@ -20,25 +21,38 @@ enum Status {
   LOADING_MANIFEST = "Loading manifest...",
   ERROR_LOADING_MANIFEST = "Error loading manifest.",
   MANIFEST_LOADED = "Manifest loaded.",
+  // model loading
+  LOADING_MODEL = "Loading model...",
+  ERROR_LOADING_MODEL = "Error loading model:",
+  MODEL_LOADED = "Model loaded successfully.\n",
   // generic error
   ERROR = "Something went wrong. Please ensure the backend server is running and try again.",
 }
 
+type Manifest = {
+  sources: { id: string; name: string; type: string }[];
+  attributors: { id: string; name: string }[];
+};
 
 export default function Home() {
 
   // system status
   const [isAppLoading, setIsAppLoading] = useState(true);
+  const [isModelLoading, setIsModelLoading] = useState(false);
+  const [statusLoadModel, setStatusLoadModel] = useState("No model loaded.");
+  const [statusAttributor, setStatusAttributor] = useState("");
+  const [isModelLoadedSuccessfully, setIsModelLoadedSuccessfully] = useState(false);
   const [error, setError] = useState("");
+
 
   // pre-checks
   const [preChecks, setPreChecks] = useState<Status[]>([]);
 
   // objects
-  const [manifest, setManifest] = useState<{ wrappers: { id: string; name: string }[]; attributors: { id: string; name: string }[] } | null>(null); // TOFIX: da aggiornare attributor con id e name in main.py
+  const [manifest, setManifest] = useState<Manifest | null>(null);
 
   // user selections
-  const [selectedWrapper, setSelectedWrapper] = useState("");
+  const [selectedSource, setSelectedSource] = useState("");
   const [modelName, setModelName] = useState("");
   const [selectedAttributor, setSelectedAttributor] = useState("");
 
@@ -66,6 +80,7 @@ export default function Home() {
         const res = await fetch("http://localhost:8000/api/manifest");
         const data = await res.json();
         setManifest(data);
+        //if (data.sources.length > 0) setSelectedSource(data.sources[0].id); // auto-select first source
 
         // all pre-checks passed
         setIsAppLoading(false);
@@ -82,23 +97,55 @@ export default function Home() {
   // action LoadModel: load model from backend
   const handleLoadModel = async () => {
 
+    setIsModelLoading(true);
+    setStatusLoadModel(Status.LOADING_MODEL);
+
     try {
       const res = await fetch("http://localhost:8000/api/load", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          wrapper_id: selectedWrapper,
+          source: selectedSource,
           model_name: modelName,
-          device: "cpu" // hardcoded (to be improved)
+          device: "cpu"
         })
       });
+
       if (!res.ok) throw new Error(await res.text());
+      setIsModelLoadedSuccessfully(true);
+      const data = await res.json();
+      console.log(data);
+      const details = `Status: ${data.status} (${data.model})\nDetected model type: ${data.detected_task} (assigned to wrapper "${data.wrapper}")`;
+      setStatusLoadModel(Status.MODEL_LOADED + details);
 
-
-      // auto-set attributor to speed up process
-      await handleSetAttributor();
     } catch (e: any) {
-      setError("Error Loading Model: " + e.message);
+      setStatusLoadModel(Status.ERROR_LOADING_MODEL + " " + JSON.parse(e.message).detail || e.message);
+      setIsModelLoadedSuccessfully(false);
+    }
+
+    setIsModelLoading(false);
+  };
+
+  // action SetAttributor: set attributor in backend
+  const handleSetAttributor = async (newValue: string) => {
+
+    if (isModelLoadedSuccessfully) {
+
+      setSelectedAttributor(newValue);
+
+      try {
+        const res = await fetch("http://localhost:8000/api/set_attributor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attributor_id: newValue })
+        });
+
+        if (!res.ok) throw new Error("Failed to set attributor");
+        setStatusAttributor(`Attributor set successfully (${newValue})`);
+
+      } catch (e: any) {
+        setStatusAttributor("Error Attributor: " + e.message);
+      }
     }
   };
 
@@ -118,14 +165,6 @@ export default function Home() {
     }
   };
 
-  // action SetAttributor: set attributor in backend
-  const handleSetAttributor = async () => {
-    try {
-      await fetch(`http://localhost:8000/api/set_attributor?attributor_id=${selectedAttributor}`, {
-        method: "POST"
-      });
-    } catch (e: any) { setError("Error Attributor: " + e.message); }
-  };
 
 
 
@@ -162,21 +201,26 @@ export default function Home() {
             <div className="px-5 font-mono text-green-500 text-sm">System ready.</div>
             <div className="mt-20">
 
-              <div className="px-5 font-mono text-sm text-neutral-400">
+              {/* <div className="px-5 font-mono text-sm text-neutral-400">
                 <pre>{JSON.stringify(manifest, null, 2)}</pre>
-              </div>
+              </div> */}
 
 
 
               <ConfigurationPanel
                 manifest={manifest}
-                selectedWrapper={selectedWrapper}
+                selectedSource={selectedSource}
                 modelName={modelName}
+                isModelLoading={isModelLoading}
+                isModelLoadedSuccessfully={isModelLoadedSuccessfully}
+                statusLoadModel={statusLoadModel}
+                statusAttributor={statusAttributor}
                 selectedAttributor={selectedAttributor}
-                onWrapperChange={setSelectedWrapper}
+                onSourceChange={setSelectedSource}
                 onModelNameChange={setModelName}
-                onLoadClick={handleLoadModel}
-                onAttributorChange={setSelectedAttributor}
+                setIsModelLoadedSuccessfully={setIsModelLoadedSuccessfully}
+                onLoadModelClick={handleLoadModel}
+                onAttributorChange={handleSetAttributor}
               />
 
               <InferencePanel inputText={inputText} />

@@ -14,6 +14,7 @@ interface ModelSelectorProps {
   currentModel: string;
   onModelSelect: (modelId: string) => void;
   setIsLoading: (loading: boolean) => void;
+  setIsModelLoadedSuccessfully: (value: boolean) => void;
 }
 
 
@@ -33,6 +34,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
     const val = e.target.value;
     setQuery(val);
     props.onModelSelect(val);
+    props.setIsModelLoadedSuccessfully(false);
 
     if (val.length < 2) {
       setResults([]);
