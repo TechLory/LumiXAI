@@ -64,7 +64,8 @@ class ExplainRequest(BaseModel):
     target_class: Optional[int] = None
 
 class ExplanationResponse(BaseModel):
-    target: int
+    target_id: int
+    predicted_token: str
     tokens: List[str]
     scores: List[float]
 
@@ -233,6 +234,7 @@ def explain(req: ExplainRequest):
             "tokens": [f.content for f in output.input_features],
             "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap
         }
-    
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(500, str(e))

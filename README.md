@@ -6,6 +6,13 @@ A modular full-stack framework designed to unify and simplify the Explainable AI
 * **Backend**: FastAPI, PyTorch, Transformers, Captum.
 * **Frontend**: Next.js (React), Tailwind CSS.
 
+## Tests
+#### (gpt2-large + captum integrated gradients)
+![alt text](/readme_files/gpt2-large_captum_ig_1.png)
+
+
+
+
 ## Quick Start
 
 ### Prerequisites

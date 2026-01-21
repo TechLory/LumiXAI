@@ -6,6 +6,7 @@ import Navbar from "./components/Navbar";
 import Header from "./components/Header";
 import ConfigurationPanel from "./components/ConfigurationPanel";;
 import InputPanel from "./components/InputPanel";
+import OutputPanel from "./components/OutputPanel";
 
 
 enum Status {
@@ -161,17 +162,17 @@ export default function Home() {
     setOutputResult(null);
 
     console.log("calling /api/explain");
-    
+
     try {
       const res = await fetch("http://localhost:8000/api/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: inputText })
       });
-      
+
       const data = await res.json();
       console.log("response from /api/explain:", data);
-      
+
       if (!res.ok) throw new Error(data.detail || "Inference failed");
 
       setIsInferenceFailed(false);
@@ -248,25 +249,23 @@ export default function Home() {
                 <div className="w-full h-80 text-center">
                   <i className='bx bx-loader animate-spin text-5xl text-neutral-500'></i>
                 </div>
+
               ) : isInferenceFailed ? (
                 <div className="text-red-500">
                   <div>An error occurred during inference:</div>
                   <div>{inferenceError}</div>
                 </div>
+
               ) : (
                 <div>
                   {outputResult && (
-                    <div className="px-5 mt-10 font-mono text-sm text-neutral-300">
-                      <pre>{JSON.stringify(outputResult, null, 2)}</pre>
-                    </div>
+                    <OutputPanel outputResult={outputResult} />
                   )}
                 </div>
               )}
 
 
               <div className="h-60"></div>
-
-
             </div>
           </>
         )}
