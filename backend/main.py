@@ -6,12 +6,15 @@ from src.utils.hf_hub import search_hf_models
 from huggingface_hub import HfApi
 
 # --- IMPORTS ---
-from src.wrappers.hf_text import HFTextWrapper
+from src.wrappers.hf_text_classification import HFTextClassificationWrapper
+from src.wrappers.hf_text_generation import HFTextGenerationWrapper
+
 from src.attributors.captum_grad import CaptumGradientsAttributor
 
 # --- 1. REGISTRY ---
 AVAILABLE_WRAPPERS = {
-    "hf_text": HFTextWrapper,
+    "hf_text_classification": HFTextClassificationWrapper,
+    "hf_text_generation": HFTextGenerationWrapper,
 }
 
 AVAILABLE_SOURCES = [
@@ -20,11 +23,11 @@ AVAILABLE_SOURCES = [
         "name": "Hugging Face Hub", 
         "type": "remote"
     },
-    {
-        "id": "custom_wrapper", 
-        "name": "Custom Model (Local) -DEMO-", 
-        "type": "local"
-    }
+    # {
+    #     "id": "custom_wrapper", 
+    #     "name": "Custom Model (Local) -DEMO-", 
+    #     "type": "local"
+    # }
 ]
 
 AVAILABLE_ATTRIBUTORS = {
@@ -132,26 +135,22 @@ def load_model(req: LoadRequest):
                 info = api.model_info(req.model_name)
                 detected_task = info.pipeline_tag
             except Exception:
-                detected_task = "text-classification" # Failed: assuming text-classification
+                detected_task = "-" # Failed: assuming text-classification (fallback)
 
             # 2. Logical Switch (Dispatcher)
             match detected_task:
-                case "text-classification" | "fill-mask" | "token-classification" | "question-answering" | "summarization" | "translation" | "text-generation":
-                    from src.wrappers.hf_text import HFTextWrapper
-                    wrapper_instance = HFTextWrapper(req.model_name, req.device)
-                    wrapper_name = "hf_text"
+                case "text-classification" | "fill-mask" | "token-classification":
+                    wrapper_instance = HFTextClassificationWrapper(req.model_name, req.device)
+                    wrapper_name = "hf_text_classification"
             
-                case "text-to-image" | "image-classification":
-                    # from src.wrappers.hf_image import HFImageWrapper
-                    # wrapper_instance = HFImageWrapper(req.model_name, req.device)
-                    # wrapper_name = "hf_image"
-                    pass
+                case "text-generation" | "text2text-generation" | "translation" | "summarization":
+                    wrapper_instance = HFTextGenerationWrapper(req.model_name, req.device)
+                    wrapper_name = "hf_text_generation"
 
                 case _:
-                    # Fallback to generic text wrapper
-                    from src.wrappers.hf_text import HFTextWrapper
-                    wrapper_instance = HFTextWrapper(req.model_name, req.device)
-                    wrapper_name = "hf_text (fallback)"
+                    # Fallback to text-classification
+                    wrapper_instance = HFTextClassificationWrapper(req.model_name, req.device)
+                    wrapper_name = "hf_text_classification (fallback)"
 
         ### OTHER SOURCES...
         #### CUSTOM WRAPPER (DEMO)
@@ -216,17 +215,24 @@ def set_attributor(req: AttributorRequest):
 @app.post("/api/explain", response_model=ExplanationResponse)
 def explain(req: ExplainRequest):
     """Generate explanation for the input text"""
-    attr = app_state["active_attributor"]
-    if not attr:
+    
+    attributor = app_state["active_attributor"]
+
+    if not attributor:
         raise HTTPException(400, "No attributor active")
     
-    # Call the .attribute() method
-    output = attr.attribute(req.text, req.target_class)
+    wrapper = app_state["active_wrapper"]
     
-    # Convert the output to JSON-friendly list
-    return {
-        "target": output.target,
-        # Assume input_features are ordered
-        "tokens": [f.content for f in output.input_features],
-        "scores": output.heatmap.tolist() # Convert numpy array to list
-    }
+    try:
+        output = attributor.attribute(req.text, req.target_class)
+        predicted_word = wrapper.tokenizer.decode([output.target])
+
+        return {
+            "target_id": output.target,
+            "predicted_token": predicted_word,
+            "tokens": [f.content for f in output.input_features],
+            "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap
+        }
+    
+    except Exception as e:
+        raise HTTPException(500, str(e))

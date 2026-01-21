@@ -4,11 +4,9 @@ import { useEffect, useState } from "react";
 
 import Navbar from "./components/Navbar";
 import Header from "./components/Header";
-import ConfigurationPanel from "./components/ConfigurationPanel";
-import InferencePanel from "./components/InferencePanel";
-import VisualizationResult from "./components/VisualizationResult";
-import ModelSelector from "./components/ModelSelector";
-import { log } from "console";
+import ConfigurationPanel from "./components/ConfigurationPanel";;
+import InputPanel from "./components/InputPanel";
+
 
 enum Status {
   // booting
@@ -39,6 +37,11 @@ export default function Home() {
   // system status
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [isModelLoading, setIsModelLoading] = useState(false);
+
+  const [isInferenceRunning, setIsInferenceRunning] = useState(false);
+  const [isInferenceFailed, setIsInferenceFailed] = useState(false);
+  const [inferenceError, setInferenceError] = useState("");
+
   const [statusLoadModel, setStatusLoadModel] = useState("No model loaded.");
   const [statusAttributor, setStatusAttributor] = useState("");
   const [isModelLoadedSuccessfully, setIsModelLoadedSuccessfully] = useState(false);
@@ -152,17 +155,33 @@ export default function Home() {
   // action Explain: get explanation from backend
   const handleExplain = async () => {
 
+    setIsInferenceRunning(true);
+    setIsInferenceFailed(false);
+    setInferenceError("");
+    setOutputResult(null);
+
+    console.log("calling /api/explain");
+    
     try {
       const res = await fetch("http://localhost:8000/api/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: inputText })
       });
+      
       const data = await res.json();
+      console.log("response from /api/explain:", data);
+      
+      if (!res.ok) throw new Error(data.detail || "Inference failed");
+
+      setIsInferenceFailed(false);
       setOutputResult(data);
     } catch (e: any) {
-      setError("Error Explaining: " + e.message);
+      setInferenceError(e.message);
+      setIsInferenceFailed(true);
     }
+
+    setIsInferenceRunning(false);
   };
 
 
@@ -201,10 +220,6 @@ export default function Home() {
             <div className="px-5 font-mono text-green-500 text-sm">System ready.</div>
             <div className="mt-20">
 
-              {/* <div className="px-5 font-mono text-sm text-neutral-400">
-                <pre>{JSON.stringify(manifest, null, 2)}</pre>
-              </div> */}
-
 
 
               <ConfigurationPanel
@@ -223,13 +238,33 @@ export default function Home() {
                 onAttributorChange={handleSetAttributor}
               />
 
-              <InferencePanel inputText={inputText} />
+              <InputPanel
+                inputText={inputText}
+                setInputText={setInputText}
+                onExplainClick={handleExplain}
+              />
 
-              <VisualizationResult result={outputResult} />
+              {isInferenceRunning ? (
+                <div className="w-full h-80 text-center">
+                  <i className='bx bx-loader animate-spin text-5xl text-neutral-500'></i>
+                </div>
+              ) : isInferenceFailed ? (
+                <div className="text-red-500">
+                  <div>An error occurred during inference:</div>
+                  <div>{inferenceError}</div>
+                </div>
+              ) : (
+                <div>
+                  {outputResult && (
+                    <div className="px-5 mt-10 font-mono text-sm text-neutral-300">
+                      <pre>{JSON.stringify(outputResult, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
 
 
-
-
+              <div className="h-60"></div>
 
 
             </div>

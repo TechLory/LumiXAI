@@ -1,23 +1,33 @@
 import torch
 import numpy as np
-from typing import Any, List, Optional
+from typing import Optional, Union, cast
 from captum.attr import LayerIntegratedGradients
 
 from ..abstract import BaseAttributor
 from ..schema import AttributionOutput, InputFeature
-from ..wrappers.hf_text import HFTextWrapper
+
+from ..wrappers.hf_text_classification import HFTextClassificationWrapper
+from ..wrappers.hf_text_generation import HFTextGenerationWrapper
 
 class CaptumGradientsAttributor(BaseAttributor):
     """
-    Attributor implementation using Captum's Layer Integrated Gradients.
+    Universal Attributor that uses Captum's Layer Integrated Gradients.
+    Supports both text generation models (e.g., GPT, Llama) and text classification models (e.g., BERT).
     """
 
     def attribute(self, input_data: str, target_output: Optional[int] = None) -> AttributionOutput:
         
-        wrapper: HFTextWrapper = self.wrapper
+        # 1. Recognize the type of Wrapper
+        is_generative = isinstance(self.wrapper, HFTextGenerationWrapper)
+        is_classification = isinstance(self.wrapper, HFTextClassificationWrapper)
 
-        # 1. Prepare Inputs
-        inputs_dict = wrapper.tokenizer(
+        if not (is_generative or is_classification):
+             raise TypeError(f"Unsupported wrapper type: {type(self.wrapper)}")
+        
+        # 2. Tokenization
+        wrapper = self.wrapper
+        
+        inputs_dict = wrapper.tokenizer( # type: ignore
             input_data, 
             return_tensors="pt",
             padding=True, 
@@ -27,32 +37,41 @@ class CaptumGradientsAttributor(BaseAttributor):
         input_ids = inputs_dict["input_ids"]
         attention_mask = inputs_dict["attention_mask"]
 
-        # 2. Define Forward Function for Captum
-        def model_forward(inputs, mask):
-            return wrapper.model(input_ids=inputs, attention_mask=mask).logits
+        # 3. Adaptive Forward Function
+        def model_forward(inputs: torch.Tensor, mask: torch.Tensor):
 
-        # 3. Initialize Algorithm
-        embedding_layer = wrapper.get_embedding_layer()
-        lig = LayerIntegratedGradients(model_forward, embedding_layer)
+            outputs = wrapper.model(input_ids=inputs, attention_mask=mask)
 
-        # 4. Determine Target Class
+            if is_generative:
+                # (only last token logits)
+                return outputs.logits[:, -1, :]
+            else:
+                # (all logits)
+                return outputs.logits
+
+        # 4. Initialize Layer Integrated Gradients
+        lig = LayerIntegratedGradients(model_forward, wrapper.get_embedding_layer())
+
+        # 5. Determine Target Output
         if target_output is None:
-            # Calculate logits to find the predicted class
-            logits = wrapper.model(input_ids, attention_mask).logits
-            target_output = torch.argmax(logits, dim=1).item()
+            logits = wrapper.generate(inputs_dict)
+            target_output = torch.argmax(logits, dim=1).item() # pyright: ignore[reportAssignmentType, reportArgumentType]
+            
+            # Debug
+            if is_generative:
+                decoded = wrapper.tokenizer.decode([target_output]) # pyright: ignore[reportAttributeAccessIssue]
+                print(f"Next Token Predicted: '{decoded}' (ID: {target_output})")
 
-        # 5. Compute Attributions
+        # 6. Calculate Attributions
         attributions = lig.attribute(
             inputs=input_ids,
             additional_forward_args=(attention_mask,),
             target=target_output
         )
 
-        # 6. Process Results
-        normalized_scores = self._process_and_normalize(attributions)
-
-        # 7. Construct Output
-        tokens = wrapper.tokenizer.convert_ids_to_tokens(input_ids[0])
+        # 7. Output Standard
+        normalized_scores = self._process_and_normalize(attributions) # pyright: ignore[reportArgumentType]
+        tokens = wrapper.tokenizer.convert_ids_to_tokens(input_ids[0]) # pyright: ignore[reportAttributeAccessIssue]
         features = [
             InputFeature(index=i, content=t, modality="text") 
             for i, t in enumerate(tokens)
@@ -65,12 +84,8 @@ class CaptumGradientsAttributor(BaseAttributor):
         )
 
     def _process_and_normalize(self, attributions: torch.Tensor) -> np.ndarray:
-        # Sum across the embedding dimension to get one score per token
         token_scores = attributions.sum(dim=-1).squeeze(0)
-        
-        # L2 Normalization
         norm = torch.norm(token_scores)
         if norm > 0:
             token_scores = token_scores / norm
-            
         return token_scores.detach().cpu().numpy()
