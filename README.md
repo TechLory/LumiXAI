@@ -9,8 +9,10 @@ A modular full-stack framework designed to unify and simplify the Explainable AI
 ## Tests
 #### (gpt2-large + captum integrated gradients)
 ![alt text](/readme_files/gpt2-large_captum_ig_1.png)
-
-
+#### (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - NEGATIVE
+![alt text](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_negative.png)
+#### (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - POSITIVE
+![alt text](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_positive.png)
 
 
 ## Quick Start

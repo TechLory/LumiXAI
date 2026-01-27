@@ -8,6 +8,8 @@ from huggingface_hub import HfApi
 # --- IMPORTS ---
 from src.wrappers.hf_text_classification import HFTextClassificationWrapper
 from src.wrappers.hf_text_generation import HFTextGenerationWrapper
+from src.wrappers.hf_image import HFImageWrapper
+from src.attributors.daam import DAAMAttributor
 
 from src.attributors.captum_grad import CaptumGradientsAttributor
 
@@ -15,6 +17,7 @@ from src.attributors.captum_grad import CaptumGradientsAttributor
 AVAILABLE_WRAPPERS = {
     "hf_text_classification": HFTextClassificationWrapper,
     "hf_text_generation": HFTextGenerationWrapper,
+    "hf_image": HFImageWrapper,
 }
 
 AVAILABLE_SOURCES = [
@@ -23,17 +26,16 @@ AVAILABLE_SOURCES = [
         "name": "Hugging Face Hub", 
         "type": "remote"
     },
-    # {
-    #     "id": "custom_wrapper", 
-    #     "name": "Custom Model (Local) -DEMO-", 
-    #     "type": "local"
-    # }
 ]
 
 AVAILABLE_ATTRIBUTORS = {
     "captum_ig": {
         "name": "Integrated Gradients (Captum)", 
         "class": CaptumGradientsAttributor
+    },
+    "daam": {
+        "name": "DAAM (Diffusion Attentive Attribution Maps)", 
+        "class": DAAMAttributor
     },
 }
 
@@ -147,6 +149,10 @@ def load_model(req: LoadRequest):
                 case "text-generation" | "text2text-generation" | "translation" | "summarization":
                     wrapper_instance = HFTextGenerationWrapper(req.model_name, req.device)
                     wrapper_name = "hf_text_generation"
+
+                case "text-to-image":
+                    wrapper_instance = HFImageWrapper(req.model_name, req.device)
+                    wrapper_name = "hf_image"
 
                 case _:
                     # Fallback to text-classification

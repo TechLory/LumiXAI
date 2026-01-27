@@ -39,16 +39,10 @@ class BaseWrapper(ABC):
         pass
 
     @abstractmethod
-    def generate(self, input_data: Any) -> Dict[str, Any]:
+    def generate(self, input_data: Any) -> Any:
         """
         Performs a forward pass or generation step.
-        
-        Args:
-            input_data (Any): The raw input (string text, PIL image, etc.).
-
-        Returns:
-            Dict[str, Any]: A dictionary containing at least the model outputs 
-                            necessary for attribution (e.g., logits, gradients).
+        Returns raw output (Logits for text, PIL Image for visual).
         """
         pass
 

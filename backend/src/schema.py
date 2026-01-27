@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
+from pydantic import BaseModel, ConfigDict
 from typing import Any, List, Union, Optional
 import numpy as np
 
-@dataclass
-class InputFeature:
+class InputFeature(BaseModel):
     """
     Represents an atomic unit of input data.
     
@@ -13,15 +13,14 @@ class InputFeature:
     """
     index: Union[int, tuple]
     content: Any
-    modality: str  # e.g., "text", "image"
+    modality: str  # "text", "image"
 
     def __repr__(self) -> str:
         """Returns a concise string representation for debugging."""
         return f"InputFeature(idx={self.index}, content='{self.content}', type={self.modality})"
 
 
-@dataclass
-class AttributionOutput:
+class AttributionOutput(BaseModel):
     """
     Standardized output object returned by any Attributor.
     
@@ -30,9 +29,7 @@ class AttributionOutput:
     """
     
     # The raw attribution scores (heatmap). 
-    # For text: 1D array of shape [seq_len].
-    # For images: 2D array of shape [height, width].
-    heatmap: np.ndarray
+    heatmap: Any
     
     # The target that was explained (e.g., the class index or the generated token).
     target: Any
@@ -41,8 +38,11 @@ class AttributionOutput:
     # Note: len(input_features) should ideally match heatmap.shape[0] for text.
     input_features: List[InputFeature]
 
-    # Optional metadata dictionary for storing model-specific info (e.g., confidence scores).
-    metadata: dict = field(default_factory=dict)
+    generated_image: Optional[str] = None
+
+    metadata: dict = {}
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def validate(self) -> bool:
         """
