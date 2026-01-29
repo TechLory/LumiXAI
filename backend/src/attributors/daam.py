@@ -51,9 +51,16 @@ class DAAMAttributor(BaseAttributor):
         heatmap_images = [] # List of Base64 strings
         feature_tokens = [] # List of InputFeature
         
+        # Ingnore special tokens to avoid attention sink!
+        IGNORED_TOKENS = ["<|startoftext|>", "<|endoftext|>"]
+
         # Iterate over the prompt tokens (ignore empty padding beyond the end of the prompt)
         for i, token_id in enumerate(tokens):
             word = decoded_tokens[i]
+            
+            clean_word = word.replace('</w>', '').strip()
+            if clean_word in IGNORED_TOKENS or not clean_word:
+                continue
             
             if i in token_heatmaps:
                 hm_obj = token_heatmaps[i]
@@ -68,7 +75,7 @@ class DAAMAttributor(BaseAttributor):
                 b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
                 
                 heatmap_images.append(b64_str)
-                feature_tokens.append(InputFeature(index=i, content=word, modality="text"))
+                feature_tokens.append(InputFeature(index=i, content=clean_word, modality="text"))
 
         # 5. Output
         return AttributionOutput(
