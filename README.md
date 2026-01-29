@@ -13,7 +13,8 @@ A modular full-stack framework designed to unify and simplify the Explainable AI
 ![alt text](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_negative.png)
 #### (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - POSITIVE
 ![alt text](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_positive.png)
-
+#### (OFA-Sys/small-stable-diffusion-v0 + DAAM) - STRONG ATTENTION SINK!!
+![alt text](/readme_files/test-stable-diffusion-attention-sink.jpg)
 
 ## Quick Start
 

@@ -38,7 +38,10 @@ huggingface-hub = "^0.22.0"
 
 # --- XAI ---
 captum = "*"
-daam = "*" # To be checked for compatibility
+# IGNORE DAAM ----> CUSTOM IMPLEMENTATION because of:
+## from diffusers.models.attention import CrossAttention
+## ImportError: cannot import name 'CrossAttention' from 'diffusers.models.attention'
+daam = "*" 
 
 # --- For llvmlite
 numba = "0.59.0"

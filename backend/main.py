@@ -66,10 +66,11 @@ class ExplainRequest(BaseModel):
     target_class: Optional[int] = None
 
 class ExplanationResponse(BaseModel):
-    target_id: int
-    predicted_token: str
+    target_id: Any            # token ID /  "image_generation"
+    predicted_token: Optional[str] = None
     tokens: List[str]
-    scores: List[float]
+    scores: Any               # List[float] / Base64
+    generated_image: Optional[str] = None #
 
 # --- 4. SETUP APP ---
 app = FastAPI()
@@ -221,7 +222,7 @@ def set_attributor(req: AttributorRequest):
 
 @app.post("/api/explain", response_model=ExplanationResponse)
 def explain(req: ExplainRequest):
-    """Generate explanation for the input text"""
+    """Generate explanation for the input text or image"""
     
     attributor = app_state["active_attributor"]
 
@@ -232,13 +233,20 @@ def explain(req: ExplainRequest):
     
     try:
         output = attributor.attribute(req.text, req.target_class)
-        predicted_word = wrapper.tokenizer.decode([output.target])
+        predicted_word = None
+        
+        if hasattr(wrapper, "tokenizer") and isinstance(output.target, int):
+            try:
+                predicted_word = wrapper.tokenizer.decode([output.target])
+            except:
+                pass
 
         return {
             "target_id": output.target,
             "predicted_token": predicted_word,
             "tokens": [f.content for f in output.input_features],
-            "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap
+            "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap,
+            "generated_image": output.generated_image
         }
     except Exception as e:
         import traceback
