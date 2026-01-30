@@ -15,6 +15,13 @@ A modular full-stack framework designed to unify and simplify the Explainable AI
 ![alt text](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_positive.png)
 #### (OFA-Sys/small-stable-diffusion-v0 + DAAM) - STRONG ATTENTION SINK!!
 ![alt text](/readme_files/test-stable-diffusion-attention-sink.jpg)
+#### (OFA-Sys/small-stable-diffusion-v0 + DAAM) - NO SPECIAL TOKENS (ATTENTION SINK persists)
+![alt text](/readme_files/test-stable-diffusion-attention-sink-2-special-tokens-removed.png)
+#### (dreamlike-art/dreamlike-diffusion-1.0 + DAAM) - percentile norm in plot_overlay (ATT. SINK persists)
+![alt text](/readme_files/test-stable-diffusion-attention-sink-3-new-normalization.png)
+#### (dreamlike-art/dreamlike-diffusion-1.0 + DAAM) - longer prompt
+![alt text](/readme_files/test-stable-diffusion-attention-4-long-prompt.png)
+
 
 ## Quick Start
 

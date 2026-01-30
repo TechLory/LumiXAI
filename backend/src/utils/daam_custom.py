@@ -11,9 +11,14 @@ class CustomDAAMHeatmap:
 
     def plot_overlay(self, image):
         w, h = image.size
-        # Min-Max normalization for optimal contrast
         heatmap_np = self.heatmap.cpu().numpy()
-        heatmap_np = (heatmap_np - np.min(heatmap_np)) / (np.max(heatmap_np) - np.min(heatmap_np) + 1e-8)
+        
+        # Test: percentile normalization 1-99 instead of min-max
+        vmin = np.percentile(heatmap_np, 1)
+        vmax = np.percentile(heatmap_np, 99)
+        
+        heatmap_np = np.clip((heatmap_np - vmin) / (vmax - vmin + 1e-8), 0, 1)
+        #heatmap_np = (heatmap_np - np.min(heatmap_np)) / (np.max(heatmap_np) - np.min(heatmap_np) + 1e-8)
         
         fig, ax = plt.subplots(figsize=(6, 6))
         ax.imshow(image)
