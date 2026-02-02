@@ -13,7 +13,7 @@ class CustomDAAMHeatmap:
         w, h = image.size
         heatmap_np = self.heatmap.cpu().numpy()
         
-        # Test: percentile normalization 1-99 instead of min-max
+        # Test: percentile normalization 1-99 instead of min-max (cut off outliers)
         vmin = np.percentile(heatmap_np, 1)
         vmax = np.percentile(heatmap_np, 99)
         

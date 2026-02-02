@@ -60,7 +60,7 @@ export default function Home() {
   const [modelName, setModelName] = useState("");
   const [selectedAttributor, setSelectedAttributor] = useState("");
 
-  const [inputText, setInputText] = useState("Nel mezzo del cammin di nostra vita");
+  const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
   const [outputResult, setOutputResult] = useState<any>(null);
 
 
@@ -111,7 +111,7 @@ export default function Home() {
         body: JSON.stringify({
           source: selectedSource,
           model_name: modelName,
-          device: "cpu"
+          device: "cuda" // TO FIX: put AUTO and choose cuda if available, fallback to cpu
         })
       });
 

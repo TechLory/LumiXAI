@@ -28,7 +28,8 @@ fastapi = "^0.128.0"
 uvicorn = "^0.40.0"
 
 # --- AI & HuggingFace ---
-torch = "2.2.2" # For macos x86_64
+#torch = "^2.2.0" # For CUDA (+macos x86_64)
+torch = {version = "^2.2.0", source = "pytorch_cuda"}
 
 ## Error 'cached_download', fixed with:
 transformers = "^4.38.0"
@@ -52,3 +53,8 @@ package-mode = false
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "pytorch_cuda"
+url = "https://download.pytorch.org/whl/cu121"
+priority = "explicit"
