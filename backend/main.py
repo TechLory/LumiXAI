@@ -1,3 +1,12 @@
+import os
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+HF_CACHE_DIR = BASE_DIR / "hf_models_cache"
+HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+print(f"hf cache dir set to: {HF_CACHE_DIR}")
+os.environ["HF_HOME"] = str(HF_CACHE_DIR)
+
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

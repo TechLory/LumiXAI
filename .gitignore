@@ -44,6 +44,7 @@ venv.bak/
 data/
 models/
 output/
+hf_models_cache/
 
 # MacOS
 .DS_Store

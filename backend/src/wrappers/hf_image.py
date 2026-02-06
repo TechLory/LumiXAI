@@ -24,13 +24,20 @@ class HFImageWrapper(BaseWrapper):
             # Load the full pipeline (UNet, VAE, Text Encoder, Scheduler)
             pipe = StableDiffusionPipeline.from_pretrained(
                 self.model_id, 
-                torch_dtype=torch_dtype
+                torch_dtype=torch_dtype,
+                #variant="fp16",
+                safety_checker=None
             )
-            pipe.to(self.device)
+            
+            # Avoid 
+            if self.device == "cuda":
+                pipe.enable_sequential_cpu_offload()
+            else:
+                pipe.to(self.device)
             
             # DEBUG:Disable safety checker for debugging/XAI purposes (avoids black images)
-            if hasattr(pipe, "safety_checker") and pipe.safety_checker is not None:
-                pipe.safety_checker = None
+            #if hasattr(pipe, "safety_checker") and pipe.safety_checker is not None:
+            #   pipe.safety_checker = None
                 
             return pipe
             
