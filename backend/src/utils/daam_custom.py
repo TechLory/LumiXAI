@@ -92,45 +92,58 @@ class trace:
         if not self.capture_processor.attention_probs:
             raise ValueError("No attention captured.")
 
-        maps = self.capture_processor.attention_probs
-        # Resolution filter (min 16x16)
-        target_maps = [m for m in maps if m.shape[1] > 256] 
-        if not target_maps: 
-            target_maps = maps
+        all_maps = self.capture_processor.attention_probs
+
+        valid_maps = []
+        for m in all_maps:
+            # m shape: [Batch*Heads, Pixels, Tokens]
+            num_pixels = m.shape[1]
+            
+            # 16*16 ---- 64*64
+            if 256 <= num_pixels <= 4096:
+                valid_maps.append(m)
+
+        if not valid_maps:
+            print("No valid attention maps found. Using all captured maps.")
+            valid_maps = all_maps
+
+        num_tokens = valid_maps[0].shape[-1]
         
-        spatial_dim = target_maps[0].shape[1]
-        side = int(np.sqrt(spatial_dim))
-        
-        # Token count (usually 77 for CLIP)
-        num_tokens = target_maps[0].shape[-1]
-        
-        # Initialize an accumulator for each token: [Pixels, Tokens]
-        avg_map_container = torch.zeros(spatial_dim, num_tokens)
+        target_dim = 64 
+        accumulated_maps = torch.zeros(target_dim, target_dim, num_tokens)
         count = 0
 
-        for m in target_maps:
-            if m.shape[1] != spatial_dim:
-                # Skip for now. future: implement resizing
-                continue
+        for m in valid_maps:
+            # Shape: [Pixels, Tokens]
+            m_avg_heads = m.mean(dim=0) 
             
-            # m shape: [Batch*Heads, Pixels, Tokens]
-            # We average only over Batch*Heads, preserving (Pixels, Tokens)
-            m_avg = m.mean(dim=0) 
-            avg_map_container += m_avg
+            # 2. Reshape in 2D
+            side = int(np.sqrt(m_avg_heads.shape[0]))
+            if side * side != m_avg_heads.shape[0]: continue
+            
+            m_2d = m_avg_heads.view(side, side, num_tokens)
+            
+            # 3. Upscale Bicubico a (64x64)
+            m_permuted = m_2d.permute(2, 0, 1).unsqueeze(1) 
+            
+            m_resized = torch.nn.functional.interpolate(
+                m_permuted, 
+                size=(target_dim, target_dim), 
+                mode='bicubic', 
+                align_corners=False
+            )
+            
+            accumulated_maps += m_resized.squeeze(1).permute(1, 2, 0)
             count += 1
 
         if count > 0:
-            avg_map_container /= count
+            accumulated_maps /= count
 
-        # Build the results dictionary
+        # build Output
         results = {}
         for token_idx in range(num_tokens):
-            # Extract the token slice and reshape to 2D
-            token_map_1d = avg_map_container[:, token_idx]
-            token_map_2d = token_map_1d.view(side, side)
-            
-            # Save only if there is relevant activation
-            if token_map_2d.max() > 0:
-                results[token_idx] = CustomDAAMHeatmap(token_map_2d)
+            token_map = accumulated_maps[:, :, token_idx]
+            if token_map.max() > 0:
+                results[token_idx] = CustomDAAMHeatmap(token_map)
                 
         return results

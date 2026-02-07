@@ -1,12 +1,13 @@
 import torch
 from typing import Any, Union, List
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
 from ..abstract import BaseWrapper
 
 class HFImageWrapper(BaseWrapper):
     """
     Wrapper for Text-to-Image Generation using Stable Diffusion.
     Uses Hugging Face 'diffusers' library.
+    Supports both Stable Diffusion and Stable Diffusion XL pipelines.
     """
 
     def __init__(self, model_id: str, device: str = "cpu"):
@@ -21,23 +22,26 @@ class HFImageWrapper(BaseWrapper):
             torch_dtype = torch.float16
 
         try:
+            model_id_lower = self.model_id.lower()
+            is_xl = "xl" in model_id_lower or "turbo" in model_id_lower
+            PipelineClass = StableDiffusionXLPipeline if is_xl else StableDiffusionPipeline
+
             # Load the full pipeline (UNet, VAE, Text Encoder, Scheduler)
-            pipe = StableDiffusionPipeline.from_pretrained(
+            pipe = PipelineClass.from_pretrained(
                 self.model_id, 
                 torch_dtype=torch_dtype,
                 #variant="fp16",
+                use_safetensors=True,
                 safety_checker=None
             )
             
-            # Avoid 
+            # Avoid gpu saturation
             if self.device == "cuda":
                 pipe.enable_sequential_cpu_offload()
+                if is_xl:
+                    pipe.enable_vae_tiling()
             else:
                 pipe.to(self.device)
-            
-            # DEBUG:Disable safety checker for debugging/XAI purposes (avoids black images)
-            #if hasattr(pipe, "safety_checker") and pipe.safety_checker is not None:
-            #   pipe.safety_checker = None
                 
             return pipe
             

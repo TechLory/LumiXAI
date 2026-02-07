@@ -31,7 +31,15 @@ class DAAMAttributor(BaseAttributor):
 
         # 1. Tracing
         with trace(pipeline) as tc:
-            output = pipeline(prompt, num_inference_steps=20)
+
+            # Negative Prompt
+            neg_prompt = "blurry, low quality, distortion, ugly, bad anatomy, watermark, text"
+
+            output = pipeline(
+                prompt, 
+                negative_prompt=neg_prompt,
+                num_inference_steps=30
+            )
             generated_image = output.images[0]
             # Call the function that returns the dictionary {idx: map}
             token_heatmaps = tc.compute_heat_maps()
