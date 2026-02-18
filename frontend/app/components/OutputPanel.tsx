@@ -1,4 +1,5 @@
 import TokenExplained from "./TokenExplained";
+import TextGenView from "./TextGenView";
 
 interface OutputPanelProps {
   outputResult: {
@@ -13,17 +14,12 @@ interface OutputPanelProps {
 export default function OutputPanel({ outputResult }: OutputPanelProps) {
   if (!outputResult) return null;
 
-  // --- images ---
+  // --- CASE 1: IMAGE GENERATION ---
   if (outputResult.generated_image) {
-
-    // Scores: list (Multi-token) / single string
     const heatmaps = Array.isArray(outputResult.scores) ? outputResult.scores : [outputResult.scores];
-
     return (
       <div className="mb-20 px-6">
-        <div className="text-3xl font-semibold mb-6">Visual Explanation (DAAM)</div>
-
-        {/* 1. Original Image (Large) */}
+        <div className="text-3xl font-semibold mb-6">Image Generation</div>
         <div className="flex justify-center mb-10">
           <div className="flex flex-col items-center p-4 bg-neutral-900">
             <span className="text-xs mb-2 uppercase font-bold">Generated Output</span>
@@ -34,15 +30,11 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
             />
           </div>
         </div>
-
-        {/* 2. Heatmap Gallery (Token by Token) */}
         <h3 className="text-xl font-semibold mb-4">Per-Token Attribution</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-
           {outputResult.tokens.map((token, idx) => {
             const heatmapSrc = heatmaps[idx];
             if (!heatmapSrc) return null;
-
             return (
               <div key={idx} className="flex flex-col items-center p-2 bg-neutral-900 ">
                 <span className="text-sm font-mono font-bold px-2 py-1 mb-2">
@@ -61,15 +53,22 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
     );
   }
 
-  // text mode
+  // --- CASE 2: TEXT GENERATION ---
+  if (outputResult.target_id === "text_generation") {
+    return (
+        <div className="mb-20 px-6">
+            <div className="text-3xl font-semibold mb-6">Text Generation</div>
+            <TextGenView trace={outputResult.scores} />
+        </div>
+    );
+  }
+
+  // --- CASE 3: TEXT CLASSIFICATION ---
   return (
     <div className="mb-20 px-6">
-
-      <div className="text-3xl font-semibold">Output (TEXT)</div>
-
-
-
-      <div className="flex gap-1 mt-5">
+      <div className="text-3xl font-semibold">Text Classification</div>
+      
+      <div className="flex gap-1 mt-5 flex-wrap">
         {outputResult.tokens?.map((token: string, index: number) => (
           <TokenExplained
             key={index}
@@ -80,17 +79,15 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
       </div>
 
       <div className="font-mono text-xl flex gap-2 mt-5">
-        <div className="italic text-neutral-400">Model output: </div>
+        <div className="italic text-neutral-400">Predicted Class: </div>
         {outputResult.target_id === 0 ? (
-          <div className="font-bold">NEGATIVE</div>
+          <div className="font-bold text-red-400">NEGATIVE</div>
         ) : outputResult.target_id === 1 ? (
-          <div className="font-bold">POSITIVE</div>
+          <div className="font-bold text-green-400">POSITIVE</div>
         ) : (
           <div className="font-bold">{outputResult.predicted_token}</div>
         )}
       </div>
-
     </div>
   );
 }
-

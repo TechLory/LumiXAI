@@ -111,7 +111,7 @@ export default function Home() {
         body: JSON.stringify({
           source: selectedSource,
           model_name: modelName,
-          device: "cuda" // TO FIX: put AUTO and choose cuda if available, fallback to cpu
+          device: "auto"
         })
       });
 

@@ -1,4 +1,5 @@
 import os
+import torch
 from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 HF_CACHE_DIR = BASE_DIR / "hf_models_cache"
@@ -18,9 +19,27 @@ from huggingface_hub import HfApi
 from src.wrappers.hf_text_classification import HFTextClassificationWrapper
 from src.wrappers.hf_text_generation import HFTextGenerationWrapper
 from src.wrappers.hf_image import HFImageWrapper
-from src.attributors.daam import DAAMAttributor
 
+from src.attributors.daam import DAAMAttributor
 from src.attributors.captum_grad import CaptumGradientsAttributor
+
+def get_optimal_device(requested_device: str = "auto") -> str:
+    if requested_device == "cpu":
+        return "cpu"
+
+    # 1. Check CUDA (Nvidia)
+    if torch.cuda.is_available():
+        if requested_device in ["auto", "cuda"]:
+            return "cuda"
+    
+    # 2. Check MPS (Mac Apple Silicon)
+    if torch.backends.mps.is_available():
+        if requested_device in ["auto", "cuda", "mps"]:
+            return "mps"
+
+    # 3. Fallback CPU
+    print(f"Requested '{requested_device}' but GPU not found. Falling back to CPU.")
+    return "cpu"
 
 # --- 1. REGISTRY ---
 AVAILABLE_WRAPPERS = {
@@ -136,6 +155,8 @@ def load_model(req: LoadRequest):
     Dispatcher
     """
     try:
+        real_device = get_optimal_device(req.device)
+
         wrapper_instance = None
         wrapper_name = "unknown"
         detected_task = "unknown"
@@ -153,20 +174,20 @@ def load_model(req: LoadRequest):
             # 2. Logical Switch (Dispatcher)
             match detected_task:
                 case "text-classification" | "fill-mask" | "token-classification":
-                    wrapper_instance = HFTextClassificationWrapper(req.model_name, req.device)
+                    wrapper_instance = HFTextClassificationWrapper(req.model_name, real_device)
                     wrapper_name = "hf_text_classification"
             
                 case "text-generation" | "text2text-generation" | "translation" | "summarization":
-                    wrapper_instance = HFTextGenerationWrapper(req.model_name, req.device)
+                    wrapper_instance = HFTextGenerationWrapper(req.model_name, real_device) # pyright: ignore[reportAbstractUsage]
                     wrapper_name = "hf_text_generation"
 
                 case "text-to-image":
-                    wrapper_instance = HFImageWrapper(req.model_name, req.device)
+                    wrapper_instance = HFImageWrapper(req.model_name, real_device)
                     wrapper_name = "hf_image"
 
                 case _:
                     # Fallback to text-classification
-                    wrapper_instance = HFTextClassificationWrapper(req.model_name, req.device)
+                    wrapper_instance = HFTextClassificationWrapper(req.model_name, real_device)
                     wrapper_name = "hf_text_classification (fallback)"
 
         ### OTHER SOURCES...
@@ -188,6 +209,7 @@ def load_model(req: LoadRequest):
             "status": "loaded",
             "model": req.model_name,
             "wrapper": wrapper_name,
+            "device": real_device,
             "detected_task": detected_task if req.source == "huggingface" else "custom"
         }
 
@@ -234,16 +256,25 @@ def explain(req: ExplainRequest):
     """Generate explanation for the input text or image"""
     
     attributor = app_state["active_attributor"]
-
     if not attributor:
         raise HTTPException(400, "No attributor active")
     
     wrapper = app_state["active_wrapper"]
-    
     try:
         output = attributor.attribute(req.text, req.target_class)
         predicted_word = None
         
+        # TEXT GENERATION (Target: string)
+        if output.target == "text_generation":
+            return {
+                "target_id": "text_generation",
+                "predicted_token": None,
+                "tokens": [], 
+                "scores": output.heatmap,
+                "generated_image": None
+            }
+
+        # CLASSIFICATION/IMAGE (Target: int or None)
         if hasattr(wrapper, "tokenizer") and isinstance(output.target, int):
             try:
                 predicted_word = wrapper.tokenizer.decode([output.target])
@@ -257,6 +288,7 @@ def explain(req: ExplainRequest):
             "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap,
             "generated_image": output.generated_image
         }
+
     except Exception as e:
         import traceback
         traceback.print_exc()

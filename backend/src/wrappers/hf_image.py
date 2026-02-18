@@ -15,33 +15,30 @@ class HFImageWrapper(BaseWrapper):
 
     def load_model(self) -> Any:
         print(f"Loading Stable Diffusion Pipeline: {self.model_id}...")
-        
-        # Optimize memory: use float16 for CUDA/MPS (Mac), float32 for CPU
-        torch_dtype = torch.float32
-        if self.device != "cpu":
-            torch_dtype = torch.float16
-
         try:
             model_id_lower = self.model_id.lower()
             is_xl = "xl" in model_id_lower or "turbo" in model_id_lower
             PipelineClass = StableDiffusionXLPipeline if is_xl else StableDiffusionPipeline
 
+            dtype = torch.float16 if self.device != "cpu" else torch.float32
+
             # Load the full pipeline (UNet, VAE, Text Encoder, Scheduler)
             pipe = PipelineClass.from_pretrained(
                 self.model_id, 
-                torch_dtype=torch_dtype,
-                #variant="fp16",
+                torch_dtype=dtype,
+                variant="fp16" if dtype == torch.float16 else None,
                 use_safetensors=True,
                 safety_checker=None
             )
             
-            # Avoid gpu saturation
             if self.device == "cuda":
                 pipe.enable_sequential_cpu_offload()
                 if is_xl:
                     pipe.enable_vae_tiling()
+            elif self.device == "mps":
+                pipe.to("mps")
             else:
-                pipe.to(self.device)
+                pipe.to("cpu")
                 
             return pipe
             
