@@ -31,9 +31,9 @@ class CaptumGradientsAttributor(BaseAttributor):
         embeddings = wrapper.get_embedding_layer()(inputs["input_ids"]) # [1, Seq, Hidden]
 
         # Embeddings -> Logits
-        def model_forward(inputs_embeds):
+        def model_forward(inputs_embeds, mask):
             inputs_embeds = inputs_embeds.contiguous()
-            return wrapper.model(inputs_embeds=inputs_embeds, attention_mask=inputs["attention_mask"]).logits
+            return wrapper.model(inputs_embeds=inputs_embeds, attention_mask=mask).logits
 
         ig = IntegratedGradients(model_forward)
 
@@ -42,7 +42,11 @@ class CaptumGradientsAttributor(BaseAttributor):
             target_output = torch.argmax(logits, dim=1).item() # pyright: ignore[reportAssignmentType]
 
         # Attribution
-        attributions = ig.attribute(inputs=embeddings, target=target_output)
+        attributions = ig.attribute(
+            inputs=embeddings, 
+            target=target_output,
+            additional_forward_args=(inputs["attention_mask"],)
+        )
 
         return self._package_output(attributions, inputs["input_ids"][0], target_output)
 
