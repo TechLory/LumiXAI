@@ -7,7 +7,11 @@ A modular full-stack framework designed to unify and simplify the Explainable AI
 * **Frontend**: Next.js (React), Tailwind CSS.
 
 ## Tests
-![demo](/readme_files/demo_1_token-pixel_attribution_gui.gif)
+#### Demo text-to-text attribution:
+![demo text](/readme_files/demo_text-to-text.gif)
+#### Demo text-to-image attribution:
+![demo image](/readme_files/demo_1_token-pixel_attribution_gui.gif)
+
 - (gpt2-large + captum integrated gradients): [Show Image](/readme_files/gpt2-large_captum_ig_1.png)
 - (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - NEGATIVE: [Show Image](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_negative.png)
 - (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - POSITIVE: [Show Image](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_positive.png)

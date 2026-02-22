@@ -45,7 +45,8 @@ class CaptumGradientsAttributor(BaseAttributor):
         attributions = ig.attribute(
             inputs=embeddings, 
             target=target_output,
-            additional_forward_args=(inputs["attention_mask"],)
+            additional_forward_args=(inputs["attention_mask"],),
+            internal_batch_size=2
         )
 
         return self._package_output(attributions, inputs["input_ids"][0], target_output)
@@ -89,7 +90,8 @@ class CaptumGradientsAttributor(BaseAttributor):
             attributions = ig.attribute(
                 inputs=current_embeddings,
                 target=target_token_id,
-                n_steps=20 
+                n_steps=20,
+                internal_batch_size=2
             )
 
             # Save attribution scores and context tokens for this step
@@ -106,6 +108,9 @@ class CaptumGradientsAttributor(BaseAttributor):
             # Update input_ids for next step (append generated token)
             next_token_tensor = torch.tensor([[target_token_id]]).to(wrapper.device)
             current_input_ids = torch.cat([current_input_ids, next_token_tensor], dim=1)
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         return AttributionOutput(
             heatmap=attribution_trace, 
