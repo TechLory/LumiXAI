@@ -4,6 +4,8 @@ from typing import Optional, List
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
+import torch
+import torch.nn.functional as F
 
 # Import custom trace
 from ..utils.daam_custom import trace 
@@ -15,7 +17,7 @@ from ..wrappers.hf_image import HFImageWrapper
 class DAAMAttributor(BaseAttributor):
     """
     Attributor for Stable Diffusion using custom DAAM.
-    Returns per-token heatmaps.
+    Returns per-token heatmaps (Base64) AND raw 64x64 matrices for interactive UX.
     """
 
     def attribute(self, input_data: str, target_output: Optional[int] = None) -> AttributionOutput:
@@ -45,10 +47,8 @@ class DAAMAttributor(BaseAttributor):
             token_heatmaps = tc.compute_heat_maps()
 
         # 2. Tokenizing to understand the words
-        # Tokenize the prompt to have the ID -> Word correspondence
         tokens = tokenizer.encode(prompt) # Returns list of IDs [49406, 320, ...]
         decoded_tokens = [tokenizer.decode([t]) for t in tokens] 
-        # decoded_tokens: ['<|startoftext|>', 'a', 'cat', ..., '<|endoftext|>']
 
         # 3. Original Image Processing
         buffered_orig = BytesIO()
@@ -56,13 +56,12 @@ class DAAMAttributor(BaseAttributor):
         img_str_orig = base64.b64encode(buffered_orig.getvalue()).decode("utf-8")
 
         # 4. Heatmap Generation for each Token
-        heatmap_images = [] # List of Base64 strings
-        feature_tokens = [] # List of InputFeature
+        heatmap_data = [] # List of dictionaries: [{"image_base64": ..., "raw_matrix": [...]}, ...]
+        feature_tokens = [] 
         
-        # Ingnore special tokens to avoid attention sink!
+        # Ignore special tokens to avoid attention sink!
         IGNORED_TOKENS = ["<|startoftext|>", "<|endoftext|>"]
 
-        # Iterate over the prompt tokens (ignore empty padding beyond the end of the prompt)
         for i, token_id in enumerate(tokens):
             word = decoded_tokens[i]
             
@@ -73,21 +72,29 @@ class DAAMAttributor(BaseAttributor):
             if i in token_heatmaps:
                 hm_obj = token_heatmaps[i]
                 
-                # Generate overlay
+                # --- A. Generation of Base64 Image ---
                 fig = hm_obj.plot_overlay(generated_image)
-                
-                # Save as base64
                 buf = BytesIO()
                 fig.savefig(buf, format="PNG", bbox_inches='tight', pad_inches=0)
                 plt.close(fig)
                 b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
                 
-                heatmap_images.append(b64_str)
+                # --- B. Raw Data Extraction ---
+                raw_tensor = hm_obj.heatmap # PyTorch Tensor (eg. 512x512)                
+                raw_tensor = raw_tensor.unsqueeze(0).unsqueeze(0) # [1, 1, H, W]                
+                small_tensor = F.interpolate(raw_tensor, size=(64, 64), mode='bilinear', align_corners=False)                
+                raw_matrix = small_tensor.squeeze().cpu().tolist()
+
+                heatmap_data.append({
+                    "image_base64": b64_str,
+                    "raw_matrix": raw_matrix
+                })
+                
                 feature_tokens.append(InputFeature(index=i, content=clean_word, modality="text"))
 
         # 5. Output
         return AttributionOutput(
-            heatmap=heatmap_images, # LIST [img1, img2, ...]
+            heatmap=heatmap_data, # LIST OF DICTIONARIES: [{"image_base64": ..., "raw_matrix": [...]}, ...]
             generated_image=img_str_orig,
             target="image_generation",
             input_features=feature_tokens

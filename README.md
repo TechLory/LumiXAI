@@ -7,20 +7,14 @@ A modular full-stack framework designed to unify and simplify the Explainable AI
 * **Frontend**: Next.js (React), Tailwind CSS.
 
 ## Tests
-#### (gpt2-large + captum integrated gradients)
-![alt text](/readme_files/gpt2-large_captum_ig_1.png)
-#### (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - NEGATIVE
-![alt text](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_negative.png)
-#### (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - POSITIVE
-![alt text](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_positive.png)
-#### (OFA-Sys/small-stable-diffusion-v0 + DAAM) - STRONG ATTENTION SINK!!
-![alt text](/readme_files/test-stable-diffusion-attention-sink.jpg)
-#### (OFA-Sys/small-stable-diffusion-v0 + DAAM) - NO SPECIAL TOKENS (ATTENTION SINK persists)
-![alt text](/readme_files/test-stable-diffusion-attention-sink-2-special-tokens-removed.png)
-#### (dreamlike-art/dreamlike-diffusion-1.0 + DAAM) - percentile norm in plot_overlay (ATT. SINK persists)
-![alt text](/readme_files/test-stable-diffusion-attention-sink-3-new-normalization.png)
-#### (dreamlike-art/dreamlike-diffusion-1.0 + DAAM) - longer prompt
-![alt text](/readme_files/test-stable-diffusion-attention-4-long-prompt.png)
+![demo](/readme_files/demo_tesi_1.gif)
+- (gpt2-large + captum integrated gradients): [Show Image](/readme_files/gpt2-large_captum_ig_1.png)
+- (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - NEGATIVE: [Show Image](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_negative.png)
+- (distilbert-base-uncased-finetuned-sst-2-english + captum integrated gradients) - POSITIVE: [Show Image](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_positive.png)
+- (OFA-Sys/small-stable-diffusion-v0 + DAAM) - STRONG ATTENTION SINK!!: [Show Image](/readme_files/test-stable-diffusion-attention-sink.jpg)
+- (OFA-Sys/small-stable-diffusion-v0 + DAAM) - NO SPECIAL TOKENS (ATTENTION SINK persists): [Show Image](/readme_files/test-stable-diffusion-attention-sink-2-special-tokens-removed.png)
+- (dreamlike-art/dreamlike-diffusion-1.0 + DAAM) - percentile norm in plot_overlay (ATT. SINK persists): [Show Image](/readme_files/test-stable-diffusion-attention-sink-3-new-normalization.png)
+- (dreamlike-art/dreamlike-diffusion-1.0 + DAAM) - longer prompt: [Show Image](/readme_files/test-stable-diffusion-attention-4-long-prompt.png)
 
 
 ## Quick Start
