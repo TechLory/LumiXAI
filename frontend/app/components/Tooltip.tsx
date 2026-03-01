@@ -1,6 +1,6 @@
 import { log } from "console";
 
-
+// DEPRECATED !!!
 
 export default function Tooltip({ iconName, tooltipText }: { iconName?: string; tooltipText?: string }) {
 

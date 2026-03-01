@@ -1,6 +1,4 @@
-
-
-
+// Deprecated
 export default function Header() {
   return (
     <div className="mb-0 px-5">
