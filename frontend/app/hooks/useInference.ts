@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AsyncState } from "../types";
 
 export function useInference() {
+  const ipAddress = "192.168.1.23";
   const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
   const [inferenceState, setInferenceState] = useState<AsyncState>({
     status: 'idle', data: null, error: null
@@ -13,7 +14,7 @@ export function useInference() {
     setInferenceState({ status: 'running', data: null, error: null });
 
     try {
-      const res = await fetch("http://localhost:8000/api/explain", {
+      const res = await fetch(`http://${ipAddress}:8000/api/explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: inputText })

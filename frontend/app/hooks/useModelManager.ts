@@ -11,6 +11,7 @@ export interface ConfigurationState {
 }
 
 export function useModelManager() {
+  const ipAddress = "192.168.1.23";
   const [selectedSource, setSelectedSource] = useState("");
   const [modelName, setModelName] = useState("");
   const [selectedAttributor, setSelectedAttributor] = useState("");
@@ -56,7 +57,7 @@ export function useModelManager() {
     addLog(`Loading model '${modelName}' from '${selectedSource}'...`);
     
     try {
-      const modelRes = await fetch("http://localhost:8000/api/load", {
+      const modelRes = await fetch(`http://${ipAddress}:8000/api/load`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: selectedSource, model_name: modelName, device: "auto" })
@@ -78,7 +79,7 @@ export function useModelManager() {
       setConfigState(prev => ({ ...prev, step: 'setting_attributor' }));
       addLog(`Setting attributor to '${selectedAttributor}'...`);
 
-      const attrRes = await fetch("http://localhost:8000/api/set_attributor", {
+      const attrRes = await fetch(`http://${ipAddress}:8000/api/set_attributor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attributor_id: selectedAttributor })

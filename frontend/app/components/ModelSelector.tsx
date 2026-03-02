@@ -15,6 +15,7 @@ interface ModelSelectorProps {
 }
 
 export default function ModelSelector(props: ModelSelectorProps) {
+  const ipAddress = "192.168.1.23";
   const [query, setQuery] = useState(props.currentModel);
   const [results, setResults] = useState<HFModelResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -48,7 +49,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
   const fetchModels = async (searchTerm: string) => {
     setIsSearching(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/search?source=${encodeURIComponent(props.currentSource)}&q=${encodeURIComponent(searchTerm)}`);
+      const res = await fetch(`http://${ipAddress}:8000/api/search?source=${encodeURIComponent(props.currentSource)}&q=${encodeURIComponent(searchTerm)}`);
       if (res.ok) {
         const data = await res.json();
         setResults(data);
