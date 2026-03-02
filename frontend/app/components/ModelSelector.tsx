@@ -15,7 +15,8 @@ interface ModelSelectorProps {
 }
 
 export default function ModelSelector(props: ModelSelectorProps) {
-  const ipAddress = "192.168.1.23";
+  const isAppLocal = true
+  const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [query, setQuery] = useState(props.currentModel);
   const [results, setResults] = useState<HFModelResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);

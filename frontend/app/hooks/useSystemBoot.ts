@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { BootLog, Manifest, AsyncState } from "../types";
 
 export function useSystemBoot() {
-  const ipAddress = "192.168.1.23";
+  const isAppLocal = true
+  const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [bootLogs, setBootLogs] = useState<string[]>([]);
   const [systemState, setSystemState] = useState<AsyncState<Manifest>>({
     status: 'running', // Running by default since we start booting immediately
