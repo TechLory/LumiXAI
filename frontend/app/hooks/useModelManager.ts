@@ -11,7 +11,7 @@ export interface ConfigurationState {
 }
 
 export function useModelManager() {
-  const isAppLocal = true
+  const isAppLocal = false
   const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [selectedSource, setSelectedSource] = useState("");
   const [modelName, setModelName] = useState("");
