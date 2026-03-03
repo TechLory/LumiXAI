@@ -1,0 +1,29 @@
+site_name: LumiXAI Documentation
+site_description: Modular & Interactive Explainable AI Framework
+site_author: Lorenzo Gatta
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.indexes
+    - toc.integrate # Table of Contents
+  palette:
+    - scheme: slate # Dark Mode
+      primary: deep purple
+      accent: deep purple
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: ["."]
+
+nav:
+  - Home: index.md
+  - API Reference:
+    - Base Classes: api/abstract.md
+    - Wrappers: api/wrappers.md
+    - Attributors: api/attributors.md
