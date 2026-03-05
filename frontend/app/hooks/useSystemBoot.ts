@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { BootLog, Manifest, AsyncState } from "../types";
 
 export function useSystemBoot() {
-  const isAppLocal = false
+  const isAppLocal = true
   const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [bootLogs, setBootLogs] = useState<string[]>([]);
   const [systemState, setSystemState] = useState<AsyncState<Manifest>>({

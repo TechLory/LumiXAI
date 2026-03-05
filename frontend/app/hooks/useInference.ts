@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AsyncState } from "../types";
 
 export function useInference() {
-  const isAppLocal = false
+  const isAppLocal = true
   const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
   const [inferenceState, setInferenceState] = useState<AsyncState>({

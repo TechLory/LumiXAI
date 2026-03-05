@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ModelSelector from "../ModelSelector";
+import ModelSelector from "../layout/ModelSelector";
 import { ConfigurationState } from "../../hooks/useModelManager";
 
 interface ConfigurationPanelProps {

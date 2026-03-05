@@ -1,6 +1,6 @@
-import TokenExplained from "../TokenExplained";
-import TextGenView from "../TextGenView";
-import ImageGenView from "../ImageGenView";
+import TokenExplained from "../layout/TokenExplained";
+import TextGenView from "../layout/TextGenView";
+import ImageGenView from "../layout/ImageGenView";
 
 export interface OutputResult {
   target_id?: string | number;
