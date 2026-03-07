@@ -40,7 +40,7 @@ export default function InputPanel(props: InputPanelProps) {
         <div className="mt-6 bg-neutral-600/30 text-neutral-400 font-mono text-xs font-medium uppercase flex justify-between p-4 ">
           <div className="flex gap-3">
             <div>// special tokens will be: </div>
-            <div className="text-red-400">{isSpecialTokensDisabled ? "ignored" : "considered"}</div>
+            <div className="text-amber-600">{isSpecialTokensDisabled ? "ignored" : "considered"}</div>
           </div>
           <button 
             className="underline underline-offset-4 cursor-pointer hover:text-neutral-300 transition-colors" 

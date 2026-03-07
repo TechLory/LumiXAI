@@ -47,6 +47,9 @@ daam = "*"
 # --- For llvmlite
 numba = "0.59.0"
 
+# --- Storage ---
+sqlalchemy = "^2.0.48"
+
 [tool.poetry]
 package-mode = false
 
