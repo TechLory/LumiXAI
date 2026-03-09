@@ -11,7 +11,7 @@ requires-python = ">=3.11,<3.13"
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 
-# --- Core Data Science (Safe Stack) ---
+# --- Core Data Science ---
 numpy = "<2.0.0"
 pandas = "^2.2"
 scipy = "^1.10"
@@ -22,16 +22,13 @@ tqdm = "*"
 ipykernel = "*"
 jupyter = "*"
 
-# --- GUI ---
+# --- GUI & API ---
 streamlit = "^1.30"
 fastapi = "^0.128.0"
 uvicorn = "^0.40.0"
 
 # --- AI & HuggingFace ---
-#torch = "^2.2.0" # For CUDA (+macos x86_64)
-torch = {version = "^2.2.0", source = "pytorch_cuda"}
-
-## Error 'cached_download', fixed with:
+torch = "2.2.2"
 transformers = "^4.38.0"
 diffusers = "^0.27.0"
 accelerate = "^0.28.0"
@@ -39,12 +36,9 @@ huggingface-hub = "^0.22.0"
 
 # --- XAI ---
 captum = "*"
-# IGNORE DAAM ----> CUSTOM IMPLEMENTATION because of:
-## from diffusers.models.attention import CrossAttention
-## ImportError: cannot import name 'CrossAttention' from 'diffusers.models.attention'
 daam = "*" 
 
-# --- For llvmlite
+# --- Optimizations ---
 numba = "0.59.0"
 
 # --- Storage ---
@@ -57,10 +51,6 @@ package-mode = false
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[[tool.poetry.source]]
-name = "pytorch_cuda"
-url = "https://download.pytorch.org/whl/cu121"
-priority = "explicit"
 [dependency-groups]
 dev = [
     "mkdocs (>=1.6.1,<2.0.0)",
