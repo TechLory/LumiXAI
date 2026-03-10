@@ -59,60 +59,37 @@ export default function MainApp() {
               <div
                 key={job.id}
                 onClick={() => handleHistoryClick(job.id, job.status, job.prompt)}
-                className={`p-2 ${job.status === 'completed' ? ' bg-neutral-600/30 hover:bg-neutral-600/60 cursor-pointer' :
-                  job.status === 'failed' ? 'bg-red-900/10 opacity-50' :
-                    'bg-blue-900/10 cursor-wait animate-pulse'
-                  }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="text-xs text-neutral-500 font-mono">
-                    {new Date(job.created_at).toLocaleTimeString()}
-                  </div>
+                className={`bg-neutral-600/30 p-1.5
+                ${job.status === 'running' ? 'border-blue-400/10 border-2 cursor-wait' :
+                    job.status === 'failed' ? 'border-red-900/10 border-2' :
+                      'border-green-400/10 hover:border-green-400/40 border-2 cursor-pointer'
+                  }
+                `}>
+                <div className={`p-2 text-xs font-mono flex justify-between ${job.status === 'running'
+                  ? 'bg-blue-400/10 text-blue-300 animate-pulse'
+                  : job.status === 'failed'
+                    ? 'bg-red-400/10 text-red-300'
+                    : job.status === 'completed'
+                      ? 'bg-green-400/10 text-green-300'
+                      : 'bg-neutral-400/10 text-neutral-300'
+                  }`}>
+                  <div className="uppercase">// {job.status}</div>
                   <div>
                     {job.status === 'running' && <i className='bx bx-loader animate-spin text-blue-400'></i>}
-                    {job.status === 'completed' && <i className='bx bx-check text-green-500'></i>}
-                    {job.status === 'failed' && <i className='bx bx-x text-red-500'></i>}
+                    {job.execution_time_sec && <div>{job.execution_time_sec}s</div>}
                   </div>
                 </div>
-                <div className="font-mono text-sm line-clamp-2 text-neutral-200 mb-2">
-                  "{job.prompt}"
+                <div className="font-mono text-sm text-neutral-200 my-5 flex italic">
+                  <div>"</div>
+                  <div className="truncate">{job.prompt}</div>
+                  <div>"</div>
                 </div>
-                <div className="flex justify-between items-center mt-2 text-[10px] uppercase font-bold text-neutral-500">
-                  <span className="truncate max-w-30">{job.model_name.split('/').pop()}</span>
-                  {job.execution_time_sec && <span>{job.execution_time_sec}s</span>}
-                </div>
-              </div>
-            ))}
-
-
-            {jobs.map(job => (
-              <div className="bg-neutral-600/30 p-2 text-xs font-mono font-medium text-neutral-400 flex flex-col gap-1">
-                <div className="flex gap-1 text-xs text-neutral-600">
-                  <div>ID:</div>
-                  <div>{job.id}</div>
-                </div>
-
-                <div className="p-3 bg-neutral-600/40 flex gap-4 uppercase">
-                  <div>// started at</div>
+                <div className="flex justify-between text-xs font-mono w-full text-neutral-400">
+                  <div className="truncate max-w-2/3">{job.model_name.split('/').pop()}</div>
                   <div>{new Date(job.created_at).toLocaleTimeString()}</div>
                 </div>
-                <div className="p-3 bg-neutral-600/40 italic line-clamp-1">"{job.prompt}"</div>
-
-                <div className="flex p-3 bg-neutral-600/40 justify-between">
-                  <div className="flex gap-2 uppercase font-semibold">
-                    <div>//</div>
-                    <div>
-                      {job.status === 'running' && <span className="text-amber-600">Running...</span>}
-                      {job.status === 'failed' && <span className="text-red-500">Failed</span>}
-                      {job.status === 'completed' && <span className="text-green-500">Completed</span>}
-                    </div>
-                  </div>
-                  {job.execution_time_sec && <div>{job.execution_time_sec}s</div>}
-                </div>
               </div>
             ))}
-
-
 
 
 

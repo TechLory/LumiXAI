@@ -59,7 +59,7 @@ export function useInference() {
       if (!res.ok) throw new Error(data.detail || "Failed to start inference job");
 
       // 2. Got job_id -> Start polling
-      pollingIntervalRef.current = setInterval(() => pollJobStatus(data.job_id), 10000);
+      pollingIntervalRef.current = setInterval(() => pollJobStatus(data.job_id), 2000);
 
     } catch (e: any) {
       setInferenceState({ status: 'error', data: null, error: e.message });
