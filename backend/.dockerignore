@@ -9,6 +9,7 @@ venv/
 env/
 
 data/
+hf_models_cache/
 
 .git/
 .gitignore

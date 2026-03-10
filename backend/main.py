@@ -19,7 +19,7 @@ from src.attributors.captum_grad import CaptumGradientsAttributor
 from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs
 
 # --- SETUP PATHS ---
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 HF_CACHE_DIR = BASE_DIR / "hf_models_cache"
 HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 print(f"hf cache dir set to: {HF_CACHE_DIR}")

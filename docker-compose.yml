@@ -6,7 +6,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./hf_models_cache:/app/hf_models_cache
+      - ./backend/hf_models_cache:/app/hf_models_cache
     # NVIDIA GPU SUPPORT
     deploy:
       resources:
@@ -22,7 +22,7 @@ services:
       - "8001:8001"
     volumes:
       - ./backend:/app
-    command: mkdocs serve -a 0.0.0.0:8001 # Override
+    command: poetry run mkdocs serve -a 0.0.0.0:8001 # Override
   
   frontend:
     build: ./frontend
