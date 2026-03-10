@@ -1,2 +1,11 @@
-node_modules
-.next
+node_modules/
+npm-debug.log*
+
+.next/
+out/
+build/
+
+.env*.local
+
+.git/
+.gitignore
