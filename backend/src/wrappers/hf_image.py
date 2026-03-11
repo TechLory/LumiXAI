@@ -14,13 +14,17 @@ class HFImageWrapper(BaseWrapper):
         super().__init__(model_id, device)
 
     def load_model(self) -> Any:
-        print(f"Loading Stable Diffusion Pipeline: {self.model_id}...")
+        print(f"Loading Stable Diffusion Pipeline: {self.model_id}...")        
+        
         try:
-            model_id_lower = self.model_id.lower()
-            is_xl = "xl" in model_id_lower or "turbo" in model_id_lower
-            PipelineClass = StableDiffusionXLPipeline if is_xl else StableDiffusionPipeline
-
             dtype = torch.float16 if self.device != "cpu" else torch.float32
+
+            # Check if the model is XL or not by inspecting the config
+            from diffusers import DiffusionPipeline
+            config = DiffusionPipeline.load_config(self.model_id)
+            pipeline_class_name = config.get("_class_name", "")
+            is_xl = "XL" in pipeline_class_name
+            PipelineClass = StableDiffusionXLPipeline if is_xl else StableDiffusionPipeline
 
             # Load the full pipeline (UNet, VAE, Text Encoder, Scheduler)
             pipe = PipelineClass.from_pretrained(

@@ -127,11 +127,11 @@ class trace:
             m_permuted = m_2d.permute(2, 0, 1).unsqueeze(1) 
             
             m_resized = torch.nn.functional.interpolate(
-                m_permuted, 
+                m_permuted.to(torch.float32), 
                 size=(target_dim, target_dim), 
                 mode='bicubic', 
                 align_corners=False
-            )
+            ).to(m_permuted.dtype)
             
             accumulated_maps += m_resized.squeeze(1).permute(1, 2, 0)
             count += 1

@@ -20,7 +20,7 @@ class DAAMAttributor(BaseAttributor):
     Returns per-token heatmaps (Base64) AND raw 64x64 matrices for interactive UX.
     """
 
-    def attribute(self, input_data: str, target_output: Optional[int] = None) -> AttributionOutput:
+    def attribute(self, input_data: str, target_output: Optional[int] = None, **kwargs) -> AttributionOutput:
         
         if not isinstance(self.wrapper, HFImageWrapper):
              raise TypeError(f"DAAM requires HFImageWrapper, got: {type(self.wrapper)}")
@@ -59,14 +59,25 @@ class DAAMAttributor(BaseAttributor):
         heatmap_data = [] # List of dictionaries: [{"image_base64": ..., "raw_matrix": [...]}, ...]
         feature_tokens = [] 
         
-        # Ignore special tokens to avoid attention sink!
-        IGNORED_TOKENS = ["<|startoftext|>", "<|endoftext|>"]
-
+        # FILTER SPECIAL TOKENS SETUP (using tokenizer's special IDs)
+        ignore_special_tokens = kwargs.get("ignore_special_tokens", True)
+        special_ids = set()
+        if getattr(tokenizer, "all_special_ids", None):
+            special_ids.update(tokenizer.all_special_ids)
+        for attr in ["bos_token_id", "eos_token_id", "pad_token_id"]:
+            val = getattr(tokenizer, attr, None)
+            if val is not None:
+                special_ids.add(val)
+        special_ids.update([49406, 49407])
+        special_strings = ["<|startoftext|>", "<|endoftext|>"]
+        
         for i, token_id in enumerate(tokens):
             word = decoded_tokens[i]
-            
             clean_word = word.replace('</w>', '').strip()
-            if clean_word in IGNORED_TOKENS or not clean_word:
+
+            # Filtering
+            is_special = (token_id in special_ids) or (clean_word in special_strings)
+            if not clean_word or (ignore_special_tokens and is_special):
                 continue
             
             if i in token_heatmaps:
@@ -82,7 +93,7 @@ class DAAMAttributor(BaseAttributor):
                 # --- B. Raw Data Extraction ---
                 raw_tensor = hm_obj.heatmap # PyTorch Tensor (eg. 512x512)                
                 raw_tensor = raw_tensor.unsqueeze(0).unsqueeze(0) # [1, 1, H, W]                
-                small_tensor = F.interpolate(raw_tensor, size=(64, 64), mode='bilinear', align_corners=False)                
+                small_tensor = F.interpolate(raw_tensor.to(torch.float32), size=(64, 64), mode='bilinear', align_corners=False).to(raw_tensor.dtype)
                 raw_matrix = small_tensor.squeeze().cpu().tolist()
 
                 heatmap_data.append({

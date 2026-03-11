@@ -81,7 +81,7 @@ class BaseAttributor(ABC):
         self.wrapper = wrapper
 
     @abstractmethod
-    def attribute(self, input_data: Any, target_output: Any = None) -> AttributionOutput:
+    def attribute(self, input_data: Any, target_output: Any = None, **kwargs) -> AttributionOutput:
         """
         Calculates feature importance scores.
 

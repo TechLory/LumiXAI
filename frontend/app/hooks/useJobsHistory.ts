@@ -31,7 +31,7 @@ export function useJobsHistory() {
   useEffect(() => {
     fetchJobs();
     // Polling
-    const interval = setInterval(fetchJobs, 2000);
+    const interval = setInterval(fetchJobs, 5000);
     return () => clearInterval(interval);
   }, []);
 

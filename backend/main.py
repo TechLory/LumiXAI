@@ -77,6 +77,7 @@ class AttributorRequest(BaseModel):
 class ExplainRequest(BaseModel):
     text: str
     target_class: Optional[int] = None
+    ignore_special_tokens: bool = True
 
 class JobResponse(BaseModel):
     job_id: str
@@ -94,7 +95,7 @@ app.add_middleware(
 )
 
 # --- 5. BACKGROUND ---
-def run_explanation_task(job_id: str, text: str, target_class: Optional[int]):
+def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True):
     """Funzione che esegue l'XAI pesante in background."""
     start_time = time.time()
     try:
@@ -105,7 +106,11 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int]):
             raise ValueError("Modello o Attributor disconnessi durante l'esecuzione")
 
         # Esecuzione
-        output = attributor.attribute(text, target_class)
+        output = attributor.attribute(
+            input_data=text, 
+            target_output=target_class, 
+            ignore_special_tokens=ignore_special_tokens
+        )
         predicted_word = None
         
         # Formattazione Output
@@ -236,7 +241,7 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
 
     job_id = create_job(req.text, source_name, model_name, attributor_name)
     
-    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class)
+    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens)
     
     return {"job_id": job_id, "status": "running"}
 

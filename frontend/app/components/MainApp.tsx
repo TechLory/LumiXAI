@@ -190,6 +190,7 @@ export default function MainApp() {
                   onExplainClick={handleExplain}
                   inferenceStatus={inferenceState.status}
                   isConfigReady={configState.status === 'success'}
+                  selectedAttributor={selectedAttributor}
                 />
               </div>
             ) : null}

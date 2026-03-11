@@ -3,9 +3,10 @@ import { useState } from "react";
 interface InputPanelProps {
   inputText: string;
   setInputText: (text: string) => void;
-  onExplainClick: () => void;
+  onExplainClick: (ignoreSpecialTokens: boolean) => void;
   inferenceStatus?: 'idle' | 'running' | 'success' | 'error' | string;
   isConfigReady: boolean;
+  selectedAttributor: string;
 }
 
 export default function InputPanel(props: InputPanelProps) {
@@ -37,22 +38,23 @@ export default function InputPanel(props: InputPanelProps) {
         </div>
 
         {/* SPECIAL TOKENS TOGGLE */}
-        <div className="mt-6 bg-neutral-600/30 text-neutral-400 font-mono text-xs font-medium uppercase flex justify-between p-4 ">
-          <div className="flex gap-3">
-            <div>// special tokens will be: </div>
-            <div className="text-amber-600">{isSpecialTokensDisabled ? "ignored" : "considered"}</div>
+        {props.selectedAttributor === "daam" && (
+          <div className="mt-6 bg-neutral-600/30 text-neutral-400 font-mono text-xs font-medium uppercase flex justify-between p-4 ">
+            <div>// DAAM will <span className="text-yellow-600">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
+            <button
+              className="underline underline-offset-4 cursor-pointer hover:text-neutral-300 transition-colors"
+              onClick={() => setIsSpecialTokensDisabled(!isSpecialTokensDisabled)}
+            >
+              {isSpecialTokensDisabled ? "Consider" : "Ignore"} Special Tokens
+            </button>
           </div>
-          <button 
-            className="underline underline-offset-4 cursor-pointer hover:text-neutral-300 transition-colors" 
-            onClick={() => setIsSpecialTokensDisabled(!isSpecialTokensDisabled)}
-          >{isSpecialTokensDisabled ? "Consider" : "Ignore"} Special Tokens</button>
-        </div>
+        )}
 
         {/* RUN BUTTON */}
         <div className="mt-0">
           <button
             className="bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700/50 text-blue-400 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-            onClick={props.onExplainClick}
+            onClick={() => props.onExplainClick(isSpecialTokensDisabled)}
             disabled={isButtonDisabled}
           >
             {!props.isConfigReady ? (

@@ -12,7 +12,7 @@ class CaptumGradientsAttributor(BaseAttributor):
     Supports both classification and autoregressive text generation models by adapting the forward function and attribution process accordingly.
     """
 
-    def attribute(self, input_data: str, target_output: Optional[int] = None) -> AttributionOutput:
+    def attribute(self, input_data: str, target_output: Optional[int] = None, **kwargs) -> AttributionOutput:
         
         # --- Dispatcher ---
         if isinstance(self.wrapper, HFTextGenerationWrapper):
