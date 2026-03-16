@@ -33,11 +33,23 @@ The framework includes a fully configured Docker ecosystem that launches the Fas
 **Execution:**
 Navigate to the root directory of the project and run:
 
+Without GPU support (CPU only):
 ```bash
-docker compose up --build
+docker compose up -d --build
+```
+With GPU (nvidia) support:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+*(Note: The GPU command will fail if the host machine does not have an NVIDIA GPU and the NVIDIA Container Toolkit installed..)*
+
+**To stop the application:**
+```bash
+docker compose down
 ```
 
-If your machine does not have an NVIDIA GPU, comment out the `deploy` block under the `backend` service in the `docker-compose.yml` file to force CPU execution.
+
+
 
 **Services Architecture:**
 - Frontend Interface: `http://localhost:3000`
