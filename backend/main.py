@@ -1,6 +1,8 @@
 import os
 import time
 import torch
+import gc
+import threading
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +19,8 @@ from src.attributors.daam import DAAMAttributor
 from src.attributors.captum_grad import CaptumGradientsAttributor
 
 from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_all_jobs
+
+gpu_lock = threading.Lock()
 
 # --- SETUP PATHS ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -96,55 +100,56 @@ app.add_middleware(
 
 # --- 5. BACKGROUND ---
 def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True):
-    """Funzione che esegue l'XAI pesante in background."""
+    """This function runs in the background to execute the attribution and update the job status in the database."""
     start_time = time.time()
-    try:
-        attributor = app_state["active_attributor"]
-        wrapper = app_state["active_wrapper"]
-        
-        if not attributor or not wrapper:
-            raise ValueError("Modello o Attributor disconnessi durante l'esecuzione")
+    with gpu_lock:
+        try:
+            attributor = app_state["active_attributor"]
+            wrapper = app_state["active_wrapper"]
 
-        # Esecuzione
-        output = attributor.attribute(
-            input_data=text, 
-            target_output=target_class, 
-            ignore_special_tokens=ignore_special_tokens
-        )
-        predicted_word = None
-        
-        # Formattazione Output
-        if output.target == "text_generation":
-            payload = {
-                "target_id": "text_generation",
-                "predicted_token": None,
-                "tokens": [], 
-                "scores": output.heatmap,
-                "generated_image": None
+            if not attributor or not wrapper:
+                raise ValueError("Modello o Attributor disconnessi durante l'esecuzione")
+
+            # Esecuzione
+            output = attributor.attribute(
+                input_data=text, 
+                target_output=target_class, 
+                ignore_special_tokens=ignore_special_tokens
+            )
+            predicted_word = None
+
+            # Formattazione Output
+            if output.target == "text_generation":
+                payload = {
+                    "target_id": "text_generation",
+                    "predicted_token": None,
+                    "tokens": [], 
+                    "scores": output.heatmap,
+                    "generated_image": None
+                }
+            else:
+                if hasattr(wrapper, "tokenizer") and isinstance(output.target, int):
+                    try:
+                        predicted_word = wrapper.tokenizer.decode([output.target])
+                    except:
+                        pass
+
+                payload = {
+                    "target_id": output.target,
+                    "predicted_token": predicted_word,
+                    "tokens": [f.content for f in output.input_features],
+                    "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap,
+                    "generated_image": output.generated_image
             }
-        else:
-            if hasattr(wrapper, "tokenizer") and isinstance(output.target, int):
-                try:
-                    predicted_word = wrapper.tokenizer.decode([output.target])
-                except:
-                    pass
 
-            payload = {
-                "target_id": output.target,
-                "predicted_token": predicted_word,
-                "tokens": [f.content for f in output.input_features],
-                "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap,
-                "generated_image": output.generated_image
-            }
+            end_time = time.time()
+            # Save in DB
+            update_job_success(job_id, payload, start_time, end_time)
 
-        end_time = time.time()
-        # Save in DB
-        update_job_success(job_id, payload, start_time, end_time)
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        update_job_failed(job_id, str(e))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            update_job_failed(job_id, str(e))
 
 
 # --- 6. ENDPOINTS ---
@@ -168,6 +173,18 @@ def search_models(source: str, q: str):
 @app.post("/api/load")
 def load_model(req: LoadRequest):
     try:
+        # Clean up VRAM to avoid thrashing when switching models.
+        if app_state.get("active_wrapper") is not None:
+            print("Cleaning up memory and VRAM...")
+            del app_state["active_wrapper"]
+            del app_state["active_attributor"]
+            app_state["active_wrapper"] = None
+            app_state["active_attributor"] = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+        
         real_device = get_optimal_device(req.device)
         wrapper_instance = None
         wrapper_name = "unknown"
@@ -210,6 +227,31 @@ def load_model(req: LoadRequest):
 
     except Exception as e:
         raise HTTPException(500, str(e))
+
+@app.post("/api/unload")
+def unload_model():
+    """Release VRAM and delete model references to allow clean loading of a new model."""
+    with gpu_lock:
+        try:
+            if app_state.get("active_wrapper") is not None:
+                del app_state["active_wrapper"]
+                del app_state["active_attributor"]
+                app_state["active_wrapper"] = None
+                app_state["active_attributor"] = None
+                app_state["active_source"] = None
+                app_state["active_model_name"] = None
+                
+                gc.collect()
+                
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+                    
+                return {"status": "success", "message": "Cleaned up memory and VRAM. Model unloaded."}
+            else:
+                return {"status": "success", "message": "No model in memory to unload."}
+        except Exception as e:
+            raise HTTPException(500, f"Error occurred while cleaning up memory: {str(e)}")
 
 @app.post("/api/set_attributor")
 def set_attributor(req: AttributorRequest):

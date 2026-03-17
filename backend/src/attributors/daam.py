@@ -34,14 +34,27 @@ class DAAMAttributor(BaseAttributor):
 
         # 1. Tracing
         with trace(pipeline) as tc:
-
             model_id_lower = self.wrapper.model_id.lower()
-            is_turbo = "turbo" in model_id_lower
-
-            # FIX: Error on turbo models due to low inference steps and guidance scale.
-            inference_steps = 4 if is_turbo else 30
-            guidance_scale = 0.0 if is_turbo else 7.5
-            neg_prompt = None if is_turbo else "blurry, low quality, distortion, ugly, bad anatomy, watermark, text"
+            
+            # --- HOW TO ADD CUSTOM MODELS ---
+            # If your model crashes or requires a specific number of steps (e.g., LCM models),
+            # add a new 'elif' condition here checking for the model's name in 'model_id_lower'.
+            # Example for LCM: 
+            # elif "lcm" in model_id_lower: 
+            #     inference_steps = 4; guidance_scale = 1.5; neg_prompt = None
+            # --------------------------------
+            if "sdxl-turbo" in model_id_lower:
+                inference_steps = 4
+                guidance_scale = 0.0
+                neg_prompt = None
+            elif "turbo" in model_id_lower:
+                inference_steps = 1
+                guidance_scale = 0.0
+                neg_prompt = None
+            else:
+                inference_steps = 30
+                guidance_scale = 7.5
+                neg_prompt = "blurry, low quality, distortion, ugly, bad anatomy, watermark, text"
 
             pipeline_args = {
                 "prompt": prompt,

@@ -43,7 +43,7 @@ export default function MainApp() {
 
       <Navbar />
 
-      <div className="flex flex-1 overflow-hidden gap-2 min-h-0 w-10/12 m-auto"> {/* FIX WIDTH */}
+      <div className="flex flex-1 overflow-hidden gap-2 min-h-0 w-full xl:w-10/12 m-auto"> {/* FIX WIDTH */}
 
         {/* SIDE BAR */}
         <aside className="bg-neutral-800 p-6 w-[25%] shrink-0 overflow-y-auto">

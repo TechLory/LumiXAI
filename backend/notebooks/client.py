@@ -39,6 +39,16 @@ class Client:
         print(f"{data.get('message')}")
         return data
 
+    def free_memory(self) -> Dict[str, Any]:
+        """
+        Request the backend to free VRAM by unloading the current model and clearing caches.
+        """
+        print("Requesting VRAM cleanup...")
+        res = requests.post(f"{self.base_url}/api/unload")
+        res.raise_for_status()
+        data = res.json()
+        print(f"{data.get('message')}")
+        return data
 
     def run_smart_batch(self, jobs: List[Dict[str, Any]], poll_interval: float = 2.0, sort_strategy: str = "fastest_first") -> List[Dict[str, Any]]:
         """

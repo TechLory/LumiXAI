@@ -16,6 +16,16 @@ Moving beyond static heatmaps, this framework provides a **highly interactive, b
 * **Plug-and-Play Architecture:** Built with a Registry Pattern, allowing researchers to seamlessly add new models or attribution algorithms.
 * **Hardware Auto-Detection:** Smart fallback routing across CUDA (NVIDIA), MPS (Apple Silicon), and CPU.
 
+### Supported Models
+LumiXAI is designed with a dynamic routing heuristic that provides out-of-the-box support for the most widely used model families on the Hugging Face Hub:
+
+* **Standard Image Generation:** Stable Diffusion 1.5, 2.1, and SDXL 1.0 (defaults to 30 inference steps with CFG enabled).
+* **Fast/Distilled Image Generation:** SD-Turbo (1-step) and SDXL-Turbo (4-steps) with dynamic CFG disabling to prevent inference crashes.
+* **Text Classification:** BERT, DistilBERT, RoBERTa, and compatible transformer architectures.
+* **Text Generation:** GPT-2 family and compatible autoregressive models.
+
+*(Note: Models requiring highly specific generative hyperparameters, such as LCMs or Stable Diffusion 3, are not officially supported out-of-the-box but can be easily integrated by extending the wrapper logic in `src/attributors/daam.py`).*
+
 ---
 
 ## Getting Started

@@ -7,6 +7,11 @@ services:
     volumes:
       - ./backend:/app
       - ./backend/hf_models_cache:/app/hf_models_cache
+    environment:
+      - HF_HOME=/app/hf_models_cache
+      - TRANSFORMERS_CACHE=/app/hf_models_cache
+      - HUGGINGFACE_HUB_CACHE=/app/hf_models_cache
+      - HF_HUB_CACHE=/app/hf_models_cache
   
   docs:
     build: ./backend
