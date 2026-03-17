@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 from typing import Optional, List
 import matplotlib
+from prompt_toolkit import prompt
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 import torch
@@ -34,16 +35,26 @@ class DAAMAttributor(BaseAttributor):
         # 1. Tracing
         with trace(pipeline) as tc:
 
-            # Negative Prompt
-            neg_prompt = "blurry, low quality, distortion, ugly, bad anatomy, watermark, text"
+            model_id_lower = self.wrapper.model_id.lower()
+            is_turbo = "turbo" in model_id_lower
 
-            output = pipeline(
-                prompt, 
-                negative_prompt=neg_prompt,
-                num_inference_steps=30
-            )
+            # FIX: Error on turbo models due to low inference steps and guidance scale.
+            inference_steps = 4 if is_turbo else 30
+            guidance_scale = 0.0 if is_turbo else 7.5
+            neg_prompt = None if is_turbo else "blurry, low quality, distortion, ugly, bad anatomy, watermark, text"
+
+            pipeline_args = {
+                "prompt": prompt,
+                "num_inference_steps": inference_steps,
+                "guidance_scale": guidance_scale
+            }
+
+            if neg_prompt is not None:
+                pipeline_args["negative_prompt"] = neg_prompt
+
+            output = pipeline(**pipeline_args)
+
             generated_image = output.images[0]
-            # Call the function that returns the dictionary {idx: map}
             token_heatmaps = tc.compute_heat_maps()
 
         # 2. Tokenizing to understand the words

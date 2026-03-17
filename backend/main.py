@@ -16,7 +16,7 @@ from src.wrappers.hf_image import HFImageWrapper
 from src.attributors.daam import DAAMAttributor
 from src.attributors.captum_grad import CaptumGradientsAttributor
 
-from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs
+from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_all_jobs
 
 # --- SETUP PATHS ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -257,3 +257,12 @@ def get_job_status(job_id: str):
     if not job:
         raise HTTPException(404, "Job not found")
     return job
+
+@app.delete("/api/jobs")
+def clear_all_jobs():
+    """Delete all jobs and their associated result files."""
+    try:
+        delete_all_jobs()
+        return {"status": "success", "message": "Database and result files cleared."}
+    except Exception as e:
+        raise HTTPException(500, f"Error occurred while clearing the database: {str(e)}")

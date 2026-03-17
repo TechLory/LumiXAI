@@ -36,7 +36,9 @@ class HFImageWrapper(BaseWrapper):
             )
             
             if self.device == "cuda":
-                pipe.enable_sequential_cpu_offload()
+                # !! -- TO AVOID ERROR: RuntimeError: Tensor on device meta is not on the expected device cuda:0! -- !!
+                # Moving the entire pipeline to GPU. Ensure to have enough VRAM for the model you are loading!
+                pipe.to("cuda")
                 if is_xl:
                     pipe.enable_vae_tiling()
             elif self.device == "mps":

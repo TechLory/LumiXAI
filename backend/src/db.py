@@ -131,3 +131,22 @@ def get_all_jobs():
         }
         for j in jobs
     ]
+
+def delete_all_jobs():
+    """Empty the job table and remove JSON result files."""
+    db = SessionLocal()
+    try:
+        if RESULTS_DIR.exists():
+            for file_path in RESULTS_DIR.glob("*.json"):
+                try:
+                    file_path.unlink()
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+        
+        db.query(Job).delete()
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()

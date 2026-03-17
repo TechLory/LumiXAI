@@ -28,6 +28,18 @@ class Client:
         res.raise_for_status()
         return res.json()
 
+    def clear_history(self) -> Dict[str, Any]:
+        """
+        Clear all jobs from the database and delete associated JSON result files.
+        """
+        print("Requesting database and file cleanup...")
+        res = requests.delete(f"{self.base_url}/api/jobs")
+        res.raise_for_status()
+        data = res.json()
+        print(f"{data.get('message')}")
+        return data
+
+
     def run_smart_batch(self, jobs: List[Dict[str, Any]], poll_interval: float = 2.0, sort_strategy: str = "fastest_first") -> List[Dict[str, Any]]:
         """
         Run a batch of jobs with smart grouping and optional sorting.
