@@ -1,3 +1,11 @@
+"""Database management and asynchronous job tracking module.
+
+This module handles the persistence layer of the LumiXAI framework using SQLAlchemy and SQLite.
+It utilizes a hybrid storage approach: lightweight metadata (status, timestamps, configuration) 
+is stored in the SQLite database, while heavy attribution payloads (e.g., matrices, images) 
+are saved as independent JSON files to prevent database bloat.
+"""
+
 import json
 import uuid
 import time
@@ -20,12 +28,26 @@ engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread"
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- MODEL (Tabella del DB) ---
 class Job(Base):
+    """SQLAlchemy ORM Model representing an asynchronous explanation job.
+
+    Attributes:
+        id (str): The unique UUID identifier for the job.
+        status (str): The current state of the job ("running", "completed", "failed").
+        prompt (str): The input text prompt provided by the user.
+        source_name (str): The origin of the model (e.g., "huggingface").
+        model_name (str): The identifier of the model being explained.
+        attributor_name (str): The identifier of the explanation algorithm used.
+        created_at (datetime.datetime): The UTC timestamp when the job was initialized.
+        completed_at (datetime.datetime): The UTC timestamp when the job finished processing.
+        execution_time_sec (float): The total execution time in seconds.
+        error_message (str): The error traceback if the job failed.
+        result_file (str): The filename of the JSON payload saved on disk.
+    """
     __tablename__ = "jobs"
 
     id = Column(String, primary_key=True, index=True)
-    status = Column(String, default="running") # "running", "completed", "failed"
+    status = Column(String, default="running") 
     prompt = Column(String, nullable=False)
     source_name = Column(String, nullable=False) 
     model_name = Column(String, nullable=False)
@@ -40,7 +62,17 @@ Base.metadata.create_all(bind=engine)
 
 # --- HELPER FUNCTIONS ---
 def create_job(prompt: str, source_name: str, model_name: str, attributor_name: str) -> str:
-    """Crea un nuovo Job in stato 'running' e restituisce il suo ID."""
+    """Initializes a new job record in the database.
+
+    Args:
+        prompt (str): The input text provided by the user.
+        source_name (str): The registry source of the model.
+        model_name (str): The specific model ID.
+        attributor_name (str): The name of the attribution algorithm.
+
+    Returns:
+        str: The generated unique UUID representing the job.
+    """
     job_id = str(uuid.uuid4())
     db = SessionLocal()
     new_job = Job(
@@ -56,7 +88,17 @@ def create_job(prompt: str, source_name: str, model_name: str, attributor_name: 
     return job_id
 
 def update_job_success(job_id: str, payload: dict, start_time: float, end_time: float):
-    """Salva il payload pesante in JSON e aggiorna il DB a 'completed'."""
+    """Marks a job as completed and persists its output payload.
+
+    To optimize database performance, the heavy payload is dumped into a local JSON file 
+    while only the reference filename is stored in the SQLite row.
+
+    Args:
+        job_id (str): The target job's UUID.
+        payload (dict): The serialized attribution results.
+        start_time (float): The timestamp when the inference started.
+        end_time (float): The timestamp when the inference concluded.
+    """
     file_path = RESULTS_DIR / f"{job_id}.json"
     with open(file_path, "w") as f:
         json.dump(payload, f)
@@ -72,7 +114,12 @@ def update_job_success(job_id: str, payload: dict, start_time: float, end_time: 
     db.close()
 
 def update_job_failed(job_id: str, error_msg: str):
-    """Segna il Job come fallito."""
+    """Marks a job as failed and records the error traceback.
+
+    Args:
+        job_id (str): The target job's UUID.
+        error_msg (str): The stringified exception or error traceback.
+    """
     db = SessionLocal()
     job = db.query(Job).filter(Job.id == job_id).first()
     if job:
@@ -82,8 +129,18 @@ def update_job_failed(job_id: str, error_msg: str):
         db.commit()
     db.close()
 
-def get_job(job_id: str):
-    """Recupera un Job (e il suo payload se completato)."""
+def get_job(job_id: str) -> dict | None:
+    """Retrieves a specific job and its associated payload.
+
+    If the job is marked as completed, this function automatically reads 
+    the linked JSON file from the disk and injects it into the returned dictionary.
+
+    Args:
+        job_id (str): The requested job's UUID.
+
+    Returns:
+        dict | None: A dictionary containing the job metadata and payload, or None if not found.
+    """
     db = SessionLocal()
     job = db.query(Job).filter(Job.id == job_id).first()
     db.close()
@@ -112,8 +169,15 @@ def get_job(job_id: str):
                 
     return job_data
 
-def get_all_jobs():
-    """Recupera la lista di tutti i Job (senza i payload pesanti)."""
+def get_all_jobs() -> list:
+    """Retrieves metadata for all registered jobs.
+    
+    This function excludes the heavy payload files to ensure fast API responses 
+    when populating history sidebars or summary dashboards.
+
+    Returns:
+        list: A chronological list of dictionaries containing job metadata (newest first).
+    """
     db = SessionLocal()
     jobs = db.query(Job).order_by(Job.created_at.desc()).all()
     db.close()
@@ -133,7 +197,11 @@ def get_all_jobs():
     ]
 
 def delete_all_jobs():
-    """Empty the job table and remove JSON result files."""
+    """Wipes the database table and purges all local JSON result files.
+
+    Raises:
+        Exception: If a database transaction fails or file deletion encounters an OS error.
+    """
     db = SessionLocal()
     try:
         if RESULTS_DIR.exists():

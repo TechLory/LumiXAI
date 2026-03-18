@@ -1,17 +1,21 @@
-# XAI Attributors
+# Attribution Algorithms
 
-Attributors contain the algorithmic logic to interpret the model's decisions. They query the wrapper's internal state (gradients, attention maps) and format the results for interactive visualization.
+The `attributors` module contains the concrete implementations of Explainable AI algorithms. These classes inherit from `BaseAttributor` and are responsible for deeply inspecting the active model wrapper to extract feature importance scores (e.g., gradients or attention weights).
 
 ## Captum Integrated Gradients
-Used primarily for NLP tasks (Text Generation and Classification). It computes the integral of gradients with respect to the input embeddings along a straight path from a baseline to the actual input. For autoregressive generation, this is applied iteratively per generated token.
+
+Captum is used for text-based modalities. This attributor dynamically switches between a standard sequence classification pipeline and a complex, step-by-step autoregressive generation pipeline based on the model loaded.
 
 ::: src.attributors.captum_grad.CaptumGradientsAttributor
     options:
       show_root_heading: false
+      show_root_toc_entry: false
 
 ## Diffusion Attentive Attribution Maps (DAAM)
-Designed specifically for Text-to-Image diffusion models. It intercepts and aggregates the cross-attention maps during the denoising steps to create a spatial heatmap linking specific prompt words to regions in the generated image.
+
+DAAM is specialized for Text-to-Image diffusion models. It intercepts cross-attention maps during the denoising process, allowing the framework to attribute specific pixel regions to exact prompt tokens.
 
 ::: src.attributors.daam.DAAMAttributor
     options:
       show_root_heading: false
+      show_root_toc_entry: false

@@ -9,6 +9,7 @@ The `BaseWrapper` class is responsible for loading the model weights and exposin
 ::: src.abstract.BaseWrapper
     options:
       show_root_heading: false
+      show_root_toc_entry: false
 
 ## BaseAttributor
 
@@ -17,3 +18,4 @@ The `BaseAttributor` class defines the interface for all Explainable AI methods.
 ::: src.abstract.BaseAttributor
     options:
       show_root_heading: false
+      show_root_toc_entry: false

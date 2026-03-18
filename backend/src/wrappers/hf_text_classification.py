@@ -4,15 +4,31 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from ..abstract import BaseWrapper
 
 class HFTextClassificationWrapper(BaseWrapper):
-    """
-    Wrapper for Text Classification models (e.g., BERT, RoBERTa).
-    Uses AutoModelForSequenceClassification from HuggingFace.
+    """Wrapper for Text Classification models (e.g., BERT, RoBERTa).
+    
+    This class utilizes Hugging Face's `AutoModelForSequenceClassification` 
+    to handle standardized classification tasks, automatically managing 
+    tokenization padding and inference logits extraction.
     """
 
     def __init__(self, model_id: str, device: str = "cpu"):
+        """Initializes the wrapper and triggers model loading.
+
+        Args:
+            model_id (str): The Hugging Face Hub ID or local path.
+            device (str, optional): The target device ("cpu", "cuda", "mps"). Defaults to "cpu".
+        """
         super().__init__(model_id, device)
 
     def load_model(self) -> Any:
+        """Loads the sequence classification model and its corresponding tokenizer.
+
+        Automatically assigns the EOS token as the PAD token if the latter is missing, 
+        ensuring compatibility with batch processing.
+
+        Returns:
+            Any: The loaded `AutoModelForSequenceClassification` PyTorch module.
+        """
         print(f"Loading HF Classification Model: {self.model_id}...")
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
@@ -28,11 +44,15 @@ class HFTextClassificationWrapper(BaseWrapper):
         return model
 
     def generate(self, input_data: Union[str, Dict[str, torch.Tensor]]) -> torch.Tensor:
+        """Performs a forward pass to compute classification logits.
+
+        Args:
+            input_data (Union[str, Dict[str, torch.Tensor]]): Either a raw text string 
+                to be tokenized, or a dictionary of pre-tokenized tensors.
+
+        Returns:
+            torch.Tensor: The output logits tensor of shape `[Batch, NumClasses]`.
         """
-        Input: Text string or tokenized inputs
-        Output: Logits [Batch, NumClasses]
-        """
-        # If a string is provided, tokenize it
         if isinstance(input_data, str):
             inputs = self.tokenizer(
                 input_data, 
@@ -49,4 +69,9 @@ class HFTextClassificationWrapper(BaseWrapper):
         return outputs.logits
 
     def get_embedding_layer(self) -> torch.nn.Module:
+        """Retrieves the input embedding layer of the transformer.
+
+        Returns:
+            torch.nn.Module: The PyTorch embedding layer.
+        """
         return self.model.get_input_embeddings()

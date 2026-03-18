@@ -5,16 +5,28 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from ..abstract import BaseWrapper
 
 class HFTextGenerationWrapper(BaseWrapper):
-    """
-    Wrapper for Causal Language Models (e.g., GPT-2, Llama, Gemma).
-    Uses AutoModelForCausalLM from HuggingFace.
-    Supports multi-token generation and probability extraction.
+    """Wrapper for Causal Language Models (e.g., GPT-2, Llama, Qwen).
+    
+    This class utilizes Hugging Face's `AutoModelForCausalLM` and implements specialized 
+    methods for autoregressive decoding, specifically designed to extract step-by-step 
+    probabilities and logits required for XAI attribution loops.
     """
 
     def __init__(self, model_id: str, device: str = "cpu"):
+        """Initializes the wrapper and triggers model loading.
+
+        Args:
+            model_id (str): The Hugging Face Hub ID or local path.
+            device (str, optional): The target device ("cpu", "cuda", "mps"). Defaults to "cpu".
+        """
         super().__init__(model_id, device)
 
     def load_model(self) -> Any:
+        """Loads the causal language model and its corresponding tokenizer.
+
+        Returns:
+            Any: The loaded `AutoModelForCausalLM` PyTorch module.
+        """
         print(f"Loading HF Generation Model: {self.model_id}...")
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
@@ -30,34 +42,35 @@ class HFTextGenerationWrapper(BaseWrapper):
         return model
 
     def generate_text(self, prompt: str, max_new_tokens: int = 20) -> Tuple[str, List[str], List[float]]:
-        """
-        Generates a sequence of text starting from the prompt.
+        """Generates a sequence of text deterministically and extracts token probabilities.
+
+        Args:
+            prompt (str): The initial text context.
+            max_new_tokens (int, optional): The maximum number of tokens to generate. Defaults to 20.
+
         Returns:
-        1. Full generated text string
-        2. List of generated token strings
-        3. List of probabilities (0.0 - 1.0) for each generated token
+            Tuple[str, List[str], List[float]]: A tuple containing:
+                - The full generated text string (excluding the prompt).
+                - A list of individual generated token strings.
+                - A list of float probabilities (0.0 - 1.0) for each generated token.
         """
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
         input_length = inputs.input_ids.shape[1]
 
-        # Generate token IDs
         with torch.no_grad():
             output_ids = self.model.generate(
                 **inputs, 
                 max_new_tokens=max_new_tokens, 
-                do_sample=False,  # Deterministic for reproducibility in XAI
+                do_sample=False, 
                 pad_token_id=self.tokenizer.pad_token_id
             )
         
-        # Extract only the new tokens
         generated_ids = output_ids[0][input_length:]
         full_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
         
-        # Re-run forward pass to get probabilities for the generated sequence
         probs = []
         tokens_text = []
 
-        # Step-by-step iteration to extract probability of the chosen token
         current_input_ids = inputs.input_ids        
         for token_id in generated_ids:
             with torch.no_grad():
@@ -65,25 +78,25 @@ class HFTextGenerationWrapper(BaseWrapper):
                 next_token_logits = outputs.logits[:, -1, :]
                 next_token_probs = F.softmax(next_token_logits, dim=-1)
                 
-                # Get prob of the actual token chosen
                 token_prob = next_token_probs[0, token_id].item()
                 probs.append(token_prob)
                 
-                # Decode single token
                 token_str = self.tokenizer.decode([token_id])
                 tokens_text.append(token_str)
                 
-                # Append to input for next step
                 current_input_ids = torch.cat([current_input_ids, token_id.unsqueeze(0).unsqueeze(0)], dim=1)
 
         return full_text, tokens_text, probs
 
     def generate(self, input_data: Union[str, Dict[str, torch.Tensor]]) -> torch.Tensor:
+        """Performs a single forward pass to extract next-token logits.
+
+        Args:
+            input_data (Union[str, Dict[str, torch.Tensor]]): Raw text or tokenized dictionary.
+
+        Returns:
+            torch.Tensor: Logits for the next token prediction, shape `[Batch, VocabSize]`.
         """
-        Input: Text string or tokenized inputs
-        Output: Logits for next token [Batch, VocabSize]
-        """
-        # If a string is provided, tokenize it
         if isinstance(input_data, str):
             inputs = self.tokenizer(
                 input_data, 
@@ -97,22 +110,29 @@ class HFTextGenerationWrapper(BaseWrapper):
         with torch.no_grad():
             outputs = self.model(**inputs)
         
-        # Extract logits only for the last token in the sequence
-        # outputs.logits shape is [Batch, SeqLen, VocabSize]
         next_token_logits = outputs.logits[:, -1, :]
         
         return next_token_logits
     
     def forward_func(self, input_embeds: torch.Tensor, attention_mask: torch.Tensor = None) -> torch.Tensor: # type: ignore
+        """Adapter forward function required by Captum Integrated Gradients.
+
+        Bypasses the standard tokenizer input and processes continuous embedding tensors directly.
+
+        Args:
+            input_embeds (torch.Tensor): Continuous input embeddings.
+            attention_mask (torch.Tensor, optional): Standard attention mask. Defaults to None.
+
+        Returns:
+            torch.Tensor: Logits of the last token (next-token prediction).
         """
-        Forward function compatible with Captum.
-        Takes embeddings, returns logits for the LAST token position.
-        """
-        # Captum passes inputs_embeds directly
         outputs = self.model(inputs_embeds=input_embeds, attention_mask=attention_mask)
-        
-        # Return logits of the last token (next-token prediction)
         return outputs.logits[:, -1, :]
 
     def get_embedding_layer(self) -> torch.nn.Module:
+        """Retrieves the input embedding layer of the causal LM.
+
+        Returns:
+            torch.nn.Module: The PyTorch embedding layer.
+        """
         return self.model.get_input_embeddings()

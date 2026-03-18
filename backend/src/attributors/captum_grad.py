@@ -7,14 +7,25 @@ from ..schema import AttributionOutput, InputFeature
 from ..wrappers.hf_text_generation import HFTextGenerationWrapper
 
 class CaptumGradientsAttributor(BaseAttributor):
-    """
-    Universal Attributor that uses Captum Integrated Gradients.
-    Supports both classification and autoregressive text generation models by adapting the forward function and attribution process accordingly.
+    """Universal Attributor utilizing Captum Integrated Gradients.
+    
+    This class supports both text classification and autoregressive text generation models. 
+    It acts as a dynamic dispatcher: depending on the injected Wrapper type, it adapts 
+    the forward function and the attribution process to handle either single-pass 
+    classification or step-by-step token generation.
     """
 
     def attribute(self, input_data: str, target_output: Optional[int] = None, **kwargs) -> AttributionOutput:
-        
-        # --- Dispatcher ---
+        """Dispatches the attribution request to the appropriate internal method based on the model type.
+
+        Args:
+            input_data (str): The raw input text prompt.
+            target_output (Optional[int], optional): The target class index (for classification only). Defaults to None.
+            **kwargs: Additional parameters for the attribution process.
+
+        Returns:
+            AttributionOutput: The structured attribution results.
+        """
         if isinstance(self.wrapper, HFTextGenerationWrapper):
             return self._attribute_generative(input_data)
         else:
@@ -24,13 +35,20 @@ class CaptumGradientsAttributor(BaseAttributor):
     # 1. CLASSIFICATION (Standard IG)
     # =========================================================
     def _attribute_classification(self, input_data: str, target_output: Optional[int]) -> AttributionOutput:
+        """Performs Integrated Gradients attribution for sequence classification models.
+
+        Args:
+            input_data (str): The input text to classify.
+            target_output (Optional[int]): The specific class to attribute towards. If None, the predicted class is used.
+
+        Returns:
+            AttributionOutput: A 1D heatmap mapping input tokens to their importance scores.
+        """
         wrapper = self.wrapper
         inputs = wrapper.tokenizer(input_data, return_tensors="pt", padding=True, truncation=True).to(wrapper.device) # pyright: ignore[reportAttributeAccessIssue]
         
-        # Calculate Embeddings
-        embeddings = wrapper.get_embedding_layer()(inputs["input_ids"]) # [1, Seq, Hidden]
+        embeddings = wrapper.get_embedding_layer()(inputs["input_ids"]) 
 
-        # Embeddings -> Logits
         def model_forward(inputs_embeds, mask):
             inputs_embeds = inputs_embeds.contiguous()
             return wrapper.model(inputs_embeds=inputs_embeds, attention_mask=mask).logits
@@ -41,7 +59,6 @@ class CaptumGradientsAttributor(BaseAttributor):
             logits = wrapper.model(**inputs).logits
             target_output = torch.argmax(logits, dim=1).item() # pyright: ignore[reportAssignmentType]
 
-        # Attribution
         attributions = ig.attribute(
             inputs=embeddings, 
             target=target_output,
@@ -55,21 +72,29 @@ class CaptumGradientsAttributor(BaseAttributor):
     # 2. GENERATION (Autoregressive IG)
     # =========================================================
     def _attribute_generative(self, prompt: str) -> AttributionOutput:
+        """Performs step-by-step Integrated Gradients for autoregressive text generation.
+
+        This method analyzes the causal effect of the evolving context on each newly 
+        generated token. It iteratively updates the input embeddings and computes 
+        the attribution for the next token in the sequence.
+
+        Args:
+            prompt (str): The initial user prompt.
+
+        Returns:
+            AttributionOutput: A complex heatmap containing an array of attribution traces for each generated step.
+        """
         wrapper = self.wrapper
         print(f"Captum IG: Analyzing '{prompt}' on {wrapper.device}")
 
-        # Text Generation (gets generated tokens and probabilities)
         full_text, gen_token_strs, gen_probs = wrapper.generate_text(prompt, max_new_tokens=20) # pyright: ignore[reportAttributeAccessIssue]
         
-        # Preprocess input prompt (initial context)
         inputs = wrapper.tokenizer(prompt, return_tensors="pt").to(wrapper.device) # pyright: ignore[reportAttributeAccessIssue]
         current_input_ids = inputs.input_ids
         attribution_trace = [] 
 
         def forward_func_adapter(inputs_embeds):
-            # inputs_embeds: [Batch, SeqLen, Hidden]
             inputs_embeds = inputs_embeds.contiguous()
-            
             batch_size, seq_len, _ = inputs_embeds.shape
             position_ids = torch.arange(seq_len, dtype=torch.long, device=wrapper.device)
             position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
@@ -79,14 +104,10 @@ class CaptumGradientsAttributor(BaseAttributor):
 
         ig = IntegratedGradients(forward_func_adapter)
 
-        # Loop on generated tokens
         for i, token_str in enumerate(gen_token_strs):
             target_token_id = wrapper.tokenizer.encode(token_str, add_special_tokens=False)[0] # pyright: ignore[reportAttributeAccessIssue]
+            current_embeddings = wrapper.get_embedding_layer()(current_input_ids)
 
-            # Gets current embeddings
-            current_embeddings = wrapper.get_embedding_layer()(current_input_ids) # [1, Len, Hidden]
-
-            # Attribution
             attributions = ig.attribute(
                 inputs=current_embeddings,
                 target=target_token_id,
@@ -94,7 +115,6 @@ class CaptumGradientsAttributor(BaseAttributor):
                 internal_batch_size=2
             )
 
-            # Save attribution scores and context tokens for this step
             scores = self._normalize(attributions)
             context_tokens = wrapper.tokenizer.convert_ids_to_tokens(current_input_ids[0]) # pyright: ignore[reportAttributeAccessIssue]
             
@@ -105,7 +125,6 @@ class CaptumGradientsAttributor(BaseAttributor):
                 "attribution_scores": scores
             })
 
-            # Update input_ids for next step (append generated token)
             next_token_tensor = torch.tensor([[target_token_id]]).to(wrapper.device)
             current_input_ids = torch.cat([current_input_ids, next_token_tensor], dim=1)
 
@@ -121,15 +140,15 @@ class CaptumGradientsAttributor(BaseAttributor):
 
     # --- Utilities ---
 
-    def _package_output(self, attributions, input_ids, target):
-        """Helper to convert attributions and input_ids into AttributionOutput format"""
+    def _package_output(self, attributions: torch.Tensor, input_ids: torch.Tensor, target: int) -> AttributionOutput:
+        """Helper to convert raw attributions and input IDs into the standardized format."""
         normalized = self._normalize(attributions)
         tokens = self.wrapper.tokenizer.convert_ids_to_tokens(input_ids) # pyright: ignore[reportAttributeAccessIssue]
         features = [InputFeature(index=i, content=t, modality="text") for i, t in enumerate(tokens)]
         return AttributionOutput(heatmap=normalized, target=target, input_features=features)
 
     def _normalize(self, attributions: torch.Tensor) -> List[float]:
-        """Normalize attribution scores by summing over the embedding dimension and then normalizing the resulting token scores."""
+        """Normalizes attribution scores across the embedding dimension."""
         token_scores = attributions.sum(dim=-1).squeeze(0)
         norm = torch.norm(token_scores)
         if norm > 0:

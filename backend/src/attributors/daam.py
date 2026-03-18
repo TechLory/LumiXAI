@@ -8,26 +8,48 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 
-# Import custom trace
 from ..utils.daam_custom import trace 
-
 from ..abstract import BaseAttributor
 from ..schema import AttributionOutput, InputFeature
 from ..wrappers.hf_image import HFImageWrapper
 
 class DAAMAttributor(BaseAttributor):
-    """
-    Attributor for Stable Diffusion using custom DAAM.
-    Returns per-token heatmaps (Base64) AND raw 64x64 matrices for interactive UX.
+    """Diffusion Attentive Attribution Maps (DAAM) Attributor for Stable Diffusion models.
+    
+    This class extracts spatial cross-attention maps during the image generation process,
+    linking specific text tokens in the prompt to pixel regions in the generated image.
+    It provides both visual overlays (Base64 PNGs) and raw numeric matrices for interactive UIs.
     """
 
     def attribute(self, input_data: str, target_output: Optional[int] = None, **kwargs) -> AttributionOutput:
-        
+        """Executes the DAAM tracing and generation pipeline.
+
+        Notes:
+            **Extending Model Support:** The inference logic dynamically adjusts `num_inference_steps`, `guidance_scale`, 
+            and `negative_prompt` based on the architecture (e.g., standard vs. Turbo models) 
+            to prevent math scheduler crashes.
+            If a new model crashes or requires specific hyperparameters (e.g., LCM models), 
+            developers must add a new `elif` condition checking `model_id_lower` inside the 
+            `with trace(pipeline)` block.
+            *Example for LCM:* `elif "lcm" in model_id_lower: inference_steps = 4; guidance_scale = 1.5; neg_prompt = None`
+
+        Args:
+            input_data (str): The text prompt used to generate the image.
+            target_output (Optional[int], optional): Not used for image generation. Defaults to None.
+            **kwargs: Additional options. Pass `ignore_special_tokens=True` to exclude BOS/EOS tags from the results.
+
+        Returns:
+            AttributionOutput: The structured output where the `heatmap` field contains a list of dictionaries. 
+                Each dictionary holds a Base64 string (`image_base64`) and a 64x64 interpolated matrix (`raw_matrix`) for a specific token.
+
+        Raises:
+            TypeError: If the injected wrapper is not an instance of HFImageWrapper.
+        """
         if not isinstance(self.wrapper, HFImageWrapper):
              raise TypeError(f"DAAM requires HFImageWrapper, got: {type(self.wrapper)}")
         
         pipeline = self.wrapper.model
-        tokenizer = self.wrapper.model.tokenizer # Retrieve the tokenizer
+        tokenizer = self.wrapper.model.tokenizer 
         prompt = input_data
         
         print(f"Running DAAM (Per-Token) for: '{prompt}'")
@@ -36,13 +58,6 @@ class DAAMAttributor(BaseAttributor):
         with trace(pipeline) as tc:
             model_id_lower = self.wrapper.model_id.lower()
             
-            # --- HOW TO ADD CUSTOM MODELS ---
-            # If your model crashes or requires a specific number of steps (e.g., LCM models),
-            # add a new 'elif' condition here checking for the model's name in 'model_id_lower'.
-            # Example for LCM: 
-            # elif "lcm" in model_id_lower: 
-            #     inference_steps = 4; guidance_scale = 1.5; neg_prompt = None
-            # --------------------------------
             if "sdxl-turbo" in model_id_lower:
                 inference_steps = 4
                 guidance_scale = 0.0
@@ -71,7 +86,7 @@ class DAAMAttributor(BaseAttributor):
             token_heatmaps = tc.compute_heat_maps()
 
         # 2. Tokenizing to understand the words
-        tokens = tokenizer.encode(prompt) # Returns list of IDs [49406, 320, ...]
+        tokens = tokenizer.encode(prompt) 
         decoded_tokens = [tokenizer.decode([t]) for t in tokens] 
 
         # 3. Original Image Processing
@@ -80,10 +95,9 @@ class DAAMAttributor(BaseAttributor):
         img_str_orig = base64.b64encode(buffered_orig.getvalue()).decode("utf-8")
 
         # 4. Heatmap Generation for each Token
-        heatmap_data = [] # List of dictionaries: [{"image_base64": ..., "raw_matrix": [...]}, ...]
+        heatmap_data = [] 
         feature_tokens = [] 
         
-        # FILTER SPECIAL TOKENS SETUP (using tokenizer's special IDs)
         ignore_special_tokens = kwargs.get("ignore_special_tokens", True)
         special_ids = set()
         if getattr(tokenizer, "all_special_ids", None):
@@ -99,7 +113,6 @@ class DAAMAttributor(BaseAttributor):
             word = decoded_tokens[i]
             clean_word = word.replace('</w>', '').strip()
 
-            # Filtering
             is_special = (token_id in special_ids) or (clean_word in special_strings)
             if not clean_word or (ignore_special_tokens and is_special):
                 continue
@@ -115,8 +128,8 @@ class DAAMAttributor(BaseAttributor):
                 b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
                 
                 # --- B. Raw Data Extraction ---
-                raw_tensor = hm_obj.heatmap # PyTorch Tensor (eg. 512x512)                
-                raw_tensor = raw_tensor.unsqueeze(0).unsqueeze(0) # [1, 1, H, W]                
+                raw_tensor = hm_obj.heatmap                
+                raw_tensor = raw_tensor.unsqueeze(0).unsqueeze(0)            
                 small_tensor = F.interpolate(raw_tensor.to(torch.float32), size=(64, 64), mode='bilinear', align_corners=False).to(raw_tensor.dtype)
                 raw_matrix = small_tensor.squeeze().cpu().tolist()
 
@@ -129,7 +142,7 @@ class DAAMAttributor(BaseAttributor):
 
         # 5. Output
         return AttributionOutput(
-            heatmap=heatmap_data, # LIST OF DICTIONARIES: [{"image_base64": ..., "raw_matrix": [...]}, ...]
+            heatmap=heatmap_data, 
             generated_image=img_str_orig,
             target="image_generation",
             input_features=feature_tokens

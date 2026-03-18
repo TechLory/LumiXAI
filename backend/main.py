@@ -1,3 +1,11 @@
+"""FastAPI Backend Entrypoint for LumiXAI.
+
+This module exposes the REST API consumed by the frontend and external clients.
+It manages the global application state (loaded models and attributors), handles 
+asynchronous background tasks for heavy AI inference, and guarantees thread-safe 
+GPU access using a global Mutex lock.
+"""
+
 import os
 import time
 import torch
@@ -20,6 +28,7 @@ from src.attributors.captum_grad import CaptumGradientsAttributor
 
 from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_all_jobs
 
+# Global Mutex to prevent concurrent threads from crashing the GPU during inference
 gpu_lock = threading.Lock()
 
 # --- SETUP PATHS ---
@@ -30,6 +39,14 @@ print(f"hf cache dir set to: {HF_CACHE_DIR}")
 os.environ["HF_HOME"] = str(HF_CACHE_DIR)
 
 def get_optimal_device(requested_device: str = "auto") -> str:
+    """Determines the best available hardware accelerator.
+
+    Args:
+        requested_device (str, optional): The user's preference ("auto", "cpu", "cuda", "mps"). Defaults to "auto".
+
+    Returns:
+        str: The optimal device string compatible with PyTorch.
+    """
     if requested_device == "cpu":
         return "cpu"
     if torch.cuda.is_available() and requested_device in ["auto", "cuda"]:
@@ -92,15 +109,26 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=["http://localhost:3000"],
-    allow_origins=["*"], # Allow all origins for development; restrict in production
+    allow_origins=["*"], 
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- 5. BACKGROUND ---
 def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True):
-    """This function runs in the background to execute the attribution and update the job status in the database."""
+    """Executes the XAI attribution logic asynchronously.
+
+    This function runs in a separate thread. It acquires the global `gpu_lock` to ensure 
+    that only one heavy inference process hits the GPU at a time, preventing Out-Of-Memory 
+    errors or DAAM tracing conflicts. Upon completion, it formats the payload and updates 
+    the SQLite database.
+
+    Args:
+        job_id (str): The UUID of the database job to update.
+        text (str): The input prompt provided by the user.
+        target_class (Optional[int]): The specific class to attribute towards (if applicable).
+        ignore_special_tokens (bool, optional): Whether to filter out structural tokens. Defaults to True.
+    """
     start_time = time.time()
     with gpu_lock:
         try:
@@ -110,7 +138,6 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
             if not attributor or not wrapper:
                 raise ValueError("Modello o Attributor disconnessi durante l'esecuzione")
 
-            # Esecuzione
             output = attributor.attribute(
                 input_data=text, 
                 target_output=target_class, 
@@ -118,7 +145,6 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
             )
             predicted_word = None
 
-            # Formattazione Output
             if output.target == "text_generation":
                 payload = {
                     "target_id": "text_generation",
@@ -143,7 +169,6 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
             }
 
             end_time = time.time()
-            # Save in DB
             update_job_success(job_id, payload, start_time, end_time)
 
         except Exception as e:
@@ -155,10 +180,12 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
 # --- 6. ENDPOINTS ---
 @app.get("/")
 def health_check():
-    return {"status": "XAI Backend Online", "version": "0.2.0"}
+    """Returns the basic health status of the API."""
+    return {"status": "LumiXAI Backend Online", "version": "0.2.0"}
 
 @app.get("/api/manifest")
 def get_manifest():
+    """Returns the list of available model sources and attributor algorithms."""
     return {
         "sources": AVAILABLE_SOURCES,
         "attributors": [{"id": k, "name": v["name"]} for k, v in AVAILABLE_ATTRIBUTORS.items()]
@@ -166,14 +193,20 @@ def get_manifest():
 
 @app.get("/api/search", response_model=List[SearchResult])
 def search_models(source: str, q: str):
+    """Proxies the search request to the appropriate external Hub."""
     if source == "huggingface":
         return search_hf_models(query=q, limit=10)
     return []
 
 @app.post("/api/load")
 def load_model(req: LoadRequest):
+    """Loads a model into the global application state.
+    
+    This endpoint automatically identifies the task type (e.g., text-generation vs image-generation) 
+    via the Hugging Face API and instantiates the correct Wrapper class. It also aggressively 
+    cleans the VRAM before loading to prevent memory overflows.
+    """
     try:
-        # Clean up VRAM to avoid thrashing when switching models.
         if app_state.get("active_wrapper") is not None:
             print("Cleaning up memory and VRAM...")
             del app_state["active_wrapper"]
@@ -203,7 +236,7 @@ def load_model(req: LoadRequest):
                     wrapper_instance = HFTextClassificationWrapper(req.model_name, real_device)
                     wrapper_name = "hf_text_classification"
                 case "text-generation" | "text2text-generation" | "translation" | "summarization":
-                    wrapper_instance = HFTextGenerationWrapper(req.model_name, real_device) # pyright: ignore
+                    wrapper_instance = HFTextGenerationWrapper(req.model_name, real_device) 
                     wrapper_name = "hf_text_generation"
                 case "text-to-image":
                     wrapper_instance = HFImageWrapper(req.model_name, real_device)
@@ -230,7 +263,7 @@ def load_model(req: LoadRequest):
 
 @app.post("/api/unload")
 def unload_model():
-    """Release VRAM and delete model references to allow clean loading of a new model."""
+    """Releases VRAM and clears the global state. Protected by the GPU Mutex lock."""
     with gpu_lock:
         try:
             if app_state.get("active_wrapper") is not None:
@@ -255,6 +288,7 @@ def unload_model():
 
 @app.post("/api/set_attributor")
 def set_attributor(req: AttributorRequest):
+    """Instantiates and attaches an Attributor algorithm to the currently loaded model."""
     if not app_state["active_wrapper"]:
         raise HTTPException(400, "No model loaded.")
     if req.attributor_id not in AVAILABLE_ATTRIBUTORS:
@@ -267,11 +301,9 @@ def set_attributor(req: AttributorRequest):
         raise HTTPException(500, str(e))
 
 
-# --- NEW ENDPOINTS ---
-
 @app.post("/api/explain", response_model=JobResponse)
 def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
-    """Create the job and add it to the background queue."""
+    """Enqueues a new asynchronous XAI job."""
     if not app_state.get("active_attributor") or not app_state.get("active_wrapper"):
         raise HTTPException(400, "Model and attributor must be loaded first.")
     
@@ -289,12 +321,12 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
 
 @app.get("/api/jobs")
 def get_jobs():
-    """Retrieve all the job for the side bar"""
+    """Retrieves metadata for all historical jobs."""
     return get_all_jobs()
 
 @app.get("/api/jobs/{job_id}")
 def get_job_status(job_id: str):
-    """Retrieve the status of a specific job and its payload if completed."""
+    """Retrieves the status and the payload (if completed) of a specific job."""
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
@@ -302,7 +334,7 @@ def get_job_status(job_id: str):
 
 @app.delete("/api/jobs")
 def clear_all_jobs():
-    """Delete all jobs and their associated result files."""
+    """Deletes all job records from the SQLite DB and removes JSON payloads from the disk."""
     try:
         delete_all_jobs()
         return {"status": "success", "message": "Database and result files cleared."}

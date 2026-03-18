@@ -1,24 +1,27 @@
 # Model Wrappers
 
-Wrappers act as translation layers between external AI libraries and the LumiXAI framework. They handle downloading weights, initializing tokenizers, and routing inputs to the correct hardware device (CUDA, MPS, or CPU).
+The `wrappers` module implements the Adapter Pattern to standardize interactions with various external machine learning libraries (primarily Hugging Face). By inheriting from `BaseWrapper`, these classes ensure that models expose uniform methods for loading, inference, and embedding extraction, regardless of their underlying architecture.
 
-## Text Generation
-Handles autoregressive language models (e.g., GPT-2, LLaMA, Qwen). It manages the sequential generation process and provides embeddings for gradient-based attribution.
+## Hugging Face: Text Generation
+Wrapper for Auto-Regressive / Causal Language Models (e.g., GPT-2, LLaMA). Includes specialized methods to extract step-by-step probabilities for generation sequences.
 
 ::: src.wrappers.hf_text_generation.HFTextGenerationWrapper
     options:
       show_root_heading: false
+      show_root_toc_entry: false
 
-## Text Classification
-Handles sequence classification models (e.g., BERT, DistilBERT). It manages padding, masking, and returns logits for the predicted or target classes.
+## Hugging Face: Text Classification
+Wrapper for Sequence Classification Models (e.g., BERT, DistilBERT). Automates tokenization padding and extracts normalized prediction logits.
 
 ::: src.wrappers.hf_text_classification.HFTextClassificationWrapper
     options:
       show_root_heading: false
+      show_root_toc_entry: false
 
-## Image Generation
-Handles Latent Diffusion Models (e.g., Stable Diffusion) via the Hugging Face Diffusers library.
+## Hugging Face: Image Generation
+Wrapper for Stable Diffusion and SDXL Diffusers. Manages automatic device offloading, precision casting (fp16 vs fp32), and dynamic architecture detection.
 
 ::: src.wrappers.hf_image.HFImageWrapper
     options:
       show_root_heading: false
+      show_root_toc_entry: false

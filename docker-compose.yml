@@ -9,7 +9,7 @@ services:
       - ./backend/hf_models_cache:/app/hf_models_cache
     environment:
       - HF_HOME=/app/hf_models_cache
-      - TRANSFORMERS_CACHE=/app/hf_models_cache
+      - TRANSFORMERS_CACHE=/app/hf_models_cache # deprecated (-> HF_HOME), can be removed in the future
       - HUGGINGFACE_HUB_CACHE=/app/hf_models_cache
       - HF_HUB_CACHE=/app/hf_models_cache
   
