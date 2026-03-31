@@ -4,7 +4,8 @@
 ![React Next.js](https://img.shields.io/badge/frontend-Next.js-black.svg)
 ![PyTorch](https://img.shields.io/badge/backend-PyTorch-ee4c2c.svg)
 ![Documentation](https://img.shields.io/badge/docs-MkDocs-083e8c.svg)
-<!-- ![License](https://img.shields.io/badge/license-MIT-green.svg) -->
+![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-green.svg)
+![No AI Training](https://img.shields.io/badge/No%20AI%20Training-Prohibited-red)
 
 ## Overview
 **LumiXAI** is a modular, full-stack framework designed to unify and simplify the Explainable AI (XAI) workflow. 
@@ -140,3 +141,6 @@ This project is developed as part of a research thesis at the **University of Mi
 For any issues, bugs, or questions regarding this framework, please contact me at **lorenzo.gatta@studenti.unimi.it** or open an issue on this repository.
 
 ---
+
+### AI/ML Training Opt-Out
+The author(s) of this repository explicitly prohibit the use of the code, data, and content within this project for the training, fine-tuning, or development of machine learning models, artificial intelligence algorithms, or large language models (LLMs). This includes scraping, text and data mining (TDM), and any commercial or non-commercial use by AI entities.
