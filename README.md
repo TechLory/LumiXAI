@@ -3,7 +3,8 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![React Next.js](https://img.shields.io/badge/frontend-Next.js-black.svg)
 ![PyTorch](https://img.shields.io/badge/backend-PyTorch-ee4c2c.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Documentation](https://img.shields.io/badge/docs-MkDocs-083e8c.svg)
+<!-- ![License](https://img.shields.io/badge/license-MIT-green.svg) -->
 
 ## Overview
 **LumiXAI** is a modular, full-stack framework designed to unify and simplify the Explainable AI (XAI) workflow. 
@@ -102,17 +103,12 @@ poetry run mkdocs serve -a 127.0.0.1:8001
 
 ---
 
-## Showcase & Demos (DA RIMUOVERE VECCHIE FOTO) 
+## Showcase & Demos
+1. Autoregressive Text Generation (Captum IG): [GIF](/readme_files/demo_text-to-text.gif)
+2. Spatial Image Attribution (DAAM): [GIF](/readme_files/demo_1_token-pixel_attribution_gui.gif)
 
-### 1. Autoregressive Text Generation (Captum IG)
-Interactive matrix to track the context flow during text generation.
-[Demo Text Generation](/readme_files/demo_text-to-text.gif)
-
-### 2. Spatial Image Attribution (DAAM)
-Real-time hovering to inspect stable diffusion attention maps.
-[Demo Image Generation](/readme_files/demo_1_token-pixel_attribution_gui.gif)
-
-<details>
+More demos coming soon...
+<!-- <details>
 <summary><b>View Static Attribution Tests (Click to expand)</b></summary>
 
 * **Text Classification (DistilBERT):**
@@ -122,7 +118,7 @@ Real-time hovering to inspect stable diffusion attention maps.
   * Baseline Sinks: [Show Image](/readme_files/test-stable-diffusion-attention-sink.jpg)
   * Special Tokens Removed: [Show Image](/readme_files/test-stable-diffusion-attention-sink-2-special-tokens-removed.png)
   * Percentile Norm (Dreamlike Diffusion): [Show Image](/readme_files/test-stable-diffusion-attention-sink-3-new-normalization.png)
-</details>
+</details> -->
 
 
 
