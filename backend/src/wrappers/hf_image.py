@@ -2,6 +2,7 @@ import torch
 from typing import Any, Union, List
 from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
 from ..abstract import BaseWrapper
+from ..utils.hf_auth import hf_auth_kwargs
 
 class HFImageWrapper(BaseWrapper):
     """Wrapper for Text-to-Image Generation models using Hugging Face Diffusers.
@@ -36,9 +37,10 @@ class HFImageWrapper(BaseWrapper):
         
         try:
             dtype = torch.float16 if self.device != "cpu" else torch.float32
+            auth_kwargs = hf_auth_kwargs()
 
             from diffusers import DiffusionPipeline
-            config = DiffusionPipeline.load_config(self.model_id)
+            config = DiffusionPipeline.load_config(self.model_id, **auth_kwargs)
             pipeline_class_name = config.get("_class_name", "")
             is_xl = "XL" in pipeline_class_name
             PipelineClass = StableDiffusionXLPipeline if is_xl else StableDiffusionPipeline
@@ -48,7 +50,8 @@ class HFImageWrapper(BaseWrapper):
                 torch_dtype=dtype,
                 variant="fp16" if dtype == torch.float16 else None,
                 use_safetensors=True,
-                safety_checker=None
+                safety_checker=None,
+                **auth_kwargs,
             )
             
             if self.device.startswith("cuda"):

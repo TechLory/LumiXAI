@@ -19,7 +19,14 @@ from typing import List, Optional, Any, Dict
 from huggingface_hub import HfApi
 
 # --- IMPORTS ---
-from src.utils.hf_hub import search_hf_models
+from src.utils.hf_hub import (
+    search_hf_models,
+    get_model_access_issue,
+    is_model_access_blocked,
+    build_model_access_error,
+    build_hf_load_error,
+)
+from src.utils.hf_auth import hf_auth_kwargs
 from src.wrappers.hf_text_classification import HFTextClassificationWrapper
 from src.wrappers.hf_text_generation import HFTextGenerationWrapper
 from src.wrappers.hf_image import HFImageWrapper
@@ -291,12 +298,22 @@ def load_model(req: LoadRequest):
         detected_task = "unknown"
 
         if req.source == "huggingface":            
-            api = HfApi()
+            api = HfApi(**hf_auth_kwargs())
             try:
                 info = api.model_info(req.model_name)
-                detected_task = info.pipeline_tag
-            except Exception:
-                detected_task = "-" 
+            except Exception as e:
+                error_message = build_hf_load_error(req.model_name, e)
+                if error_message != str(e):
+                    raise HTTPException(400, error_message)
+                info = None
+
+            if info is not None:
+                access_issue = get_model_access_issue(info)
+                if is_model_access_blocked(access_issue):
+                    raise HTTPException(400, build_model_access_error(req.model_name, access_issue))
+                detected_task = info.pipeline_tag or "-"
+            else:
+                detected_task = "-"
 
             match detected_task:
                 case "text-classification" | "fill-mask" | "token-classification":
@@ -327,8 +344,12 @@ def load_model(req: LoadRequest):
 
     except ValueError as e:
         raise HTTPException(400, str(e))
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        error_message = build_hf_load_error(req.model_name, e)
+        status_code = 400 if error_message != str(e) else 500
+        raise HTTPException(status_code, error_message)
 
 @app.post("/api/unload")
 def unload_model():

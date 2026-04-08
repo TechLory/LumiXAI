@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from typing import Any, Dict, Union, List, Tuple
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from ..abstract import BaseWrapper
+from ..utils.hf_auth import hf_auth_kwargs
 
 class HFTextGenerationWrapper(BaseWrapper):
     """Wrapper for Causal Language Models (e.g., GPT-2, Llama, Qwen).
@@ -28,13 +29,14 @@ class HFTextGenerationWrapper(BaseWrapper):
             Any: The loaded `AutoModelForCausalLM` PyTorch module.
         """
         print(f"Loading HF Generation Model: {self.model_id}...")
+        auth_kwargs = hf_auth_kwargs()
         
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, **auth_kwargs)
         
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             
-        model = AutoModelForCausalLM.from_pretrained(self.model_id)
+        model = AutoModelForCausalLM.from_pretrained(self.model_id, **auth_kwargs)
         model.config.pad_token_id = self.tokenizer.pad_token_id
         
         model.to(self.device)

@@ -12,6 +12,7 @@ services:
       - TRANSFORMERS_CACHE=/app/hf_models_cache # deprecated (-> HF_HOME), can be removed in the future
       - HUGGINGFACE_HUB_CACHE=/app/hf_models_cache
       - HF_HUB_CACHE=/app/hf_models_cache
+      - HF_TOKEN=${HF_TOKEN:-}
       - LUMIXAI_DEFAULT_DEVICE=${LUMIXAI_DEFAULT_DEVICE:-auto}
   
   docs:

@@ -2,6 +2,7 @@ import torch
 from typing import Any, Dict, Union
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from ..abstract import BaseWrapper
+from ..utils.hf_auth import hf_auth_kwargs
 
 class HFTextClassificationWrapper(BaseWrapper):
     """Wrapper for Text Classification models (e.g., BERT, RoBERTa).
@@ -30,13 +31,14 @@ class HFTextClassificationWrapper(BaseWrapper):
             Any: The loaded `AutoModelForSequenceClassification` PyTorch module.
         """
         print(f"Loading HF Classification Model: {self.model_id}...")
+        auth_kwargs = hf_auth_kwargs()
         
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, **auth_kwargs)
         
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             
-        model = AutoModelForSequenceClassification.from_pretrained(self.model_id)
+        model = AutoModelForSequenceClassification.from_pretrained(self.model_id, **auth_kwargs)
         model.config.pad_token_id = self.tokenizer.pad_token_id
         
         model.to(self.device)
