@@ -55,6 +55,14 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 ```
 *(Note: The GPU command will fail if the host machine does not have an NVIDIA GPU and the NVIDIA Container Toolkit installed..)*
 
+For machine-specific settings that should not be committed, create a repo-root `.env.local` file and start Compose with it:
+```bash
+cp .env.local.example .env.local
+docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+- `.env.local` is ignored by git and is the right place for custom ports, `HF_TOKEN`, `LUMIXAI_DEFAULT_DEVICE`, and `LUMIXAI_VISIBLE_GPUS`.
+- The example file includes `LUMIXAI_FRONTEND_PORT`, `LUMIXAI_BACKEND_PORT`, and `LUMIXAI_DOCS_PORT` if you want host-side port overrides.
+
 To pin the backend to a specific GPU, set one or both of these environment variables before starting Compose:
 ```bash
 export LUMIXAI_DEFAULT_DEVICE=cuda:1

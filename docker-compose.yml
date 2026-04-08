@@ -3,7 +3,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "${LUMIXAI_BACKEND_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
       - ./backend/hf_models_cache:/app/hf_models_cache
@@ -18,7 +18,7 @@ services:
   docs:
     build: ./backend
     ports:
-      - "8001:8001"
+      - "${LUMIXAI_DOCS_PORT:-8001}:8001"
     volumes:
       - ./backend:/app
     command: poetry run mkdocs serve -a 0.0.0.0:8001
@@ -26,7 +26,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "${LUMIXAI_FRONTEND_PORT:-3000}:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
