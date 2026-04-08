@@ -49,11 +49,14 @@ def normalize_requested_device(requested_device: Optional[str] = "auto") -> str:
 def is_cuda_device(device: Optional[str]) -> bool:
     return bool(device) and device.startswith("cuda")
 
+def is_indexed_cuda_device(device: Optional[str]) -> bool:
+    return bool(device) and device.startswith("cuda:")
+
 def clear_cuda_memory(device: Optional[str] = None) -> None:
     if not torch.cuda.is_available():
         return
 
-    target_device = device if is_cuda_device(device) else None
+    target_device = device if is_indexed_cuda_device(device) else None
     if target_device:
         with torch.cuda.device(target_device):
             torch.cuda.empty_cache()
@@ -280,7 +283,7 @@ def load_model(req: LoadRequest):
             clear_cuda_memory(previous_device)
         
         real_device = get_optimal_device(req.device)
-        if is_cuda_device(real_device):
+        if is_indexed_cuda_device(real_device):
             torch.cuda.set_device(torch.device(real_device))
 
         wrapper_instance = None

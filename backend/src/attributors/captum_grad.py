@@ -128,9 +128,11 @@ class CaptumGradientsAttributor(BaseAttributor):
             next_token_tensor = torch.tensor([[target_token_id]]).to(wrapper.device)
             current_input_ids = torch.cat([current_input_ids, next_token_tensor], dim=1)
 
-            if wrapper.device.startswith("cuda"):
+            if wrapper.device.startswith("cuda:"):
                 with torch.cuda.device(wrapper.device):
                     torch.cuda.empty_cache()
+            elif wrapper.device == "cuda":
+                torch.cuda.empty_cache()
 
         return AttributionOutput(
             heatmap=attribution_trace, 
