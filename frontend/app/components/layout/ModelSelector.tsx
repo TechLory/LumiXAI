@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { buildApiUrl } from "../../lib/api";
 
 interface HFModelResult {
   id: string;
@@ -15,8 +16,6 @@ interface ModelSelectorProps {
 }
 
 export default function ModelSelector(props: ModelSelectorProps) {
-  const isAppLocal = true
-  const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [query, setQuery] = useState(props.currentModel);
   const [results, setResults] = useState<HFModelResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -50,7 +49,10 @@ export default function ModelSelector(props: ModelSelectorProps) {
   const fetchModels = async (searchTerm: string) => {
     setIsSearching(true);
     try {
-      const res = await fetch(`http://${ipAddress}:8000/api/search?source=${encodeURIComponent(props.currentSource)}&q=${encodeURIComponent(searchTerm)}`);
+      const url = new URL(buildApiUrl("/api/search"));
+      url.searchParams.set("source", props.currentSource);
+      url.searchParams.set("q", searchTerm);
+      const res = await fetch(url.toString());
       if (res.ok) {
         const data = await res.json();
         setResults(data);

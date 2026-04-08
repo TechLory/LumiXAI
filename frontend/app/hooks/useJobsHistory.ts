@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { buildApiUrl } from "../lib/api";
 
 export interface JobHistoryItem {
   id: string;
@@ -12,13 +13,11 @@ export interface JobHistoryItem {
 }
 
 export function useJobsHistory() {
-  const isAppLocal = true;
-  const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [jobs, setJobs] = useState<JobHistoryItem[]>([]);
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch(`http://${ipAddress}:8000/api/jobs`);
+      const res = await fetch(buildApiUrl("/api/jobs"));
       if (res.ok) {
         const data = await res.json();
         setJobs(data);
@@ -38,7 +37,7 @@ export function useJobsHistory() {
   // Download job payload for a specific job ID
   const fetchJobPayload = async (jobId: string) => {
     try {
-      const res = await fetch(`http://${ipAddress}:8000/api/jobs/${jobId}`);
+      const res = await fetch(buildApiUrl(`/api/jobs/${jobId}`));
       if (res.ok) {
         return await res.json();
       }

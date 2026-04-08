@@ -1,10 +1,8 @@
 import { useState, useRef } from "react";
+import { buildApiUrl } from "../lib/api";
 import { AsyncState } from "../types";
 
 export function useInference() {
-  const isAppLocal = true;
-  const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
-
   const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
   const [inferenceState, setInferenceState] = useState<AsyncState>({
     status: 'idle', data: null, error: null
@@ -21,7 +19,7 @@ export function useInference() {
 
   const pollJobStatus = async (jobId: string) => {
     try {
-      const res = await fetch(`http://${ipAddress}:8000/api/jobs/${jobId}`);
+      const res = await fetch(buildApiUrl(`/api/jobs/${jobId}`));
       if (!res.ok) throw new Error("Failed to fetch job status");
 
       const job = await res.json();
@@ -49,7 +47,7 @@ export function useInference() {
 
     try {
       // 1. Creiamo il Job
-      const res = await fetch(`http://${ipAddress}:8000/api/explain`, {
+      const res = await fetch(buildApiUrl("/api/explain"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
