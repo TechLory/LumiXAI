@@ -55,6 +55,15 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 ```
 *(Note: The GPU command will fail if the host machine does not have an NVIDIA GPU and the NVIDIA Container Toolkit installed..)*
 
+To pin the backend to a specific GPU, set one or both of these environment variables before starting Compose:
+```bash
+export LUMIXAI_DEFAULT_DEVICE=cuda:1
+export LUMIXAI_VISIBLE_GPUS=1
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+- `LUMIXAI_DEFAULT_DEVICE` controls which device the backend loads models onto. Supported values include `auto`, `cpu`, `cuda`, `cuda:0`, `cuda:1`, and `mps`.
+- `LUMIXAI_VISIBLE_GPUS` limits which physical NVIDIA GPU IDs are exposed to the container. If you set `LUMIXAI_VISIBLE_GPUS=1`, that GPU becomes the container's visible CUDA device `0`.
+
 **To stop the application:**
 ```bash
 docker compose down

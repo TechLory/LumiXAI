@@ -1,5 +1,7 @@
 services:
   backend:
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${LUMIXAI_VISIBLE_GPUS:-all}
     deploy:
       resources:
         reservations:

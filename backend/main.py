@@ -38,22 +38,84 @@ HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 print(f"hf cache dir set to: {HF_CACHE_DIR}")
 os.environ["HF_HOME"] = str(HF_CACHE_DIR)
 
+DEFAULT_DEVICE_ENV_VAR = "LUMIXAI_DEFAULT_DEVICE"
+
+def normalize_requested_device(requested_device: Optional[str] = "auto") -> str:
+    device = (requested_device or "auto").strip().lower()
+    if device == "auto":
+        device = os.getenv(DEFAULT_DEVICE_ENV_VAR, "auto").strip().lower() or "auto"
+    return device
+
+def is_cuda_device(device: Optional[str]) -> bool:
+    return bool(device) and device.startswith("cuda")
+
+def clear_cuda_memory(device: Optional[str] = None) -> None:
+    if not torch.cuda.is_available():
+        return
+
+    target_device = device if is_cuda_device(device) else None
+    if target_device:
+        with torch.cuda.device(target_device):
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        return
+
+    torch.cuda.empty_cache()
+    torch.cuda.ipc_collect()
+
 def get_optimal_device(requested_device: str = "auto") -> str:
     """Determines the best available hardware accelerator.
 
     Args:
-        requested_device (str, optional): The user's preference ("auto", "cpu", "cuda", "mps"). Defaults to "auto".
+        requested_device (str, optional): The user's preference ("auto", "cpu", "cuda",
+            "cuda:0", "cuda:1", "mps"). Defaults to "auto".
 
     Returns:
         str: The optimal device string compatible with PyTorch.
     """
-    if requested_device == "cpu":
+    resolved_request = normalize_requested_device(requested_device)
+
+    if resolved_request == "auto":
+        if torch.cuda.is_available():
+            return "cuda"
+        if torch.backends.mps.is_available():
+            return "mps"
         return "cpu"
-    if torch.cuda.is_available() and requested_device in ["auto", "cuda"]:
+
+    if resolved_request == "cpu":
+        return "cpu"
+
+    if resolved_request == "cuda":
+        if not torch.cuda.is_available():
+            raise ValueError("CUDA was requested, but no NVIDIA GPU is available to the backend.")
         return "cuda"
-    if torch.backends.mps.is_available() and requested_device in ["auto", "cuda", "mps"]:
+
+    if resolved_request.startswith("cuda:"):
+        if not torch.cuda.is_available():
+            raise ValueError(f"{resolved_request} was requested, but no NVIDIA GPU is available to the backend.")
+
+        try:
+            gpu_index = int(resolved_request.split(":", 1)[1])
+        except ValueError as exc:
+            raise ValueError(f"Invalid CUDA device '{resolved_request}'. Use 'cuda' or 'cuda:<index>'.") from exc
+
+        visible_gpu_count = torch.cuda.device_count()
+        if gpu_index < 0 or gpu_index >= visible_gpu_count:
+            raise ValueError(
+                f"Requested CUDA device '{resolved_request}' is not available. "
+                f"The backend can currently see {visible_gpu_count} GPU(s)."
+            )
+        return resolved_request
+
+    if resolved_request == "mps":
+        if not torch.backends.mps.is_available():
+            raise ValueError("MPS was requested, but it is not available on this machine.")
         return "mps"
-    return "cpu"
+
+    raise ValueError(
+        f"Unsupported device '{resolved_request}'. "
+        "Use one of: auto, cpu, cuda, cuda:<index>, mps."
+    )
 
 # --- 1. REGISTRY ---
 AVAILABLE_WRAPPERS = {
@@ -89,7 +151,7 @@ class SearchResult(BaseModel):
 class LoadRequest(BaseModel):
     source: str
     model_name: str
-    device: str = "cpu"
+    device: str = "auto"
 
 class AttributorRequest(BaseModel):
     attributor_id: str
@@ -208,17 +270,19 @@ def load_model(req: LoadRequest):
     """
     try:
         if app_state.get("active_wrapper") is not None:
+            previous_device = getattr(app_state["active_wrapper"], "device", None)
             print("Cleaning up memory and VRAM...")
             del app_state["active_wrapper"]
             del app_state["active_attributor"]
             app_state["active_wrapper"] = None
             app_state["active_attributor"] = None
             gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
+            clear_cuda_memory(previous_device)
         
         real_device = get_optimal_device(req.device)
+        if is_cuda_device(real_device):
+            torch.cuda.set_device(torch.device(real_device))
+
         wrapper_instance = None
         wrapper_name = "unknown"
         detected_task = "unknown"
@@ -258,6 +322,8 @@ def load_model(req: LoadRequest):
             "detected_task": detected_task
         }
 
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -267,6 +333,7 @@ def unload_model():
     with gpu_lock:
         try:
             if app_state.get("active_wrapper") is not None:
+                previous_device = getattr(app_state["active_wrapper"], "device", None)
                 del app_state["active_wrapper"]
                 del app_state["active_attributor"]
                 app_state["active_wrapper"] = None
@@ -275,10 +342,7 @@ def unload_model():
                 app_state["active_model_name"] = None
                 
                 gc.collect()
-                
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()
+                clear_cuda_memory(previous_device)
                     
                 return {"status": "success", "message": "Cleaned up memory and VRAM. Model unloaded."}
             else:
