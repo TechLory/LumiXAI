@@ -20,6 +20,29 @@ def get_default_text_max_new_tokens() -> int:
 
     return parsed_value if parsed_value > 0 else DEFAULT_TEXT_MAX_NEW_TOKENS
 
+
+def get_model_max_positions(model: Any) -> int | None:
+    config = getattr(model, "config", None)
+    if config is None:
+        return None
+
+    for attr in ("max_position_embeddings", "n_positions"):
+        value = getattr(config, attr, None)
+        if isinstance(value, int) and value > 0:
+            return value
+
+    return None
+
+
+def normalize_eos_token_ids(token_id_config: Any) -> set[int]:
+    if token_id_config is None:
+        return set()
+    if isinstance(token_id_config, int):
+        return {token_id_config}
+    if isinstance(token_id_config, (list, tuple, set)):
+        return {int(token_id) for token_id in token_id_config}
+    return set()
+
 class HFTextGenerationWrapper(BaseWrapper):
     """Wrapper for Causal Language Models (e.g., GPT-2, Llama, Qwen).
     
@@ -58,7 +81,7 @@ class HFTextGenerationWrapper(BaseWrapper):
         model.eval()
         return model
 
-    def generate_text(self, prompt: str, max_new_tokens: int | None = None) -> Tuple[str, List[str], List[float]]:
+    def generate_text(self, prompt: str, max_new_tokens: int | None = None) -> Tuple[str, List[int], List[str], List[float]]:
         """Generates a sequence of text deterministically and extracts token probabilities.
 
         Args:
@@ -67,14 +90,31 @@ class HFTextGenerationWrapper(BaseWrapper):
                 If omitted, the backend uses `LUMIXAI_TEXT_MAX_NEW_TOKENS` or falls back to 64.
 
         Returns:
-            Tuple[str, List[str], List[float]]: A tuple containing:
+            Tuple[str, List[int], List[str], List[float]]: A tuple containing:
                 - The full generated text string (excluding the prompt).
+                - A list of the generated token ids.
                 - A list of individual generated token strings.
                 - A list of float probabilities (0.0 - 1.0) for each generated token.
         """
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        input_length = inputs.input_ids.shape[1]
         resolved_max_new_tokens = max_new_tokens if max_new_tokens is not None else get_default_text_max_new_tokens()
+        input_length = inputs.input_ids.shape[1]
+        max_positions = get_model_max_positions(self.model)
+
+        if max_positions is not None:
+            available_new_tokens = max_positions - input_length
+            if available_new_tokens <= 0:
+                raise ValueError(
+                    f"Prompt is too long for model '{self.model_id}'. "
+                    f"Input tokens: {input_length}, model context window: {max_positions}."
+                )
+
+            if resolved_max_new_tokens > available_new_tokens:
+                print(
+                    f"Clamping max_new_tokens from {resolved_max_new_tokens} to {available_new_tokens} "
+                    f"for model '{self.model_id}' (context window: {max_positions}, input tokens: {input_length})."
+                )
+                resolved_max_new_tokens = available_new_tokens
 
         with torch.no_grad():
             output_ids = self.model.generate(
@@ -89,6 +129,7 @@ class HFTextGenerationWrapper(BaseWrapper):
         
         probs = []
         tokens_text = []
+        generated_token_ids = [int(token_id.item()) for token_id in generated_ids]
 
         current_input_ids = inputs.input_ids        
         for token_id in generated_ids:
@@ -100,12 +141,12 @@ class HFTextGenerationWrapper(BaseWrapper):
                 token_prob = next_token_probs[0, token_id].item()
                 probs.append(token_prob)
                 
-                token_str = self.tokenizer.decode([token_id])
+                token_str = self.tokenizer.decode([token_id], clean_up_tokenization_spaces=False)
                 tokens_text.append(token_str)
                 
                 current_input_ids = torch.cat([current_input_ids, token_id.unsqueeze(0).unsqueeze(0)], dim=1)
 
-        return full_text, tokens_text, probs
+        return full_text, generated_token_ids, tokens_text, probs
 
     def generate(self, input_data: Union[str, Dict[str, torch.Tensor]]) -> torch.Tensor:
         """Performs a single forward pass to extract next-token logits.

@@ -1,6 +1,5 @@
 import torch
 from typing import Any, Union, List
-from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
 from ..abstract import BaseWrapper
 from ..utils.hf_auth import hf_auth_kwargs
 
@@ -39,7 +38,7 @@ class HFImageWrapper(BaseWrapper):
             dtype = torch.float16 if self.device != "cpu" else torch.float32
             auth_kwargs = hf_auth_kwargs()
 
-            from diffusers import DiffusionPipeline
+            from diffusers import DiffusionPipeline, StableDiffusionPipeline, StableDiffusionXLPipeline
             config = DiffusionPipeline.load_config(self.model_id, **auth_kwargs)
             pipeline_class_name = config.get("_class_name", "")
             is_xl = "XL" in pipeline_class_name
