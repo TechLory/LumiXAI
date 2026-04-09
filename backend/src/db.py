@@ -7,8 +7,8 @@ are saved as independent JSON files to prevent database bloat.
 """
 
 import json
+import threading
 import uuid
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from sqlalchemy import create_engine, Column, String, DateTime, Text, Float
@@ -27,6 +27,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+db_write_lock = threading.Lock()
 
 class Job(Base):
     """SQLAlchemy ORM Model representing an asynchronous explanation job.
@@ -61,6 +62,17 @@ class Job(Base):
 Base.metadata.create_all(bind=engine)
 
 # --- HELPER FUNCTIONS ---
+def delete_result_file(file_name: str | None) -> None:
+    if not file_name:
+        return
+
+    file_path = RESULTS_DIR / file_name
+    if not file_path.exists():
+        return
+
+    file_path.unlink()
+
+
 def create_job(prompt: str, source_name: str, model_name: str, attributor_name: str) -> str:
     """Initializes a new job record in the database.
 
@@ -74,20 +86,23 @@ def create_job(prompt: str, source_name: str, model_name: str, attributor_name: 
         str: The generated unique UUID representing the job.
     """
     job_id = str(uuid.uuid4())
-    db = SessionLocal()
-    new_job = Job(
-        id=job_id,
-        prompt=prompt,
-        source_name=source_name,
-        model_name=model_name,
-        attributor_name=attributor_name
-    )
-    db.add(new_job)
-    db.commit()
-    db.close()
+    with db_write_lock:
+        db = SessionLocal()
+        try:
+            new_job = Job(
+                id=job_id,
+                prompt=prompt,
+                source_name=source_name,
+                model_name=model_name,
+                attributor_name=attributor_name
+            )
+            db.add(new_job)
+            db.commit()
+        finally:
+            db.close()
     return job_id
 
-def update_job_success(job_id: str, payload: dict, start_time: float, end_time: float):
+def update_job_success(job_id: str, payload: dict, start_time: float, end_time: float) -> bool:
     """Marks a job as completed and persists its output payload.
 
     To optimize database performance, the heavy payload is dumped into a local JSON file 
@@ -99,35 +114,51 @@ def update_job_success(job_id: str, payload: dict, start_time: float, end_time: 
         start_time (float): The timestamp when the inference started.
         end_time (float): The timestamp when the inference concluded.
     """
-    file_path = RESULTS_DIR / f"{job_id}.json"
-    with open(file_path, "w") as f:
-        json.dump(payload, f)
+    with db_write_lock:
+        db = SessionLocal()
+        try:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                return False
 
-    db = SessionLocal()
-    job = db.query(Job).filter(Job.id == job_id).first()
-    if job:
-        job.status = "completed"
-        job.completed_at = datetime.now(timezone.utc)
-        job.execution_time_sec = round(end_time - start_time, 2)
-        job.result_file = str(file_path.name)
-        db.commit()
-    db.close()
+            file_path = RESULTS_DIR / f"{job_id}.json"
+            with open(file_path, "w") as f:
+                json.dump(payload, f)
 
-def update_job_failed(job_id: str, error_msg: str):
+            job.status = "completed"
+            job.completed_at = datetime.now(timezone.utc)
+            job.execution_time_sec = round(end_time - start_time, 2)
+            job.result_file = str(file_path.name)
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            delete_result_file(f"{job_id}.json")
+            raise
+        finally:
+            db.close()
+
+def update_job_failed(job_id: str, error_msg: str) -> bool:
     """Marks a job as failed and records the error traceback.
 
     Args:
         job_id (str): The target job's UUID.
         error_msg (str): The stringified exception or error traceback.
     """
-    db = SessionLocal()
-    job = db.query(Job).filter(Job.id == job_id).first()
-    if job:
-        job.status = "failed"
-        job.completed_at = datetime.now(timezone.utc)
-        job.error_message = error_msg
-        db.commit()
-    db.close()
+    with db_write_lock:
+        db = SessionLocal()
+        try:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                return False
+
+            job.status = "failed"
+            job.completed_at = datetime.now(timezone.utc)
+            job.error_message = error_msg
+            db.commit()
+            return True
+        finally:
+            db.close()
 
 def get_job(job_id: str) -> dict | None:
     """Retrieves a specific job and its associated payload.
@@ -196,25 +227,44 @@ def get_all_jobs() -> list:
         for j in jobs
     ]
 
+
+def delete_job(job_id: str) -> bool:
+    """Deletes a single job and its persisted payload, if present."""
+    with db_write_lock:
+        db = SessionLocal()
+        try:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                return False
+
+            result_file = job.result_file
+            db.delete(job)
+            db.commit()
+            delete_result_file(result_file)
+            return True
+        except Exception as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()
+
 def delete_all_jobs():
     """Wipes the database table and purges all local JSON result files.
 
     Raises:
         Exception: If a database transaction fails or file deletion encounters an OS error.
     """
-    db = SessionLocal()
-    try:
-        if RESULTS_DIR.exists():
-            for file_path in RESULTS_DIR.glob("*.json"):
-                try:
-                    file_path.unlink()
-                except Exception as e:
-                    print(f"Error deleting file {file_path}: {e}")
-        
-        db.query(Job).delete()
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise e
-    finally:
-        db.close()
+    with db_write_lock:
+        db = SessionLocal()
+        try:
+            if RESULTS_DIR.exists():
+                for file_path in RESULTS_DIR.glob("*.json"):
+                    delete_result_file(file_path.name)
+
+            db.query(Job).delete()
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()

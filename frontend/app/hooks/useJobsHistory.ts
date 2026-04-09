@@ -14,6 +14,7 @@ export interface JobHistoryItem {
 
 export function useJobsHistory() {
   const [jobs, setJobs] = useState<JobHistoryItem[]>([]);
+  const [deletingJobIds, setDeletingJobIds] = useState<string[]>([]);
 
   const fetchJobs = async () => {
     try {
@@ -47,5 +48,32 @@ export function useJobsHistory() {
     return null;
   };
 
-  return { jobs, fetchJobs, fetchJobPayload };
+  const deleteJob = async (jobId: string) => {
+    setDeletingJobIds(prev => prev.includes(jobId) ? prev : [...prev, jobId]);
+    setJobs(prev => prev.filter(job => job.id !== jobId));
+
+    try {
+      const res = await fetch(buildApiUrl(`/api/jobs/${jobId}`), {
+        method: "DELETE"
+      });
+
+      if (!res.ok && res.status !== 404) {
+        let errorDetail = "Failed to delete job.";
+        try {
+          const errorPayload = await res.json();
+          errorDetail = errorPayload.detail || errorPayload.message || errorDetail;
+        } catch {}
+        throw new Error(errorDetail);
+      }
+
+      setJobs(prev => prev.filter(job => job.id !== jobId));
+    } catch (e) {
+      await fetchJobs();
+      throw e;
+    } finally {
+      setDeletingJobIds(prev => prev.filter(id => id !== jobId));
+    }
+  };
+
+  return { jobs, deletingJobIds, fetchJobs, fetchJobPayload, deleteJob };
 }

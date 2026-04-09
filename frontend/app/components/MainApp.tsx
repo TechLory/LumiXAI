@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import type { MouseEvent } from "react";
+
 import Navbar from "./layout/Navbar";
 import ConfigurationPanel from "./panels/ConfigurationPanel";
 import InputPanel from "./panels/InputPanel";
@@ -12,6 +15,7 @@ import { useJobsHistory } from "../hooks/useJobsHistory";
 
 export default function MainApp() {
   const { systemState, bootLogs } = useSystemBoot();
+  const [pendingDeleteJobId, setPendingDeleteJobId] = useState<string | null>(null);
 
   const {
     selectedSource, onSourceChange,
@@ -29,10 +33,10 @@ export default function MainApp() {
 
   const {
     inputText, setInputText,
-    inferenceState, handleExplain, loadPastJob
+    inferenceState, handleExplain, loadPastJob, handleDeletedJob
   } = useInference();
 
-  const { jobs, fetchJobPayload } = useJobsHistory();
+  const { jobs, deletingJobIds, fetchJobPayload, deleteJob } = useJobsHistory();
 
   const handleHistoryClick = async (jobId: string, status: string, prompt: string) => {
     if (status !== 'completed') return; // Ignora se fallito o in corso
@@ -40,6 +44,33 @@ export default function MainApp() {
     const fullJob = await fetchJobPayload(jobId);
     if (fullJob && fullJob.payload) {
       loadPastJob(fullJob.payload, prompt);
+    }
+  };
+
+  const suppressCardClick = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const requestDeleteJob = (event: MouseEvent<HTMLButtonElement>, jobId: string) => {
+    suppressCardClick(event);
+    setPendingDeleteJobId(currentJobId => currentJobId === jobId ? null : jobId);
+  };
+
+  const cancelDeleteJob = (event: MouseEvent<HTMLButtonElement>) => {
+    suppressCardClick(event);
+    setPendingDeleteJobId(null);
+  };
+
+  const handleDeleteJob = async (event: MouseEvent<HTMLButtonElement>, jobId: string) => {
+    suppressCardClick(event);
+
+    try {
+      await deleteJob(jobId);
+      handleDeletedJob(jobId);
+      setPendingDeleteJobId(null);
+    } catch (e: any) {
+      window.alert(e.message || "Failed to delete job.");
     }
   };
 
@@ -81,11 +112,60 @@ export default function MainApp() {
                       : 'bg-neutral-400/10 text-neutral-300'
                   }`}>
                   <div className="uppercase">// {job.status}</div>
-                  <div>
+                  <div
+                    className="flex items-center gap-2"
+                    onMouseDown={suppressCardClick}
+                    onClick={suppressCardClick}
+                  >
                     {job.status === 'running' && <i className='bx bx-loader animate-spin text-blue-400'></i>}
                     {job.execution_time_sec && <div>{job.execution_time_sec}s</div>}
+                    {pendingDeleteJobId === job.id ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(event) => handleDeleteJob(event, job.id)}
+                          disabled={deletingJobIds.includes(job.id)}
+                          className="px-2 py-1 border border-red-400/50 bg-red-400/10 text-red-200 hover:bg-red-400/20 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label={`Confirm delete job ${job.id}`}
+                        >
+                          {deletingJobIds.includes(job.id) ? (
+                            <i className='bx bx-loader animate-spin text-base'></i>
+                          ) : (
+                            "Delete"
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelDeleteJob}
+                          disabled={deletingJobIds.includes(job.id)}
+                          className="px-2 py-1 border border-neutral-500/50 bg-neutral-700/20 text-neutral-200 hover:bg-neutral-700/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label={`Cancel delete job ${job.id}`}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(event) => requestDeleteJob(event, job.id)}
+                        disabled={deletingJobIds.includes(job.id)}
+                        className="text-neutral-400 hover:text-red-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label={`Delete job ${job.id}`}
+                      >
+                        <i className={`bx ${deletingJobIds.includes(job.id) ? 'bx-loader animate-spin' : 'bx-trash'} text-base`}></i>
+                      </button>
+                    )}
                   </div>
                 </div>
+                {pendingDeleteJobId === job.id && (
+                  <div
+                    className="mt-1 px-2 py-1 text-[11px] font-mono uppercase bg-red-400/10 text-red-200 border border-red-400/20"
+                    onMouseDown={suppressCardClick}
+                    onClick={suppressCardClick}
+                  >
+                    This will permanently remove the job from history and the dataset.
+                  </div>
+                )}
                 <div className="font-mono text-sm text-neutral-200 my-5 flex italic">
                   <div>"</div>
                   <div className="truncate">{job.prompt}</div>

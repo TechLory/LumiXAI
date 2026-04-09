@@ -34,7 +34,7 @@ from src.wrappers.hf_text_generation import HFTextGenerationWrapper
 from src.wrappers.hf_image import HFImageWrapper
 from src.attributors.captum_grad import CaptumGradientsAttributor
 
-from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_all_jobs
+from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_job, delete_all_jobs
 
 # Global Mutex to prevent concurrent threads from crashing the GPU during inference
 gpu_lock = threading.Lock()
@@ -311,12 +311,16 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
             }
 
             end_time = time.time()
-            update_job_success(job_id, payload, start_time, end_time)
+            was_persisted = update_job_success(job_id, payload, start_time, end_time)
+            if not was_persisted:
+                print(f"Job '{job_id}' was deleted before completion. Discarding result payload.")
 
         except Exception as e:
             traceback.print_exc()
             error_message = str(e)
-            update_job_failed(job_id, error_message)
+            was_updated = update_job_failed(job_id, error_message)
+            if not was_updated:
+                print(f"Job '{job_id}' was deleted before failure could be persisted.")
 
             if is_unrecoverable_cuda_error(error_message):
                 schedule_backend_restart(error_message)
@@ -502,6 +506,19 @@ def get_job_status(job_id: str):
     if not job:
         raise HTTPException(404, "Job not found")
     return job
+
+@app.delete("/api/jobs/{job_id}")
+def delete_job_by_id(job_id: str):
+    """Deletes a single job record and its persisted payload, if present."""
+    try:
+        was_deleted = delete_job(job_id)
+        if not was_deleted:
+            raise HTTPException(404, "Job not found")
+        return {"status": "success", "message": "Job deleted successfully."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error occurred while deleting the job: {str(e)}")
 
 @app.delete("/api/jobs")
 def clear_all_jobs():
