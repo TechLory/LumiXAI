@@ -15,6 +15,8 @@ interface ModelSelectorProps {
   onModelSelect: (modelId: string) => void;
 }
 
+const MODEL_SEARCH_LIMIT = 25;
+
 export default function ModelSelector(props: ModelSelectorProps) {
   const [query, setQuery] = useState(props.currentModel);
   const [results, setResults] = useState<HFModelResult[]>([]);
@@ -52,6 +54,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
       const url = new URL(buildApiUrl("/api/search"));
       url.searchParams.set("source", props.currentSource);
       url.searchParams.set("q", searchTerm);
+      url.searchParams.set("limit", String(MODEL_SEARCH_LIMIT));
       const res = await fetch(url.toString());
       if (res.ok) {
         const data = await res.json();
@@ -100,7 +103,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
       </div>
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-20 w-full bg-neutral-800 border border-neutral-700 mt-1 shadow-xl max-h-60 overflow-y-auto font-mono text-sm">
+        <ul className="absolute z-20 w-full bg-neutral-800 border border-neutral-700 mt-1 shadow-xl max-h-96 overflow-y-auto font-mono text-sm">
           {results.map((model) => (
             <li
               key={model.id}

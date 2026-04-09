@@ -143,6 +143,8 @@ AVAILABLE_ATTRIBUTORS = {
     "daam": {"name": "DAAM (Diffusion Attentive Attribution Maps)", "class": DAAMAttributor},
 }
 
+MODEL_SEARCH_LIMIT = 25
+
 # --- 2. GLOBAL STATE ---
 app_state: Dict[str, Any] = {
     "active_wrapper": None,
@@ -264,10 +266,11 @@ def get_manifest():
     }
 
 @app.get("/api/search", response_model=List[SearchResult])
-def search_models(source: str, q: str):
+def search_models(source: str, q: str, limit: int = MODEL_SEARCH_LIMIT):
     """Proxies the search request to the appropriate external Hub."""
     if source == "huggingface":
-        return search_hf_models(query=q, limit=10)
+        bounded_limit = max(1, min(limit, 50))
+        return search_hf_models(query=q, limit=bounded_limit)
     return []
 
 @app.post("/api/load")
