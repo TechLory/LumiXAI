@@ -11,6 +11,8 @@ import time
 import torch
 import gc
 import threading
+import traceback
+from importlib import import_module
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,7 +32,6 @@ from src.utils.hf_auth import hf_auth_kwargs
 from src.wrappers.hf_text_classification import HFTextClassificationWrapper
 from src.wrappers.hf_text_generation import HFTextGenerationWrapper
 from src.wrappers.hf_image import HFImageWrapper
-from src.attributors.daam import DAAMAttributor
 from src.attributors.captum_grad import CaptumGradientsAttributor
 
 from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_all_jobs
@@ -46,12 +47,48 @@ print(f"hf cache dir set to: {HF_CACHE_DIR}")
 os.environ["HF_HOME"] = str(HF_CACHE_DIR)
 
 DEFAULT_DEVICE_ENV_VAR = "LUMIXAI_DEFAULT_DEVICE"
+UNRECOVERABLE_CUDA_ERROR_MARKERS = (
+    "device-side assert triggered",
+)
+UNRECOVERABLE_CUDA_RESTART_MESSAGE = (
+    "Unrecoverable CUDA error detected. "
+    "The backend is restarting automatically, so please retry in a few seconds."
+)
+
+_backend_restart_lock = threading.Lock()
+_backend_restart_scheduled = False
 
 def normalize_requested_device(requested_device: Optional[str] = "auto") -> str:
     device = (requested_device or "auto").strip().lower()
     if device == "auto":
         device = os.getenv(DEFAULT_DEVICE_ENV_VAR, "auto").strip().lower() or "auto"
     return device
+
+def is_unrecoverable_cuda_error(error: Any) -> bool:
+    error_text = str(error).lower()
+    return any(marker in error_text for marker in UNRECOVERABLE_CUDA_ERROR_MARKERS)
+
+def schedule_backend_restart(reason: str) -> None:
+    global _backend_restart_scheduled
+
+    with _backend_restart_lock:
+        if _backend_restart_scheduled:
+            return
+        _backend_restart_scheduled = True
+
+    print(
+        "Scheduling backend restart after unrecoverable CUDA error: "
+        f"{reason}"
+    )
+
+    def restart_backend_process() -> None:
+        time.sleep(1.0)
+        os._exit(1)
+
+    threading.Thread(target=restart_backend_process, daemon=True).start()
+
+def build_cuda_restart_error(detail: str) -> str:
+    return f"{UNRECOVERABLE_CUDA_RESTART_MESSAGE} Original error: {detail}"
 
 def is_cuda_device(device: Optional[str]) -> bool:
     return bool(device) and device.startswith("cuda")
@@ -139,16 +176,47 @@ AVAILABLE_SOURCES = [
 ]
 
 AVAILABLE_ATTRIBUTORS = {
-    "captum_ig": {"name": "Integrated Gradients (Captum)", "class": CaptumGradientsAttributor},
-    "daam": {"name": "DAAM (Diffusion Attentive Attribution Maps)", "class": DAAMAttributor},
+    "captum_ig": {
+        "name": "Integrated Gradients (Captum)",
+        "class": CaptumGradientsAttributor,
+    },
+    "daam": {
+        "name": "DAAM (Diffusion Attentive Attribution Maps)",
+        "import_path": "src.attributors.daam:DAAMAttributor",
+    },
 }
 
 MODEL_SEARCH_LIMIT = 25
+
+
+def resolve_attributor_class(attributor_id: str):
+    attributor_config = AVAILABLE_ATTRIBUTORS[attributor_id]
+
+    if "class" in attributor_config:
+        return attributor_config["class"]
+
+    module_path, class_name = attributor_config["import_path"].split(":", 1)
+    module = import_module(module_path)
+    return getattr(module, class_name)
+
+
+def get_available_attributors():
+    available_attributors = []
+
+    for attributor_id, metadata in AVAILABLE_ATTRIBUTORS.items():
+        try:
+            resolve_attributor_class(attributor_id)
+            available_attributors.append({"id": attributor_id, "name": metadata["name"]})
+        except Exception as exc:
+            print(f"Skipping unavailable attributor '{attributor_id}': {exc}")
+
+    return available_attributors
 
 # --- 2. GLOBAL STATE ---
 app_state: Dict[str, Any] = {
     "active_wrapper": None,
     "active_attributor": None,
+    "active_attributor_id": None,
     "active_source": None,
     "active_model_name": None
 }
@@ -246,9 +314,12 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
             update_job_success(job_id, payload, start_time, end_time)
 
         except Exception as e:
-            import traceback
             traceback.print_exc()
-            update_job_failed(job_id, str(e))
+            error_message = str(e)
+            update_job_failed(job_id, error_message)
+
+            if is_unrecoverable_cuda_error(error_message):
+                schedule_backend_restart(error_message)
 
 
 # --- 6. ENDPOINTS ---
@@ -262,7 +333,7 @@ def get_manifest():
     """Returns the list of available model sources and attributor algorithms."""
     return {
         "sources": AVAILABLE_SOURCES,
-        "attributors": [{"id": k, "name": v["name"]} for k, v in AVAILABLE_ATTRIBUTORS.items()]
+        "attributors": get_available_attributors()
     }
 
 @app.get("/api/search", response_model=List[SearchResult])
@@ -289,6 +360,7 @@ def load_model(req: LoadRequest):
             del app_state["active_attributor"]
             app_state["active_wrapper"] = None
             app_state["active_attributor"] = None
+            app_state["active_attributor_id"] = None
             gc.collect()
             clear_cuda_memory(previous_device)
         
@@ -336,6 +408,7 @@ def load_model(req: LoadRequest):
 
         app_state["active_wrapper"] = wrapper_instance
         app_state["active_attributor"] = None
+        app_state["active_attributor_id"] = None
         app_state["active_source"] = req.source
         app_state["active_model_name"] = req.model_name
         
@@ -347,10 +420,16 @@ def load_model(req: LoadRequest):
 
     except ValueError as e:
         raise HTTPException(400, str(e))
-    except HTTPException:
+    except HTTPException as e:
+        if is_unrecoverable_cuda_error(e.detail):
+            schedule_backend_restart(str(e.detail))
+            raise HTTPException(e.status_code, build_cuda_restart_error(str(e.detail)))
         raise
     except Exception as e:
         error_message = build_hf_load_error(req.model_name, e)
+        if is_unrecoverable_cuda_error(error_message):
+            schedule_backend_restart(error_message)
+            raise HTTPException(503, build_cuda_restart_error(error_message))
         status_code = 400 if error_message != str(e) else 500
         raise HTTPException(status_code, error_message)
 
@@ -365,6 +444,7 @@ def unload_model():
                 del app_state["active_attributor"]
                 app_state["active_wrapper"] = None
                 app_state["active_attributor"] = None
+                app_state["active_attributor_id"] = None
                 app_state["active_source"] = None
                 app_state["active_model_name"] = None
                 
@@ -385,11 +465,12 @@ def set_attributor(req: AttributorRequest):
     if req.attributor_id not in AVAILABLE_ATTRIBUTORS:
         raise HTTPException(400, "Attributor ID not found")
     try:
-        AttrClass = AVAILABLE_ATTRIBUTORS[req.attributor_id]["class"]
+        AttrClass = resolve_attributor_class(req.attributor_id)
         app_state["active_attributor"] = AttrClass(app_state["active_wrapper"])
+        app_state["active_attributor_id"] = req.attributor_id
         return {"status": "active", "id": req.attributor_id, "name": AVAILABLE_ATTRIBUTORS[req.attributor_id]["name"]}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(400, f"Attributor '{req.attributor_id}' is not currently available: {e}")
 
 
 @app.post("/api/explain", response_model=JobResponse)
@@ -400,9 +481,8 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
     
     source_name = app_state.get("active_source", "unknown")
     model_name = app_state.get("active_model_name", "unknown")
-    
-    attr_class = type(app_state["active_attributor"])
-    attributor_name = next((v["name"] for v in AVAILABLE_ATTRIBUTORS.values() if v["class"] == attr_class), "Unknown")
+    active_attributor_id = app_state.get("active_attributor_id")
+    attributor_name = AVAILABLE_ATTRIBUTORS.get(active_attributor_id, {}).get("name", "Unknown")
 
     job_id = create_job(req.text, source_name, model_name, attributor_name)
     
