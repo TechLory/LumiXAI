@@ -13,6 +13,7 @@ interface ModelSelectorProps {
   currentSource: string;
   currentModel: string;
   onModelSelect: (modelId: string) => void;
+  disabled?: boolean;
 }
 
 const MODEL_SEARCH_LIMIT = 25;
@@ -89,7 +90,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
       
       <div className="relative flex items-center">
         <input
-          disabled={props.currentSource === ""}
+          disabled={props.currentSource === "" || props.disabled}
           type="text"
           className="w-full text-sm font-mono font-medium bg-transparent text-white outline-none p-2 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-neutral-300"
           placeholder="Type to search..."

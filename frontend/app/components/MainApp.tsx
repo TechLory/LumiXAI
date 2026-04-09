@@ -14,10 +14,17 @@ export default function MainApp() {
   const { systemState, bootLogs } = useSystemBoot();
 
   const {
-    selectedSource, setSelectedSource,
-    modelName, setModelName,
-    selectedAttributor, setSelectedAttributor,
-    configState, handleLoadConfiguration
+    selectedSource, onSourceChange,
+    modelName, onModelNameChange,
+    selectedAttributor, onAttributorChange,
+    configState,
+    lastLoadedConfiguration,
+    hasActiveConfiguration,
+    activeAttributorId,
+    isDirty,
+    handleLoadConfiguration,
+    handleResetConfiguration,
+    handleUnloadConfiguration
   } = useModelManager();
 
   const {
@@ -157,11 +164,17 @@ export default function MainApp() {
                   selectedSource={selectedSource}
                   modelName={modelName}
                   selectedAttributor={selectedAttributor}
-                  onSourceChange={setSelectedSource}
-                  onModelNameChange={setModelName}
-                  onAttributorChange={setSelectedAttributor}
+                  onSourceChange={onSourceChange}
+                  onModelNameChange={onModelNameChange}
+                  onAttributorChange={onAttributorChange}
                   configState={configState}
+                  isDirty={isDirty}
+                  hasActiveConfiguration={hasActiveConfiguration}
+                  hasResetTarget={!!lastLoadedConfiguration}
+                  isInferenceRunning={inferenceState.status === 'running'}
                   onLoadConfiguration={handleLoadConfiguration}
+                  onResetConfiguration={handleResetConfiguration}
+                  onUnloadConfiguration={handleUnloadConfiguration}
                 />
               </div>
             ) : null}
@@ -189,8 +202,8 @@ export default function MainApp() {
                   setInputText={setInputText}
                   onExplainClick={handleExplain}
                   inferenceStatus={inferenceState.status}
-                  isConfigReady={configState.status === 'success'}
-                  selectedAttributor={selectedAttributor}
+                  isConfigReady={hasActiveConfiguration}
+                  activeAttributorId={activeAttributorId}
                 />
               </div>
             ) : null}
