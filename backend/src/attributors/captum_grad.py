@@ -87,7 +87,7 @@ class CaptumGradientsAttributor(BaseAttributor):
         wrapper = self.wrapper
         print(f"Captum IG: Analyzing '{prompt}' on {wrapper.device}")
 
-        full_text, gen_token_strs, gen_probs = wrapper.generate_text(prompt, max_new_tokens=20) # pyright: ignore[reportAttributeAccessIssue]
+        full_text, gen_token_strs, gen_probs = wrapper.generate_text(prompt) # pyright: ignore[reportAttributeAccessIssue]
         
         inputs = wrapper.tokenizer(prompt, return_tensors="pt").to(wrapper.device) # pyright: ignore[reportAttributeAccessIssue]
         current_input_ids = inputs.input_ids

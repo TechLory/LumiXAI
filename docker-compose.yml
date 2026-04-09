@@ -14,6 +14,7 @@ services:
       - HF_HUB_CACHE=/app/hf_models_cache
       - HF_TOKEN=${HF_TOKEN:-}
       - LUMIXAI_DEFAULT_DEVICE=${LUMIXAI_DEFAULT_DEVICE:-auto}
+      - LUMIXAI_TEXT_MAX_NEW_TOKENS=${LUMIXAI_TEXT_MAX_NEW_TOKENS:-64}
   
   docs:
     build: ./backend

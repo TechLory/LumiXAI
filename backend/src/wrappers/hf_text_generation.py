@@ -1,9 +1,24 @@
+import os
 import torch
 import torch.nn.functional as F
 from typing import Any, Dict, Union, List, Tuple
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from ..abstract import BaseWrapper
 from ..utils.hf_auth import hf_auth_kwargs
+
+TEXT_MAX_NEW_TOKENS_ENV_VAR = "LUMIXAI_TEXT_MAX_NEW_TOKENS"
+DEFAULT_TEXT_MAX_NEW_TOKENS = 64
+
+
+def get_default_text_max_new_tokens() -> int:
+    raw_value = os.getenv(TEXT_MAX_NEW_TOKENS_ENV_VAR, str(DEFAULT_TEXT_MAX_NEW_TOKENS)).strip()
+
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return DEFAULT_TEXT_MAX_NEW_TOKENS
+
+    return parsed_value if parsed_value > 0 else DEFAULT_TEXT_MAX_NEW_TOKENS
 
 class HFTextGenerationWrapper(BaseWrapper):
     """Wrapper for Causal Language Models (e.g., GPT-2, Llama, Qwen).
@@ -43,12 +58,13 @@ class HFTextGenerationWrapper(BaseWrapper):
         model.eval()
         return model
 
-    def generate_text(self, prompt: str, max_new_tokens: int = 20) -> Tuple[str, List[str], List[float]]:
+    def generate_text(self, prompt: str, max_new_tokens: int | None = None) -> Tuple[str, List[str], List[float]]:
         """Generates a sequence of text deterministically and extracts token probabilities.
 
         Args:
             prompt (str): The initial text context.
-            max_new_tokens (int, optional): The maximum number of tokens to generate. Defaults to 20.
+            max_new_tokens (int | None, optional): The maximum number of tokens to generate.
+                If omitted, the backend uses `LUMIXAI_TEXT_MAX_NEW_TOKENS` or falls back to 64.
 
         Returns:
             Tuple[str, List[str], List[float]]: A tuple containing:
@@ -58,11 +74,12 @@ class HFTextGenerationWrapper(BaseWrapper):
         """
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
         input_length = inputs.input_ids.shape[1]
+        resolved_max_new_tokens = max_new_tokens if max_new_tokens is not None else get_default_text_max_new_tokens()
 
         with torch.no_grad():
             output_ids = self.model.generate(
                 **inputs, 
-                max_new_tokens=max_new_tokens, 
+                max_new_tokens=resolved_max_new_tokens, 
                 do_sample=False, 
                 pad_token_id=self.tokenizer.pad_token_id
             )
