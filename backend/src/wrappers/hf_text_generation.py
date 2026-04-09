@@ -43,6 +43,13 @@ def normalize_eos_token_ids(token_id_config: Any) -> set[int]:
         return {int(token_id) for token_id in token_id_config}
     return set()
 
+
+def move_batch_to_device(batch: Dict[str, Any], device: str) -> Dict[str, Any]:
+    return {
+        key: value.to(device) if hasattr(value, "to") else value
+        for key, value in batch.items()
+    }
+
 class HFTextGenerationWrapper(BaseWrapper):
     """Wrapper for Causal Language Models (e.g., GPT-2, Llama, Qwen).
     
@@ -81,6 +88,59 @@ class HFTextGenerationWrapper(BaseWrapper):
         model.eval()
         return model
 
+    def has_chat_template(self) -> bool:
+        chat_template = getattr(self.tokenizer, "chat_template", None)
+        return isinstance(chat_template, str) and bool(chat_template.strip())
+
+    def tokenize_generation_prompt(self, prompt: str) -> Dict[str, torch.Tensor]:
+        if self.has_chat_template():
+            messages = [{"role": "user", "content": prompt}]
+            try:
+                batch = self.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                )
+            except TypeError:
+                input_ids = self.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_tensors="pt",
+                )
+                batch = {
+                    "input_ids": input_ids,
+                    "attention_mask": torch.ones_like(input_ids),
+                }
+
+            if hasattr(batch, "to"):
+                return batch.to(self.device)
+            return move_batch_to_device(batch, self.device)
+
+        return self.tokenizer(prompt, return_tensors="pt").to(self.device)
+
+    def get_generation_eos_token_id(self) -> int | List[int] | None:
+        eos_token_ids = normalize_eos_token_ids(
+            getattr(getattr(self.model, "generation_config", None), "eos_token_id", None)
+        )
+
+        if not eos_token_ids:
+            eos_token_ids = normalize_eos_token_ids(getattr(self.model.config, "eos_token_id", None))
+
+        if not eos_token_ids:
+            eos_token_ids = normalize_eos_token_ids(getattr(self.tokenizer, "eos_token_id", None))
+
+        if not eos_token_ids:
+            return None
+
+        ordered_ids = sorted(eos_token_ids)
+        if len(ordered_ids) == 1:
+            return ordered_ids[0]
+
+        return ordered_ids
+
     def generate_text(self, prompt: str, max_new_tokens: int | None = None) -> Tuple[str, List[int], List[str], List[float]]:
         """Generates a sequence of text deterministically and extracts token probabilities.
 
@@ -96,10 +156,11 @@ class HFTextGenerationWrapper(BaseWrapper):
                 - A list of individual generated token strings.
                 - A list of float probabilities (0.0 - 1.0) for each generated token.
         """
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        inputs = self.tokenize_generation_prompt(prompt)
         resolved_max_new_tokens = max_new_tokens if max_new_tokens is not None else get_default_text_max_new_tokens()
-        input_length = inputs.input_ids.shape[1]
+        input_length = inputs["input_ids"].shape[1]
         max_positions = get_model_max_positions(self.model)
+        eos_token_id = self.get_generation_eos_token_id()
 
         if max_positions is not None:
             available_new_tokens = max_positions - input_length
@@ -117,21 +178,25 @@ class HFTextGenerationWrapper(BaseWrapper):
                 resolved_max_new_tokens = available_new_tokens
 
         with torch.no_grad():
-            output_ids = self.model.generate(
-                **inputs, 
-                max_new_tokens=resolved_max_new_tokens, 
-                do_sample=False, 
-                pad_token_id=self.tokenizer.pad_token_id
-            )
+            generation_kwargs = {
+                **inputs,
+                "max_new_tokens": resolved_max_new_tokens,
+                "do_sample": False,
+                "pad_token_id": self.tokenizer.pad_token_id,
+            }
+            if eos_token_id is not None:
+                generation_kwargs["eos_token_id"] = eos_token_id
+
+            output_ids = self.model.generate(**generation_kwargs)
         
         generated_ids = output_ids[0][input_length:]
-        full_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        full_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
         
         probs = []
         tokens_text = []
         generated_token_ids = [int(token_id.item()) for token_id in generated_ids]
 
-        current_input_ids = inputs.input_ids        
+        current_input_ids = inputs["input_ids"]
         for token_id in generated_ids:
             with torch.no_grad():
                 outputs = self.model(current_input_ids)
@@ -158,12 +223,7 @@ class HFTextGenerationWrapper(BaseWrapper):
             torch.Tensor: Logits for the next token prediction, shape `[Batch, VocabSize]`.
         """
         if isinstance(input_data, str):
-            inputs = self.tokenizer(
-                input_data, 
-                return_tensors="pt", 
-                padding=True, 
-                truncation=True
-            ).to(self.device)
+            inputs = self.tokenize_generation_prompt(input_data)
         else:
             inputs = input_data
 

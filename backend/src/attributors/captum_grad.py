@@ -89,8 +89,8 @@ class CaptumGradientsAttributor(BaseAttributor):
 
         full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt) # pyright: ignore[reportAttributeAccessIssue]
         
-        inputs = wrapper.tokenizer(prompt, return_tensors="pt").to(wrapper.device) # pyright: ignore[reportAttributeAccessIssue]
-        current_input_ids = inputs.input_ids
+        inputs = wrapper.tokenize_generation_prompt(prompt) # pyright: ignore[reportAttributeAccessIssue]
+        current_input_ids = inputs["input_ids"]
         attribution_trace = [] 
 
         def forward_func_adapter(inputs_embeds):
