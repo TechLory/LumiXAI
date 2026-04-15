@@ -1,11 +1,10 @@
 import { useState, useRef } from "react";
+import { buildApiUrl } from "../lib/api";
 import { AsyncState } from "../types";
 
 export function useInference() {
-  const isAppLocal = true;
-  const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
-
   const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [inferenceState, setInferenceState] = useState<AsyncState>({
     status: 'idle', data: null, error: null
   });
@@ -21,21 +20,30 @@ export function useInference() {
 
   const pollJobStatus = async (jobId: string) => {
     try {
-      const res = await fetch(`http://${ipAddress}:8000/api/jobs/${jobId}`);
+      const res = await fetch(buildApiUrl(`/api/jobs/${jobId}`));
+      if (res.status === 404) {
+        stopPolling();
+        setActiveJobId(null);
+        setInferenceState({ status: 'idle', data: null, error: null });
+        return;
+      }
       if (!res.ok) throw new Error("Failed to fetch job status");
 
       const job = await res.json();
 
       if (job.status === "completed") {
         stopPolling();
+        setActiveJobId(null);
         setInferenceState({ status: 'success', data: job.payload, error: null });
       } else if (job.status === "failed") {
         stopPolling();
+        setActiveJobId(null);
         setInferenceState({ status: 'error', data: null, error: job.error_message || "Job failed during execution." });
       }
       // If still running, do nothing and wait for the next poll
     } catch (e: any) {
       stopPolling();
+      setActiveJobId(null);
       setInferenceState({ status: 'error', data: null, error: e.message });
     }
   };
@@ -46,10 +54,11 @@ export function useInference() {
     // Spinner
     setInferenceState({ status: 'running', data: null, error: null });
     stopPolling();
+    setActiveJobId(null);
 
     try {
       // 1. Creiamo il Job
-      const res = await fetch(`http://${ipAddress}:8000/api/explain`, {
+      const res = await fetch(buildApiUrl("/api/explain"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -62,9 +71,11 @@ export function useInference() {
       if (!res.ok) throw new Error(data.detail || "Failed to start inference job");
 
       // 2. Got job_id -> Start polling
+      setActiveJobId(data.job_id);
       pollingIntervalRef.current = setInterval(() => pollJobStatus(data.job_id), 5000);
 
     } catch (e: any) {
+      setActiveJobId(null);
       setInferenceState({ status: 'error', data: null, error: e.message });
     }
   };
@@ -72,9 +83,20 @@ export function useInference() {
   // Reload past job
   const loadPastJob = (payload: any, prompt: string) => {
     stopPolling();
+    setActiveJobId(null);
     setInputText(prompt);
     setInferenceState({ status: 'success', data: payload, error: null });
   };
 
-  return { inputText, setInputText, inferenceState, handleExplain, loadPastJob };
+  const handleDeletedJob = (jobId: string) => {
+    if (jobId !== activeJobId) {
+      return;
+    }
+
+    stopPolling();
+    setActiveJobId(null);
+    setInferenceState({ status: 'idle', data: null, error: null });
+  };
+
+  return { inputText, setInputText, inferenceState, handleExplain, loadPastJob, handleDeletedJob };
 }

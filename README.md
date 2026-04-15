@@ -55,6 +55,33 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 ```
 *(Note: The GPU command will fail if the host machine does not have an NVIDIA GPU and the NVIDIA Container Toolkit installed..)*
 
+For machine-specific settings that should not be committed, create a repo-root `.env.local` file and start Compose with it:
+```bash
+cp .env.local.example .env.local
+docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+- `.env.local` is ignored by git and is the right place for custom ports, `HF_TOKEN`, `LUMIXAI_DEFAULT_DEVICE`, and `LUMIXAI_VISIBLE_GPUS`.
+- The example file includes `LUMIXAI_FRONTEND_PORT`, `LUMIXAI_BACKEND_PORT`, and `LUMIXAI_DOCS_PORT` if you want host-side port overrides.
+- You can also set `LUMIXAI_TEXT_MAX_NEW_TOKENS` there to raise the text generation cap while still allowing EOS to stop generation earlier.
+
+To pin the backend to a specific GPU, set one or both of these environment variables before starting Compose:
+```bash
+export LUMIXAI_DEFAULT_DEVICE=cuda:1
+export LUMIXAI_VISIBLE_GPUS=1
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+- `LUMIXAI_DEFAULT_DEVICE` controls which device the backend loads models onto. Supported values include `auto`, `cpu`, `cuda`, `cuda:0`, `cuda:1`, and `mps`.
+- `LUMIXAI_VISIBLE_GPUS` limits which physical NVIDIA GPU IDs are exposed to the container. If you set `LUMIXAI_VISIBLE_GPUS=1`, that GPU becomes the container's visible CUDA device `0`.
+
+To use gated or private Hugging Face repos, first request access on the model page and create a read token on Hugging Face. Then export it before starting Compose:
+```bash
+export HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+- The backend forwards `HF_TOKEN` to Hugging Face Hub API calls and `from_pretrained(...)` downloads.
+- Without `HF_TOKEN`, LumiXAI hides gated/private repos from search and rejects them at load time with a friendly error.
+- With `HF_TOKEN`, gated/private repos can be searched and loaded as long as that token's account actually has access.
+
 **To stop the application:**
 ```bash
 docker compose down

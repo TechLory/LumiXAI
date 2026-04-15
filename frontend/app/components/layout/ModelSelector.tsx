@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { buildApiUrl } from "../../lib/api";
 
 interface HFModelResult {
   id: string;
@@ -12,11 +13,12 @@ interface ModelSelectorProps {
   currentSource: string;
   currentModel: string;
   onModelSelect: (modelId: string) => void;
+  disabled?: boolean;
 }
 
+const MODEL_SEARCH_LIMIT = 25;
+
 export default function ModelSelector(props: ModelSelectorProps) {
-  const isAppLocal = true
-  const ipAddress = isAppLocal ? "localhost" : "192.168.1.23";
   const [query, setQuery] = useState(props.currentModel);
   const [results, setResults] = useState<HFModelResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -50,7 +52,11 @@ export default function ModelSelector(props: ModelSelectorProps) {
   const fetchModels = async (searchTerm: string) => {
     setIsSearching(true);
     try {
-      const res = await fetch(`http://${ipAddress}:8000/api/search?source=${encodeURIComponent(props.currentSource)}&q=${encodeURIComponent(searchTerm)}`);
+      const url = new URL(buildApiUrl("/api/search"));
+      url.searchParams.set("source", props.currentSource);
+      url.searchParams.set("q", searchTerm);
+      url.searchParams.set("limit", String(MODEL_SEARCH_LIMIT));
+      const res = await fetch(url.toString());
       if (res.ok) {
         const data = await res.json();
         setResults(data);
@@ -84,7 +90,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
       
       <div className="relative flex items-center">
         <input
-          disabled={props.currentSource === ""}
+          disabled={props.currentSource === "" || props.disabled}
           type="text"
           className="w-full text-sm font-mono font-medium bg-transparent text-white outline-none p-2 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-neutral-300"
           placeholder="Type to search..."
@@ -98,7 +104,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
       </div>
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-20 w-full bg-neutral-800 border border-neutral-700 mt-1 shadow-xl max-h-60 overflow-y-auto font-mono text-sm">
+        <ul className="absolute z-20 w-full bg-neutral-800 border border-neutral-700 mt-1 shadow-xl max-h-96 overflow-y-auto font-mono text-sm">
           {results.map((model) => (
             <li
               key={model.id}

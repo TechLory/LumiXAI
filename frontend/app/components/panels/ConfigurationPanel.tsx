@@ -1,4 +1,3 @@
-import { useState } from "react";
 import ModelSelector from "../layout/ModelSelector";
 import { ConfigurationState } from "../../hooks/useModelManager";
 
@@ -12,20 +11,26 @@ interface ConfigurationPanelProps {
   selectedAttributor: string;
 
   configState: ConfigurationState;
+  isDirty: boolean;
+  hasActiveConfiguration: boolean;
+  hasResetTarget: boolean;
+  isInferenceRunning: boolean;
 
   onSourceChange: (newValue: string) => void;
   onModelNameChange: (newValue: string) => void;
   onAttributorChange: (newValue: string) => void;
   onLoadConfiguration: () => void;
+  onResetConfiguration: () => void;
+  onUnloadConfiguration: () => void;
 }
 
 export default function ConfigurationPanel(props: ConfigurationPanelProps) {
-  const [isSearchBarLoading, setIsSearchBarLoading] = useState(false);
-
-  const { status, errorField, errorMessage, logs } = props.configState;
+  const { status, step, errorField, errorMessage, logs } = props.configState;
   const isRunning = status === 'running';
+  const isInteractionDisabled = isRunning || props.isInferenceRunning;
+  const isUnloadRunning = isRunning && step === 'unloading_model';
+  const isLoadRunning = isRunning && step !== 'unloading_model';
 
-  // Helper (dynamic style for inputs in case of error)
   const getRowClasses = (fieldId: 'source' | 'model' | 'attributor') => {
     if (errorField === fieldId) {
       return "bg-red-900/30 flex items-center";
@@ -33,7 +38,6 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
     return "bg-neutral-600/30 flex items-center";
   };
 
-  // Helper (inputs inline error message)
   const getLabelText = (fieldId: 'source' | 'model' | 'attributor', defaultText: string) => {
     if (errorField === fieldId && errorMessage) {
       return `// ERROR: ${errorMessage}`;
@@ -57,7 +61,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
               className="w-full text-sm font-mono font-medium bg-transparent text-white outline-none p-2 disabled:opacity-50"
               value={props.selectedSource}
               onChange={e => props.onSourceChange(e.target.value)}
-              disabled={isRunning}
+              disabled={isInteractionDisabled}
             >
               <option value="" disabled className="bg-neutral-800">Select a source...</option>
               {props.manifest?.sources.map(w => (
@@ -79,6 +83,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
               currentSource={props.selectedSource}
               currentModel={props.modelName}
               onModelSelect={props.onModelNameChange}
+              disabled={isInteractionDisabled}
             />
           </div>
         </div>
@@ -95,7 +100,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
               className="w-full text-sm font-mono font-medium bg-transparent text-white outline-none p-2 disabled:opacity-50"
               value={props.selectedAttributor}
               onChange={e => props.onAttributorChange(e.target.value)}
-              disabled={isRunning}
+              disabled={isInteractionDisabled}
             >
               <option value="" disabled className="bg-neutral-800">Select an attributor...</option>
               {props.manifest?.attributors.map(w => (
@@ -107,23 +112,63 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
 
         {/* LOAD CONFIGURATION BUTTON */}
         <div className="mt-5">
-          <button
-            className="bg-emerald-900/50 hover:bg-emerald-800/60 border border-emerald-700/50 text-emerald-400 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-            onClick={props.onLoadConfiguration}
-            disabled={isRunning}
-          >
-            {isRunning ? (
+          {isLoadRunning ? (
+            <button
+              className="bg-emerald-900/50 border border-emerald-700/50 text-emerald-400 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              disabled
+            >
               <><i className='bx bx-loader animate-spin text-lg'></i> Loading Configuration...</>
-            ) : status === 'success' ? (
-              <><i className='bx bx-check text-lg'></i> Configuration Loaded</>
-            ) : (
-              "Load Configuration"
-            )}
-          </button>
+            </button>
+          ) : isUnloadRunning ? (
+            <button
+              className="bg-red-900/50 border border-red-700/50 text-red-300 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              disabled
+            >
+              <><i className='bx bx-loader animate-spin text-lg'></i> Unloading Configuration...</>
+            </button>
+          ) : props.hasActiveConfiguration && !props.isDirty ? (
+            <button
+              className="bg-red-900/50 hover:bg-red-800/60 border border-red-700/50 text-red-300 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              onClick={props.onUnloadConfiguration}
+              disabled={isInteractionDisabled}
+            >
+              <><i className='bx bx-power-off text-lg'></i> Unload Configuration</>
+            </button>
+          ) : props.isDirty && props.hasResetTarget ? (
+            <div className="flex gap-2">
+              <button
+                className="bg-emerald-900/50 hover:bg-emerald-800/60 border border-emerald-700/50 text-emerald-400 flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                onClick={props.onLoadConfiguration}
+                disabled={isInteractionDisabled}
+              >
+                Load Configuration
+              </button>
+              <button
+                className="bg-white hover:bg-neutral-200 border border-neutral-200 text-neutral-950 flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                onClick={props.onResetConfiguration}
+                disabled={isInteractionDisabled}
+              >
+                Reset Configuration
+              </button>
+            </div>
+          ) : (
+            <button
+              className="bg-emerald-900/50 hover:bg-emerald-800/60 border border-emerald-700/50 text-emerald-400 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              onClick={props.onLoadConfiguration}
+              disabled={isInteractionDisabled}
+            >
+              Load Configuration
+            </button>
+          )}
 
           {/* LOGS */}
           <div className="mt-4 font-mono text-neutral-500 text-xs min-h-15 flex flex-col gap-1">
-            {logs.length === 0 && status !== 'error' && (
+            {props.hasActiveConfiguration && props.isDirty && (
+              <div className="text-yellow-500">
+                Draft changes are not active yet. The backend is still using the previously loaded configuration.
+              </div>
+            )}
+            {logs.length === 0 && status !== 'error' && !props.hasResetTarget && (
               <div>No configuration loaded. Please select a model source, a model name, and an attributor, then click "Load Configuration".</div>
             )}
             {logs.map((log, idx) => (

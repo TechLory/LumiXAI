@@ -87,10 +87,10 @@ class CaptumGradientsAttributor(BaseAttributor):
         wrapper = self.wrapper
         print(f"Captum IG: Analyzing '{prompt}' on {wrapper.device}")
 
-        full_text, gen_token_strs, gen_probs = wrapper.generate_text(prompt, max_new_tokens=20) # pyright: ignore[reportAttributeAccessIssue]
+        full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt) # pyright: ignore[reportAttributeAccessIssue]
         
-        inputs = wrapper.tokenizer(prompt, return_tensors="pt").to(wrapper.device) # pyright: ignore[reportAttributeAccessIssue]
-        current_input_ids = inputs.input_ids
+        inputs = wrapper.tokenize_generation_prompt(prompt) # pyright: ignore[reportAttributeAccessIssue]
+        current_input_ids = inputs["input_ids"]
         attribution_trace = [] 
 
         def forward_func_adapter(inputs_embeds):
@@ -105,7 +105,7 @@ class CaptumGradientsAttributor(BaseAttributor):
         ig = IntegratedGradients(forward_func_adapter)
 
         for i, token_str in enumerate(gen_token_strs):
-            target_token_id = wrapper.tokenizer.encode(token_str, add_special_tokens=False)[0] # pyright: ignore[reportAttributeAccessIssue]
+            target_token_id = gen_token_ids[i]
             current_embeddings = wrapper.get_embedding_layer()(current_input_ids)
 
             attributions = ig.attribute(
@@ -128,7 +128,10 @@ class CaptumGradientsAttributor(BaseAttributor):
             next_token_tensor = torch.tensor([[target_token_id]]).to(wrapper.device)
             current_input_ids = torch.cat([current_input_ids, next_token_tensor], dim=1)
 
-            if torch.cuda.is_available():
+            if wrapper.device.startswith("cuda:"):
+                with torch.cuda.device(wrapper.device):
+                    torch.cuda.empty_cache()
+            elif wrapper.device == "cuda":
                 torch.cuda.empty_cache()
 
         return AttributionOutput(

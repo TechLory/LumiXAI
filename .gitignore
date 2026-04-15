@@ -52,3 +52,7 @@ hf_models_cache/
 # Priv
 frontend/tests
 backend/tests
+
+# Local machine overrides
+.env.local
+.env.*.local

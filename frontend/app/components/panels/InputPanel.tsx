@@ -6,7 +6,7 @@ interface InputPanelProps {
   onExplainClick: (ignoreSpecialTokens: boolean) => void;
   inferenceStatus?: 'idle' | 'running' | 'success' | 'error' | string;
   isConfigReady: boolean;
-  selectedAttributor: string;
+  activeAttributorId: string | null;
 }
 
 export default function InputPanel(props: InputPanelProps) {
@@ -38,7 +38,7 @@ export default function InputPanel(props: InputPanelProps) {
         </div>
 
         {/* SPECIAL TOKENS TOGGLE */}
-        {props.selectedAttributor === "daam" && (
+        {props.activeAttributorId === "daam" && (
           <div className="mt-6 bg-neutral-600/30 text-neutral-400 font-mono text-xs font-medium uppercase flex justify-between p-4 ">
             <div>// DAAM will <span className="text-yellow-600">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
             <button
