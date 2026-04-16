@@ -11,8 +11,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -50,8 +48,8 @@ hf_models_cache/
 .DS_Store
 
 # Priv
-frontend/tests
-backend/tests
+frontend/experiments
+backend/experiments
 
 # Local machine overrides
 .env.local
