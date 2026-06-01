@@ -2,7 +2,7 @@ import requests
 import time
 from typing import List, Dict, Any
 from collections import defaultdict
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 
 class Client:
@@ -88,20 +88,19 @@ class Client:
         print(f"\nStarting Smart Batch: {total_jobs} jobs in {len(grouped_jobs)} groups.")
         print(f"Strategy: {strategy_description}")
 
-        with tqdm(total=total_jobs, desc="Elaboration") as pbar:
-            
+        pbar = tqdm(total=total_jobs, desc="Elaboration")
+        try:
             # 2. SEQUENTIAL GROUP PROCESSING
             for (source, model_name, attributor_id), group in sorted_groups:
                 print(f"\nConfiguration for model: '{model_name}' | Attributor: '{attributor_id}'...")
                 
-                # Load model (once per group) and set attributor for the current group
                 self._load_model(source, model_name)
                 self._set_attributor(attributor_id)
                 
                 job_ids_in_flight = []
                 
-                # Submit all jobs in the current group
                 for job in group:
+                    print(f"\nRequesting explanation for: '{job['prompt'][:50]}...'")
                     res = requests.post(f"{self.base_url}/api/explain", json={
                         "text": job['prompt'],
                         "target_class": job.get('target_class', None),
@@ -110,7 +109,6 @@ class Client:
                     res.raise_for_status()
                     job_ids_in_flight.append((job['_original_index'], res.json()["job_id"]))
 
-                # 3. GROUP POLLING
                 pending = job_ids_in_flight.copy()
                 while pending:
                     still_pending = []
@@ -128,6 +126,8 @@ class Client:
                     pending = still_pending
                     if pending:
                         time.sleep(poll_interval)
-                        
+        finally:
+            pbar.close()
+
         print("\n Global batch completed!")
         return results

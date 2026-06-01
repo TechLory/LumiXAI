@@ -93,7 +93,10 @@ class HFTextGenerationWrapper(BaseWrapper):
         return isinstance(chat_template, str) and bool(chat_template.strip())
 
     def tokenize_generation_prompt(self, prompt: str) -> Dict[str, torch.Tensor]:
-        if self.has_chat_template():
+        
+        force_plain = False  # Set to True to bypass chat template for test
+        
+        if not force_plain and self.has_chat_template():
             messages = [{"role": "user", "content": prompt}]
             try:
                 batch = self.tokenizer.apply_chat_template(
