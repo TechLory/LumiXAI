@@ -33,6 +33,7 @@ export default function MainApp() {
 
   const {
     inputText, setInputText,
+    seed, setSeed,
     inferenceState, handleExplain, loadPastJob, handleDeletedJob
   } = useInference();
 
@@ -280,6 +281,8 @@ export default function MainApp() {
                 <InputPanel
                   inputText={inputText}
                   setInputText={setInputText}
+                  seed={seed}
+                  setSeed={setSeed}
                   onExplainClick={handleExplain}
                   inferenceStatus={inferenceState.status}
                   isConfigReady={hasActiveConfiguration}

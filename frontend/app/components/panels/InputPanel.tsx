@@ -3,6 +3,8 @@ import { useState } from "react";
 interface InputPanelProps {
   inputText: string;
   setInputText: (text: string) => void;
+  seed: string;
+  setSeed: (seed: string) => void;
   onExplainClick: (ignoreSpecialTokens: boolean) => void;
   inferenceStatus?: 'idle' | 'running' | 'success' | 'error' | string;
   isConfigReady: boolean;
@@ -15,6 +17,15 @@ export default function InputPanel(props: InputPanelProps) {
   const [isSpecialTokensDisabled, setIsSpecialTokensDisabled] = useState(false); // DEBUG, PASSARE A BACKEND
 
   const isButtonDisabled = !props.isConfigReady || isRunning || wordCount === 0;
+
+  const handleSeedChange = (value: string) => {
+    // Keep only digits so the value is always a valid non-negative integer (or empty).
+    props.setSeed(value.replace(/[^0-9]/g, ""));
+  };
+
+  const randomizeSeed = () => {
+    props.setSeed(String(Math.floor(Math.random() * 2 ** 31)));
+  };
 
   return (
     <div className="mt-5">
@@ -47,6 +58,47 @@ export default function InputPanel(props: InputPanelProps) {
             >
               {isSpecialTokensDisabled ? "Consider" : "Ignore"} Special Tokens
             </button>
+          </div>
+        )}
+
+        {/* SEED PICKER (only meaningful for image generation) */}
+        {props.activeAttributorId === "daam" && (
+          <div className="mt-2 bg-neutral-600/30 text-neutral-400 font-mono text-xs font-medium uppercase flex items-center justify-between gap-3 p-4">
+            <div className="whitespace-nowrap">
+              // Seed{" "}
+              <span className="text-yellow-600">
+                {props.seed.trim() === "" ? "(random)" : "(fixed)"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={props.seed}
+                onChange={(e) => handleSeedChange(e.target.value)}
+                disabled={isRunning}
+                placeholder="random"
+                className="w-32 bg-neutral-800 text-neutral-200 text-right px-2 py-1 outline-none border border-neutral-700 focus:border-neutral-500 disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={randomizeSeed}
+                disabled={isRunning}
+                title="Generate a random seed"
+                className="cursor-pointer hover:text-neutral-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <i className='bx bx-dice-5 text-lg'></i>
+              </button>
+              <button
+                type="button"
+                onClick={() => props.setSeed("")}
+                disabled={isRunning || props.seed.trim() === ""}
+                title="Clear seed (use random)"
+                className="underline underline-offset-4 cursor-pointer hover:text-neutral-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         )}
 

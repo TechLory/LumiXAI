@@ -4,6 +4,9 @@ import { AsyncState } from "../types";
 
 export function useInference() {
   const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
+  // Optional seed for reproducible image generation. Empty string => random
+  // (the backend picks fresh noise, preserving the previous default behavior).
+  const [seed, setSeed] = useState<string>("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [inferenceState, setInferenceState] = useState<AsyncState>({
     status: 'idle', data: null, error: null
@@ -57,13 +60,19 @@ export function useInference() {
     setActiveJobId(null);
 
     try {
+      // Parse the optional seed: empty/invalid => null (random generation).
+      const trimmedSeed = seed.trim();
+      const parsedSeed = trimmedSeed === "" ? null : Number.parseInt(trimmedSeed, 10);
+      const seedValue = parsedSeed !== null && Number.isFinite(parsedSeed) ? parsedSeed : null;
+
       // 1. Creiamo il Job
       const res = await fetch(buildApiUrl("/api/explain"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: inputText,
-          ignore_special_tokens: ignoreSpecialTokens
+          ignore_special_tokens: ignoreSpecialTokens,
+          seed: seedValue
         })
       });
 
@@ -98,5 +107,5 @@ export function useInference() {
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
-  return { inputText, setInputText, inferenceState, handleExplain, loadPastJob, handleDeletedJob };
+  return { inputText, setInputText, seed, setSeed, inferenceState, handleExplain, loadPastJob, handleDeletedJob };
 }
