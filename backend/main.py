@@ -241,6 +241,7 @@ class ExplainRequest(BaseModel):
     text: str
     target_class: Optional[int] = None
     ignore_special_tokens: bool = True
+    seed: Optional[int] = None
 
 class JobResponse(BaseModel):
     job_id: str
@@ -257,12 +258,12 @@ app.add_middleware(
 )
 
 # --- 5. BACKGROUND ---
-def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True):
+def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True, seed: Optional[int] = None):
     """Executes the XAI attribution logic asynchronously.
 
-    This function runs in a separate thread. It acquires the global `gpu_lock` to ensure 
-    that only one heavy inference process hits the GPU at a time, preventing Out-Of-Memory 
-    errors or DAAM tracing conflicts. Upon completion, it formats the payload and updates 
+    This function runs in a separate thread. It acquires the global `gpu_lock` to ensure
+    that only one heavy inference process hits the GPU at a time, preventing Out-Of-Memory
+    errors or DAAM tracing conflicts. Upon completion, it formats the payload and updates
     the SQLite database.
 
     Args:
@@ -270,6 +271,8 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
         text (str): The input prompt provided by the user.
         target_class (Optional[int]): The specific class to attribute towards (if applicable).
         ignore_special_tokens (bool, optional): Whether to filter out structural tokens. Defaults to True.
+        seed (Optional[int], optional): Seed for reproducible generation. Currently honored by
+            attributors that involve stochastic generation (e.g. DAAM). Ignored otherwise.
     """
     start_time = time.time()
     with gpu_lock:
@@ -281,9 +284,10 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
                 raise ValueError("Modello o Attributor disconnessi durante l'esecuzione")
 
             output = attributor.attribute(
-                input_data=text, 
-                target_output=target_class, 
-                ignore_special_tokens=ignore_special_tokens
+                input_data=text,
+                target_output=target_class,
+                ignore_special_tokens=ignore_special_tokens,
+                seed=seed
             )
             predicted_word = None
 
@@ -490,7 +494,7 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
 
     job_id = create_job(req.text, source_name, model_name, attributor_name)
     
-    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens)
+    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed)
     
     return {"job_id": job_id, "status": "running"}
 

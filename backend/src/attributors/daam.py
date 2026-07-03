@@ -80,6 +80,15 @@ class DAAMAttributor(BaseAttributor):
             if neg_prompt is not None:
                 pipeline_args["negative_prompt"] = neg_prompt
 
+            # Optional deterministic generation: when a seed is provided we build a
+            # torch.Generator on the pipeline device so repeated runs reproduce the
+            # same image (and therefore the same attribution maps).
+            seed = kwargs.get("seed", None)
+            if seed is not None:
+                device = getattr(self.wrapper, "device", "cpu")
+                generator_device = device if str(device).startswith("cuda") else "cpu"
+                pipeline_args["generator"] = torch.Generator(device=generator_device).manual_seed(int(seed))
+
             output = pipeline(**pipeline_args)
 
             generated_image = output.images[0]
