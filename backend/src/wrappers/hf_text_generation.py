@@ -50,6 +50,21 @@ def move_batch_to_device(batch: Dict[str, Any], device: str) -> Dict[str, Any]:
         for key, value in batch.items()
     }
 
+
+def find_subsequence(haystack: List[int], needle: List[int]) -> Tuple[int, int] | None:
+    """Finds the first contiguous occurrence of `needle` inside `haystack`.
+
+    Returns:
+        Tuple[int, int] | None: The (start, end) half-open index span if found, else None.
+    """
+    n, m = len(haystack), len(needle)
+    if m == 0 or m > n:
+        return None
+    for i in range(n - m + 1):
+        if haystack[i:i + m] == needle:
+            return i, i + m
+    return None
+
 class HFTextGenerationWrapper(BaseWrapper):
     """Wrapper for Causal Language Models (e.g., GPT-2, Llama, Qwen).
     
@@ -123,6 +138,45 @@ class HFTextGenerationWrapper(BaseWrapper):
             return move_batch_to_device(batch, self.device)
 
         return self.tokenizer(prompt, return_tensors="pt").to(self.device)
+
+    def get_template_tokens_mask(self, text: str, input_ids: Any) -> List[bool]:
+        """Flags chat-template scaffolding tokens (role markers, control tokens, formatting).
+
+        Works on the same `input_ids` the attribution uses (guaranteeing alignment): it locates
+        the raw user content as a contiguous token subsequence and marks everything else as
+        template. If a chat template is not in use, or the content cannot be confidently located,
+        nothing is flagged (safer to under-hide than to mis-hide real content tokens).
+
+        Args:
+            text (str): The raw user content wrapped by the chat template.
+            input_ids (Any): A 1D tensor or iterable of the templated prompt's token ids.
+
+        Returns:
+            List[bool]: One flag per token; True where the token is template scaffolding.
+        """
+        ids = input_ids.detach().cpu().tolist() if hasattr(input_ids, "detach") else list(input_ids)
+        if not self.has_chat_template():
+            return [False] * len(ids)
+
+        # The same content can tokenize slightly differently depending on the preceding
+        # character (BPE whitespace merges), so try a couple of plausible encodings.
+        candidate_encodings: List[List[int]] = []
+        for candidate_text in (text, " " + text):
+            try:
+                candidate_encodings.append(self.tokenizer(candidate_text, add_special_tokens=False)["input_ids"])
+            except Exception:
+                continue
+
+        for content_ids in candidate_encodings:
+            span = find_subsequence(ids, content_ids)
+            if span is not None:
+                start, end = span
+                mask = [True] * len(ids)
+                for i in range(start, end):
+                    mask[i] = False
+                return mask
+
+        return [False] * len(ids)
 
     def get_generation_eos_token_id(self) -> int | List[int] | None:
         eos_token_ids = normalize_eos_token_ids(

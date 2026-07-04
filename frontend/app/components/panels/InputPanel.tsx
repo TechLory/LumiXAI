@@ -14,7 +14,9 @@ interface InputPanelProps {
 export default function InputPanel(props: InputPanelProps) {
   const isRunning = props.inferenceStatus === 'running';
   const wordCount = props.inputText.trim().split(/\s+/).filter((word: string) => word.length > 0).length;
-  const [isSpecialTokensDisabled, setIsSpecialTokensDisabled] = useState(false); // DEBUG, PASSARE A BACKEND
+  // DAAM filters special tokens at generation time (they can't be toggled after the fact,
+  // unlike the text views), so default to ignoring them to avoid the attention sink.
+  const [isSpecialTokensDisabled, setIsSpecialTokensDisabled] = useState(true);
 
   const isButtonDisabled = !props.isConfigReady || isRunning || wordCount === 0;
 

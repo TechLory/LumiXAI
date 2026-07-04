@@ -134,21 +134,46 @@ class CaptumGradientsAttributor(BaseAttributor):
             elif wrapper.device == "cuda":
                 torch.cuda.empty_cache()
 
+        # Special-token metadata (attribution values are left untouched): the input mask aligns
+        # with the prompt tokens (trace[0].context_tokens), the output mask with the generated
+        # tokens. The frontend uses these to hide/rescale special tokens in the visualization.
+        input_special_mask = self.wrapper.get_special_tokens_mask(inputs["input_ids"][0])
+        output_special_mask = self.wrapper.get_special_tokens_mask(gen_token_ids)
+        # Chat-template scaffolding on the input side (empty for models without a template).
+        input_template_mask = self.wrapper.get_template_tokens_mask(prompt, inputs["input_ids"][0])
+
         return AttributionOutput(
-            heatmap=attribution_trace, 
+            heatmap=attribution_trace,
             target="text_generation",
-            input_features=[], 
-            generated_image=None
+            input_features=[],
+            generated_image=None,
+            metadata={
+                "input_special_mask": input_special_mask,
+                "output_special_mask": output_special_mask,
+                "input_template_mask": input_template_mask,
+            }
         )
 
     # --- Utilities ---
 
     def _package_output(self, attributions: torch.Tensor, input_ids: torch.Tensor, target: int) -> AttributionOutput:
-        """Helper to convert raw attributions and input IDs into the standardized format."""
+        """Helper to convert raw attributions and input IDs into the standardized format.
+
+        The attribution scores themselves are left untouched; a ``special_tokens_mask`` is
+        attached as metadata so the frontend can optionally hide structural tokens (e.g.
+        ``[CLS]``/``[SEP]``) and rescale the visualization instead of letting the heatmap
+        sink into them.
+        """
         normalized = self._normalize(attributions)
         tokens = self.wrapper.tokenizer.convert_ids_to_tokens(input_ids) # pyright: ignore[reportAttributeAccessIssue]
         features = [InputFeature(index=i, content=t, modality="text") for i, t in enumerate(tokens)]
-        return AttributionOutput(heatmap=normalized, target=target, input_features=features)
+        special_tokens_mask = self.wrapper.get_special_tokens_mask(input_ids)
+        return AttributionOutput(
+            heatmap=normalized,
+            target=target,
+            input_features=features,
+            metadata={"special_tokens_mask": special_tokens_mask},
+        )
 
     def _normalize(self, attributions: torch.Tensor) -> List[float]:
         """Normalizes attribution scores across the embedding dimension."""

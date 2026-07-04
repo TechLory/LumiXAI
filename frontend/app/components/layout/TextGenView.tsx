@@ -34,9 +34,28 @@ interface StepData {
 
 interface TextGenViewProps {
   trace: StepData[];
+  // Optional tokenizer metadata (attribution values untouched). When `hideSpecialTokens`
+  // is on, special tokens are simply not rendered; their original indices are preserved so
+  // the bidirectional attribution mapping keeps working.
+  inputSpecialMask?: boolean[];
+  outputSpecialMask?: boolean[];
+  inputTemplateMask?: boolean[];
+  hideSpecialTokens?: boolean;
+  hideTemplateTokens?: boolean;
 }
 
-export default function TextGenView({ trace }: TextGenViewProps) {
+export default function TextGenView({
+  trace,
+  inputSpecialMask,
+  outputSpecialMask,
+  inputTemplateMask,
+  hideSpecialTokens = false,
+  hideTemplateTokens = false,
+}: TextGenViewProps) {
+  // An input token is hidden if it matches any enabled category (special and/or template).
+  const isInputHidden = (idx: number) =>
+    (hideSpecialTokens && !!inputSpecialMask?.[idx]) ||
+    (hideTemplateTokens && !!inputTemplateMask?.[idx]);
   // --- DATA PARSING ---
   const inputTokens = trace[0].context_tokens;
   const outputTokens = trace.map(t => t.generated_token);
@@ -159,15 +178,18 @@ export default function TextGenView({ trace }: TextGenViewProps) {
       <div>
         <h4 className="text-neutral-400 text-xs font-bold uppercase mb-2">Input</h4>
         <div className="flex flex-wrap">
-          {inputTokens.map((token, idx) => (
-            <TokenBox
-              key={`in-${idx}`}
-              word={token}
-              data={getInputBoxData(idx)}
-              onClick={() => handleInputClick(idx)}
-              isSelected={selectedType === "input" && selectedIndex === idx}
-            />
-          ))}
+          {inputTokens.map((token, idx) => {
+            if (isInputHidden(idx)) return null;
+            return (
+              <TokenBox
+                key={`in-${idx}`}
+                word={token}
+                data={getInputBoxData(idx)}
+                onClick={() => handleInputClick(idx)}
+                isSelected={selectedType === "input" && selectedIndex === idx}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -178,15 +200,18 @@ export default function TextGenView({ trace }: TextGenViewProps) {
       <div>
         <h4 className="text-neutral-400 text-xs font-bold uppercase mb-2">Output</h4>
         <div className="flex flex-wrap">
-          {outputTokens.map((token, idx) => (
-            <TokenBox
-              key={`out-${idx}`}
-              word={token}
-              data={getOutputBoxData(idx)}
-              onClick={() => handleOutputClick(idx)}
-              isSelected={selectedType === "output" && selectedIndex === idx}
-            />
-          ))}
+          {outputTokens.map((token, idx) => {
+            if (hideSpecialTokens && outputSpecialMask?.[idx]) return null;
+            return (
+              <TokenBox
+                key={`out-${idx}`}
+                word={token}
+                data={getOutputBoxData(idx)}
+                onClick={() => handleOutputClick(idx)}
+                isSelected={selectedType === "output" && selectedIndex === idx}
+              />
+            );
+          })}
         </div>
       </div>
 

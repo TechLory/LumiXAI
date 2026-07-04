@@ -295,9 +295,14 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
                 payload = {
                     "target_id": "text_generation",
                     "predicted_token": None,
-                    "tokens": [], 
+                    "tokens": [],
                     "scores": output.heatmap,
-                    "generated_image": None
+                    "generated_image": None,
+                    # Tokenizer metadata (attribution values untouched) so the frontend can
+                    # optionally hide special and/or chat-template tokens from the visualization.
+                    "input_special_mask": output.metadata.get("input_special_mask"),
+                    "output_special_mask": output.metadata.get("output_special_mask"),
+                    "input_template_mask": output.metadata.get("input_template_mask"),
                 }
             else:
                 if hasattr(wrapper, "tokenizer") and isinstance(output.target, int):
@@ -311,7 +316,10 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
                     "predicted_token": predicted_word,
                     "tokens": [f.content for f in output.input_features],
                     "scores": output.heatmap.tolist() if hasattr(output.heatmap, "tolist") else output.heatmap,
-                    "generated_image": output.generated_image
+                    "generated_image": output.generated_image,
+                    # Tokenizer metadata (attribution values untouched); None for image tasks,
+                    # where DAAM already filters special tokens during generation.
+                    "special_tokens_mask": output.metadata.get("special_tokens_mask"),
             }
 
             end_time = time.time()
