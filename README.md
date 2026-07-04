@@ -32,7 +32,7 @@ LumiXAI is designed with a dynamic routing heuristic that provides out-of-the-bo
 
 ## Getting Started
 
-LumiXAI is designed to be highly portable. It can be executed via Docker for rapid deployment on servers (with NVIDIA GPU support) or installed locally for native hardware acceleration (recommended for Apple Silicon/MPS users).
+LumiXAI is designed to be highly portable. It can be executed via Docker for rapid deployment on servers (with NVIDIA GPU support) or installed locally for native hardware acceleration (recommended for Apple Silicon/MPS users). 
 
 ### Option A: Running with Docker (Recommended for Linux/Windows Servers)
 
