@@ -50,10 +50,12 @@ class Client:
         print(f"{data.get('message')}")
         return data
 
-    def run_smart_batch(self, jobs: List[Dict[str, Any]], poll_interval: float = 2.0, sort_strategy: str = "fastest_first") -> List[Dict[str, Any]]:
+    def run_smart_batch(self, jobs: List[Dict[str, Any]], poll_interval: float = 2.0, sort_strategy: str = "fastest_first", device: str = "auto") -> List[Dict[str, Any]]:
         """
         Run a batch of jobs with smart grouping and optional sorting.
         sort_strategy can be: "fastest_first", "slowest_first", or "none".
+        device selects where models are loaded ("auto", "cuda:1", ...).
+        Each job may carry an optional "seed" for reproducible generation.
         """
         if not jobs:
             return []
@@ -94,7 +96,7 @@ class Client:
             for (source, model_name, attributor_id), group in sorted_groups:
                 print(f"\nConfiguration for model: '{model_name}' | Attributor: '{attributor_id}'...")
                 
-                self._load_model(source, model_name)
+                self._load_model(source, model_name, device)
                 self._set_attributor(attributor_id)
                 
                 job_ids_in_flight = []
@@ -104,7 +106,8 @@ class Client:
                     res = requests.post(f"{self.base_url}/api/explain", json={
                         "text": job['prompt'],
                         "target_class": job.get('target_class', None),
-                        "ignore_special_tokens": job.get('ignore_special_tokens', False)
+                        "ignore_special_tokens": job.get('ignore_special_tokens', False),
+                        "seed": job.get('seed', None)
                     })
                     res.raise_for_status()
                     job_ids_in_flight.append((job['_original_index'], res.json()["job_id"]))
