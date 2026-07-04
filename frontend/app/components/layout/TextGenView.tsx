@@ -52,10 +52,17 @@ export default function TextGenView({
   hideSpecialTokens = false,
   hideTemplateTokens = false,
 }: TextGenViewProps) {
-  // An input token is hidden if it matches any enabled category (special and/or template).
-  const isInputHidden = (idx: number) =>
-    (hideSpecialTokens && !!inputSpecialMask?.[idx]) ||
-    (hideTemplateTokens && !!inputTemplateMask?.[idx]);
+  // Special and template categories overlap: a chat template's control tokens (e.g.
+  // <|im_start|>) are flagged by BOTH masks. To give each toggle an independent, visible
+  // effect, treat the categories as disjoint by priority — special tokens are governed
+  // solely by the special toggle, and the template toggle governs the remaining
+  // scaffolding (role markers, newlines). Otherwise hiding template would keep every
+  // special token hidden regardless of the special toggle, making it look like a no-op.
+  const isInputHidden = (idx: number) => {
+    if (inputSpecialMask?.[idx]) return hideSpecialTokens;
+    if (inputTemplateMask?.[idx]) return hideTemplateTokens;
+    return false;
+  };
   // --- DATA PARSING ---
   const inputTokens = trace[0].context_tokens;
   const outputTokens = trace.map(t => t.generated_token);
