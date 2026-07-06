@@ -67,7 +67,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
     <div className="mt-5 mb-10">
       <div className="flex flex-col gap-0">
 
-        <div className="uppercase p-2 text-sm bg-neutral-400/10 text-neutral-300 font-mono mb-2 flex justify-between items-center gap-4">
+        <div className="uppercase p-2 text-sm bg-fill text-fg-muted font-mono mb-2 flex justify-between items-center gap-4">
           <div><span className="font-bold mr-5">// TASK:</span>{taskTitle}</div>
 
           {/* DISPLAY TOGGLES (instant, no re-run) */}
@@ -77,7 +77,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
                 type="button"
                 onClick={() => setHideSpecialTokens((prev) => !prev)}
                 title="Special tokens (e.g. [CLS], [SEP], BOS/EOS) are shown or hidden in the visualization only. This does not re-run the job."
-                className="normal-case text-xs text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer flex items-center gap-2"
+                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2"
               >
                 <i className={`bx ${hideSpecialTokens ? "bx-hide" : "bx-show"} text-base`}></i>
                 {hideSpecialTokens ? "Special tokens hidden" : "Special tokens shown"}
@@ -88,7 +88,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
                 type="button"
                 onClick={() => setHideTemplateTokens((prev) => !prev)}
                 title="Chat-template scaffolding (role markers, control tokens, formatting) is shown or hidden in the visualization only. This does not re-run the job."
-                className="normal-case text-xs text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer flex items-center gap-2"
+                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2"
               >
                 <i className={`bx ${hideTemplateTokens ? "bx-hide" : "bx-show"} text-base`}></i>
                 {hideTemplateTokens ? "Template tokens hidden" : "Template tokens shown"}
@@ -97,7 +97,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
           </div>
         </div>
 
-        <div className="bg-neutral-400/10 p-3">
+        <div className="bg-fill p-3">
 
           {/* --- CASE 1: IMAGE GENERATION --- */}
           {isImage && (
@@ -125,7 +125,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
             <div className="flex flex-col gap-6">
 
               {/* Token Box */}
-              <div className="flex gap-2 flex-wrap p-5 bg-neutral-900/50 rounded-lg border border-neutral-700/50">
+              <div className="flex gap-2 flex-wrap p-5 bg-sunken rounded-lg border border-border">
                 {visibleClassTokens.map((entry, index) => (
                   <TokenExplained
                     key={index}
@@ -136,15 +136,15 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
               </div>
 
               {/* Label Box */}
-              <div className="font-mono text-lg flex gap-3 items-center justify-center p-4 bg-neutral-900/50 rounded-lg border border-neutral-700/50">
-                <div className="uppercase text-neutral-500 text-sm tracking-wider">Predicted Class: </div>
+              <div className="font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border">
+                <div className="uppercase text-fg-faint text-sm tracking-wider">Predicted Class: </div>
 
                 {outputResult.target_id === 0 ? (
-                  <div className="font-bold text-red-400 bg-red-400/10 px-3 py-1 rounded">NEGATIVE</div>
+                  <div className="font-bold text-danger bg-danger-soft px-3 py-1 rounded">NEGATIVE</div>
                 ) : outputResult.target_id === 1 ? (
-                  <div className="font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded">POSITIVE</div>
+                  <div className="font-bold text-ok bg-ok-soft px-3 py-1 rounded">POSITIVE</div>
                 ) : (
-                  <div className="font-bold text-blue-400 bg-blue-400/10 px-3 py-1 rounded">
+                  <div className="font-bold text-info bg-info-soft px-3 py-1 rounded">
                     {outputResult.predicted_token || "UNKNOWN"}
                   </div>
                 )}

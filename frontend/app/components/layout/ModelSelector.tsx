@@ -92,28 +92,28 @@ export default function ModelSelector(props: ModelSelectorProps) {
         <input
           disabled={props.currentSource === "" || props.disabled}
           type="text"
-          className="w-full text-sm font-mono font-medium bg-transparent text-white outline-none p-2 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-neutral-300"
+          className="w-full text-sm font-mono font-medium bg-transparent text-fg outline-none p-2 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-fg-faint"
           placeholder="Type to search..."
           value={query}
           onChange={handleInputChange}
           onFocus={() => results.length > 0 && setIsOpen(true)}
         />
         {isSearching && (
-          <i className='bx bx-loader animate-spin text-neutral-500 absolute right-2'></i>
+          <i className='bx bx-loader animate-spin text-fg-faint absolute right-2'></i>
         )}
       </div>
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-20 w-full bg-neutral-800 border border-neutral-700 mt-1 shadow-xl max-h-96 overflow-y-auto font-mono text-sm">
+        <ul className="absolute z-20 w-full bg-surface border border-border mt-1 shadow-xl max-h-96 overflow-y-auto font-mono text-sm">
           {results.map((model) => (
             <li
               key={model.id}
               onClick={() => selectModel(model)}
-              className="p-3 hover:bg-neutral-700 cursor-pointer border-b border-neutral-700/50 last:border-b-0 transition-colors flex flex-col gap-1"
+              className="p-3 hover:bg-fill cursor-pointer border-b border-border last:border-b-0 transition-colors flex flex-col gap-1"
             >
-              <div className="font-medium text-white truncate">{model.id}</div>
-              <div className="flex justify-between text-xs text-neutral-400">
-                <span className="bg-neutral-900 px-2 py-0.5 text-neutral-300">
+              <div className="font-medium text-fg truncate">{model.id}</div>
+              <div className="flex justify-between text-xs text-fg-subtle">
+                <span className="bg-fill px-2 py-0.5 text-fg-muted">
                   {model.task}
                 </span>
                 <span>⬇ {model.downloads.toLocaleString()}</span>

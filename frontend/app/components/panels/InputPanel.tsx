@@ -36,7 +36,7 @@ export default function InputPanel(props: InputPanelProps) {
 
         {/* TEXT AREA (disabled only during inference) */}
         <textarea
-          className="bg-neutral-600/30 w-full min-h-48 p-4 text-neutral-200 font-mono text-sm outline-none disabled:opacity-50 resize-y"
+          className="bg-fill w-full min-h-48 p-4 text-fg font-mono text-sm outline-none disabled:opacity-50 resize-y"
           name="inputText"
           id="inputText"
           value={props.inputText}
@@ -46,16 +46,16 @@ export default function InputPanel(props: InputPanelProps) {
         ></textarea>
 
         {/* WORD COUNTER */}
-        <div className="text-neutral-500 font-mono font-medium text-sm text-center mt-1">
+        <div className="text-fg-faint font-mono font-medium text-sm text-center mt-1">
           Total words: {wordCount}
         </div>
 
         {/* SPECIAL TOKENS TOGGLE */}
         {props.activeAttributorId === "daam" && (
-          <div className="mt-6 bg-neutral-600/30 text-neutral-400 font-mono text-xs font-medium uppercase flex justify-between p-4 ">
-            <div>// DAAM will <span className="text-yellow-600">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
+          <div className="mt-6 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex justify-between p-4 ">
+            <div>// DAAM will <span className="text-warn">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
             <button
-              className="underline underline-offset-4 cursor-pointer hover:text-neutral-300 transition-colors"
+              className="underline underline-offset-4 cursor-pointer hover:text-fg transition-colors"
               onClick={() => setIsSpecialTokensDisabled(!isSpecialTokensDisabled)}
             >
               {isSpecialTokensDisabled ? "Consider" : "Ignore"} Special Tokens
@@ -65,10 +65,10 @@ export default function InputPanel(props: InputPanelProps) {
 
         {/* SEED PICKER (only meaningful for image generation) */}
         {props.activeAttributorId === "daam" && (
-          <div className="mt-2 bg-neutral-600/30 text-neutral-400 font-mono text-xs font-medium uppercase flex items-center justify-between gap-3 p-4">
+          <div className="mt-2 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex items-center justify-between gap-3 p-4">
             <div className="whitespace-nowrap">
               // Seed{" "}
-              <span className="text-yellow-600">
+              <span className="text-warn">
                 {props.seed.trim() === "" ? "(random)" : "(fixed)"}
               </span>
             </div>
@@ -80,14 +80,14 @@ export default function InputPanel(props: InputPanelProps) {
                 onChange={(e) => handleSeedChange(e.target.value)}
                 disabled={isRunning}
                 placeholder="random"
-                className="w-32 bg-neutral-800 text-neutral-200 text-right px-2 py-1 outline-none border border-neutral-700 focus:border-neutral-500 disabled:opacity-50"
+                className="w-32 bg-sunken text-fg text-right px-2 py-1 outline-none border border-border focus:border-border-strong disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={randomizeSeed}
                 disabled={isRunning}
                 title="Generate a random seed"
-                className="cursor-pointer hover:text-neutral-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="cursor-pointer hover:text-fg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <i className='bx bx-dice-5 text-lg'></i>
               </button>
@@ -96,7 +96,7 @@ export default function InputPanel(props: InputPanelProps) {
                 onClick={() => props.setSeed("")}
                 disabled={isRunning || props.seed.trim() === ""}
                 title="Clear seed (use random)"
-                className="underline underline-offset-4 cursor-pointer hover:text-neutral-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="underline underline-offset-4 cursor-pointer hover:text-fg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Clear
               </button>
@@ -107,7 +107,7 @@ export default function InputPanel(props: InputPanelProps) {
         {/* RUN BUTTON */}
         <div className="mt-0">
           <button
-            className="bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700/50 text-blue-400 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+            className="bg-info-soft hover:bg-info-hover border border-info-line text-info w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
             onClick={() => props.onExplainClick(isSpecialTokensDisabled)}
             disabled={isButtonDisabled}
           >

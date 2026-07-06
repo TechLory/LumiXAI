@@ -1,26 +1,129 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: the `.dark` class on <html> drives the theme
+   (set before paint by the inline script in layout.tsx), instead of the
+   OS-level prefers-color-scheme media query. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---- LIGHT THEME (default) ---- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --page: #f4f4f5;
+  --surface: #ffffff;
+  --sunken: #f5f5f5;
+  --fill: #f1f2f4;
+  --fill-strong: #e5e5e5;
+
+  --border: #e5e5e5;
+  --border-strong: #d4d4d4;
+
+  --fg: #171717;
+  --fg-muted: #404040;
+  --fg-subtle: #525252;
+  --fg-faint: #a3a3a3;
+
+  /* accents: text / soft background / hover background / border line */
+  --info: #2563eb;
+  --info-soft: rgba(59, 130, 246, 0.1);
+  --info-hover: rgba(59, 130, 246, 0.18);
+  --info-line: rgba(59, 130, 246, 0.3);
+
+  --ok: #059669;
+  --ok-soft: rgba(16, 185, 129, 0.12);
+  --ok-hover: rgba(16, 185, 129, 0.2);
+  --ok-line: rgba(16, 185, 129, 0.3);
+
+  --danger: #dc2626;
+  --danger-soft: rgba(239, 68, 68, 0.1);
+  --danger-hover: rgba(239, 68, 68, 0.18);
+  --danger-line: rgba(239, 68, 68, 0.3);
+
+  --warn: #ca8a04;
+  --warn-soft: rgba(234, 179, 8, 0.12);
+
+  --accent: #9333ea;
+  --accent-line: rgba(168, 85, 247, 0.5);
+}
+
+/* ---- DARK THEME ---- */
+.dark {
+  --page: #0a0a0a;
+  --surface: #262626;
+  --sunken: #171717;
+  --fill: #333333;
+  --fill-strong: #404040;
+
+  --border: #404040;
+  --border-strong: #525252;
+
+  --fg: #ffffff;
+  --fg-muted: #d4d4d4;
+  --fg-subtle: #a3a3a3;
+  --fg-faint: #737373;
+
+  --info: #60a5fa;
+  --info-soft: rgba(59, 130, 246, 0.15);
+  --info-hover: rgba(59, 130, 246, 0.28);
+  --info-line: rgba(59, 130, 246, 0.4);
+
+  --ok: #34d399;
+  --ok-soft: rgba(16, 185, 129, 0.15);
+  --ok-hover: rgba(16, 185, 129, 0.28);
+  --ok-line: rgba(16, 185, 129, 0.4);
+
+  --danger: #fca5a5;
+  --danger-soft: rgba(239, 68, 68, 0.12);
+  --danger-hover: rgba(239, 68, 68, 0.24);
+  --danger-line: rgba(239, 68, 68, 0.4);
+
+  --warn: #eab308;
+  --warn-soft: rgba(234, 179, 8, 0.12);
+
+  --accent: #c084fc;
+  --accent-line: rgba(168, 85, 247, 0.5);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
+
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-hover: var(--info-hover);
+  --color-info-line: var(--info-line);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-hover: var(--ok-hover);
+  --color-ok-line: var(--ok-line);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-line: var(--danger-line);
+
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-line: var(--accent-line);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--page);
+  color: var(--fg);
   font-family: Arial, Helvetica, sans-serif;
 }

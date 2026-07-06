@@ -136,12 +136,12 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
     <div className="flex flex-col gap-8 w-full select-none">
 
       {/* INTERACTIVE IMAGE */}
-      <div className="flex flex-col items-center bg-neutral-900 p-4 rounded-lg border border-neutral-700">
+      <div className="flex flex-col items-center bg-sunken p-4 rounded-lg border border-border">
         <div className="flex justify-between w-full max-w-lg mb-4">
-          <h3 className="text-gray-400 text-sm uppercase font-bold">
+          <h3 className="text-fg-subtle text-sm uppercase font-bold">
             Generated Image
           </h3>
-          <span className="text-xs text-gray-500 italic">
+          <span className="text-xs text-fg-faint italic">
             {hasSelection
               ? `Heatmap: ${selectedLabel}${selectedTokens.length > 1 ? " (aggregated)" : ""}`
               : hoveredCell
@@ -182,12 +182,12 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
       </div>
 
       {/* TOKEN INPUT */}
-      <div className="bg-neutral-900 p-6 rounded-lg border border-neutral-700">
+      <div className="bg-sunken p-6 rounded-lg border border-border">
         <div className="flex justify-between items-center mb-4">
-            <h3 className="text-gray-400 text-sm uppercase font-bold">
+            <h3 className="text-fg-subtle text-sm uppercase font-bold">
             Input Prompt
             </h3>
-            <span className="text-xs text-gray-500 italic">
+            <span className="text-xs text-fg-faint italic">
             Click a token &middot; Shift / Ctrl / Cmd-click to aggregate multiple
             </span>
         </div>
@@ -213,15 +213,15 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
                   min-w-15 min-h-12.5
                   border rounded transition-all duration-150 cursor-pointer
                   ${isSelected
-                    ? "border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.4)] bg-neutral-800"
-                    : "border-neutral-700 bg-neutral-900 hover:border-neutral-500"}
+                    ? "border-accent shadow-[0_0_15px_rgba(168,85,247,0.4)] bg-fill-strong"
+                    : "border-border bg-sunken hover:border-border-strong"}
                 `}
               >
-                <span className="text-sm font-mono font-bold text-white px-2 py-2">
+                <span className="text-sm font-mono font-bold text-fg px-2 py-2">
                   {token}
                 </span>
                 <div
-                  className="w-full text-[10px] text-center font-bold text-white py-0.5 border-t border-neutral-700 transition-colors duration-75"
+                  className="w-full text-[10px] text-center font-bold text-fg py-0.5 border-t border-border transition-colors duration-75"
                   style={{ backgroundColor: color }}
                 >
                   {hoveredCell ? formatPercent(score) : "-"}

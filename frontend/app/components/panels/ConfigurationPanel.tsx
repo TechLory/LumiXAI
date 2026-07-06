@@ -33,9 +33,9 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
 
   const getRowClasses = (fieldId: 'source' | 'model' | 'attributor') => {
     if (errorField === fieldId) {
-      return "bg-red-900/30 flex items-center";
+      return "bg-danger-soft flex items-center";
     }
-    return "bg-neutral-600/30 flex items-center";
+    return "bg-fill flex items-center";
   };
 
   const getLabelText = (fieldId: 'source' | 'model' | 'attributor', defaultText: string) => {
@@ -52,20 +52,20 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
         {/* 1: MODEL SOURCE */}
         <div className={getRowClasses('source')}>
           {/* SX Label */}
-          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'source' ? 'text-red-400' : 'text-neutral-400 uppercase'}`}>
+          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'source' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
             {getLabelText('source', 'select a source')}
           </div>
           {/* DX Input */}
           <div className="flex-1">
             <select
-              className="w-full text-sm font-mono font-medium bg-transparent text-white outline-none p-2 disabled:opacity-50"
+              className="w-full text-sm font-mono font-medium bg-transparent text-fg outline-none p-2 disabled:opacity-50"
               value={props.selectedSource}
               onChange={e => props.onSourceChange(e.target.value)}
               disabled={isInteractionDisabled}
             >
-              <option value="" disabled className="bg-neutral-800">Select a source...</option>
+              <option value="" disabled className="bg-surface text-fg">Select a source...</option>
               {props.manifest?.sources.map(w => (
-                <option key={w.id} value={w.id} className="bg-neutral-800">{w.name}</option>
+                <option key={w.id} value={w.id} className="bg-surface text-fg">{w.name}</option>
               ))}
             </select>
           </div>
@@ -74,7 +74,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
         {/* 2: MODEL NAME */}
         <div className={getRowClasses('model')}>
           {/* SX Label */}
-          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'model' ? 'text-red-400' : 'text-neutral-400 uppercase'}`}>
+          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'model' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
             {getLabelText('model', 'select a model')}
           </div>
           {/* DX Input */}
@@ -91,20 +91,20 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
         {/* 3: ATTRIBUTOR */}
         <div className={getRowClasses('attributor')}>
           {/* SX Label */}
-          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'attributor' ? 'text-red-400' : 'text-neutral-400 uppercase'}`}>
+          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'attributor' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
             {getLabelText('attributor', 'select an attributor')}
           </div>
           {/* DX Input */}
           <div className="flex-1">
             <select
-              className="w-full text-sm font-mono font-medium bg-transparent text-white outline-none p-2 disabled:opacity-50"
+              className="w-full text-sm font-mono font-medium bg-transparent text-fg outline-none p-2 disabled:opacity-50"
               value={props.selectedAttributor}
               onChange={e => props.onAttributorChange(e.target.value)}
               disabled={isInteractionDisabled}
             >
-              <option value="" disabled className="bg-neutral-800">Select an attributor...</option>
+              <option value="" disabled className="bg-surface text-fg">Select an attributor...</option>
               {props.manifest?.attributors.map(w => (
-                <option key={w.id} value={w.id} className="bg-neutral-800">{w.name}</option>
+                <option key={w.id} value={w.id} className="bg-surface text-fg">{w.name}</option>
               ))}
             </select>
           </div>
@@ -114,21 +114,21 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
         <div className="mt-5">
           {isLoadRunning ? (
             <button
-              className="bg-emerald-900/50 border border-emerald-700/50 text-emerald-400 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              className="bg-ok-soft border border-ok-line text-ok w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
               disabled
             >
               <><i className='bx bx-loader animate-spin text-lg'></i> Loading Configuration...</>
             </button>
           ) : isUnloadRunning ? (
             <button
-              className="bg-red-900/50 border border-red-700/50 text-red-300 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              className="bg-danger-soft border border-danger-line text-danger w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
               disabled
             >
               <><i className='bx bx-loader animate-spin text-lg'></i> Unloading Configuration...</>
             </button>
           ) : props.hasActiveConfiguration && !props.isDirty ? (
             <button
-              className="bg-red-900/50 hover:bg-red-800/60 border border-red-700/50 text-red-300 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              className="bg-danger-soft hover:bg-danger-hover border border-danger-line text-danger w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
               onClick={props.onUnloadConfiguration}
               disabled={isInteractionDisabled}
             >
@@ -137,14 +137,14 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
           ) : props.isDirty && props.hasResetTarget ? (
             <div className="flex gap-2">
               <button
-                className="bg-emerald-900/50 hover:bg-emerald-800/60 border border-emerald-700/50 text-emerald-400 flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                className="bg-ok-soft hover:bg-ok-hover border border-ok-line text-ok flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                 onClick={props.onLoadConfiguration}
                 disabled={isInteractionDisabled}
               >
                 Load Configuration
               </button>
               <button
-                className="bg-white hover:bg-neutral-200 border border-neutral-200 text-neutral-950 flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                className="bg-fg hover:opacity-80 border border-fg text-surface flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                 onClick={props.onResetConfiguration}
                 disabled={isInteractionDisabled}
               >
@@ -153,7 +153,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
             </div>
           ) : (
             <button
-              className="bg-emerald-900/50 hover:bg-emerald-800/60 border border-emerald-700/50 text-emerald-400 w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              className="bg-ok-soft hover:bg-ok-hover border border-ok-line text-ok w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
               onClick={props.onLoadConfiguration}
               disabled={isInteractionDisabled}
             >
@@ -162,9 +162,9 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
           )}
 
           {/* LOGS */}
-          <div className="mt-4 font-mono text-neutral-500 text-xs min-h-15 flex flex-col gap-1">
+          <div className="mt-4 font-mono text-fg-faint text-xs min-h-15 flex flex-col gap-1">
             {props.hasActiveConfiguration && props.isDirty && (
-              <div className="text-yellow-500">
+              <div className="text-warn">
                 Draft changes are not active yet. The backend is still using the previously loaded configuration.
               </div>
             )}
@@ -172,12 +172,12 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
               <div>No configuration loaded. Please select a model source, a model name, and an attributor, then click "Load Configuration".</div>
             )}
             {logs.map((log, idx) => (
-              <div key={idx} className={`${idx === logs.length - 1 && status === 'success' ? 'text-emerald-500' : ''}`}>
+              <div key={idx} className={`${idx === logs.length - 1 && status === 'success' ? 'text-ok' : ''}`}>
                 {log}
               </div>
             ))}
             {errorField === 'general' && (
-              <div className="text-red-500 mt-2">Critical Error: {errorMessage}</div>
+              <div className="text-danger mt-2">Critical Error: {errorMessage}</div>
             )}
           </div>
         </div>
