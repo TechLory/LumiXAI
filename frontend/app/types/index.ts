@@ -35,3 +35,15 @@ export interface JobHistoryItem {
   is_builtin_example?: boolean;
   tutorial_kind?: TutorialKind;
 }
+
+export type TutorialOutputInteraction = {
+  classificationTokenIndex?: number;
+  textGenerationSelection?: {
+    selectedType: "input" | "output";
+    selectedIndex: number;
+  };
+  imageSelection?: {
+    selectedTokenIndices?: number[];
+    hoveredCell?: { x: number; y: number };
+  };
+};

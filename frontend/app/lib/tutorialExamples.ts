@@ -1,10 +1,20 @@
 import type { OutputResult } from "../components/panels/OutputPanel";
 import type { JobHistoryItem, TutorialKind } from "../types";
 
+export type TutorialExampleConfiguration = {
+  sourceId: string;
+  sourceName: string;
+  modelName: string;
+  attributorId: string;
+  attributorName: string;
+  detectedTask: string;
+};
+
 export interface TutorialExampleJob extends JobHistoryItem {
   status: "completed";
   is_builtin_example: true;
   tutorial_kind: TutorialKind;
+  config: TutorialExampleConfiguration;
   payload: OutputResult;
 }
 
@@ -21,8 +31,11 @@ type ImageHeatmap = {
 };
 
 const GRID_SIZE = 64;
+const EXAMPLE_SOURCE_ID = "huggingface";
 const EXAMPLE_SOURCE_NAME = "Hugging Face Hub";
+const CAPTUM_ATTRIBUTOR_ID = "captum_ig";
 const CAPTUM_ATTRIBUTOR = "Integrated Gradients (Captum)";
+const DAAM_ATTRIBUTOR_ID = "daam";
 const DAAM_ATTRIBUTOR = "DAAM (Diffusion Attentive Attribution Maps)";
 
 const EXAMPLE_IMAGE_BASE64 =
@@ -108,6 +121,14 @@ export const tutorialExampleJobs: readonly TutorialExampleJob[] = [
     execution_time_sec: 1.42,
     is_builtin_example: true,
     tutorial_kind: "text-classification",
+    config: {
+      sourceId: EXAMPLE_SOURCE_ID,
+      sourceName: EXAMPLE_SOURCE_NAME,
+      modelName: "distilbert-base-uncased-finetuned-sst-2-english",
+      attributorId: CAPTUM_ATTRIBUTOR_ID,
+      attributorName: CAPTUM_ATTRIBUTOR,
+      detectedTask: "text-classification",
+    },
     payload: {
       target_id: 1,
       predicted_token: "POSITIVE",
@@ -127,6 +148,14 @@ export const tutorialExampleJobs: readonly TutorialExampleJob[] = [
     execution_time_sec: 4.86,
     is_builtin_example: true,
     tutorial_kind: "text-generation",
+    config: {
+      sourceId: EXAMPLE_SOURCE_ID,
+      sourceName: EXAMPLE_SOURCE_NAME,
+      modelName: "gpt2-large",
+      attributorId: CAPTUM_ATTRIBUTOR_ID,
+      attributorName: CAPTUM_ATTRIBUTOR,
+      detectedTask: "text-generation",
+    },
     payload: {
       target_id: "text_generation",
       predicted_token: undefined,
@@ -148,6 +177,14 @@ export const tutorialExampleJobs: readonly TutorialExampleJob[] = [
     execution_time_sec: 18.3,
     is_builtin_example: true,
     tutorial_kind: "txt2img-generation",
+    config: {
+      sourceId: EXAMPLE_SOURCE_ID,
+      sourceName: EXAMPLE_SOURCE_NAME,
+      modelName: "runwayml/stable-diffusion-v1-5",
+      attributorId: DAAM_ATTRIBUTOR_ID,
+      attributorName: DAAM_ATTRIBUTOR,
+      detectedTask: "text-to-image",
+    },
     payload: {
       target_id: "image_generation",
       predicted_token: undefined,
@@ -176,6 +213,9 @@ export const getTutorialExampleJob = (jobId: string) =>
 
 export const getTutorialExampleForKind = (tutorialKind: TutorialKind) =>
   tutorialExampleJobs.find((job) => job.tutorial_kind === tutorialKind) ?? null;
+
+export const getTutorialExampleConfiguration = (tutorialKind: TutorialKind) =>
+  getTutorialExampleForKind(tutorialKind)?.config ?? null;
 
 export const isTutorialExampleJobId = (jobId: string) =>
   tutorialExampleJobs.some((job) => job.id === jobId);

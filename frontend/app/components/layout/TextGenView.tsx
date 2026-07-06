@@ -32,6 +32,11 @@ interface StepData {
   attribution_scores: number[]; // Importance of each context_token
 }
 
+export type TextGenerationTutorialSelection = {
+  selectedType: "input" | "output";
+  selectedIndex: number;
+};
+
 interface TextGenViewProps {
   trace: StepData[];
   // Optional tokenizer metadata (attribution values untouched). When `hideSpecialTokens`
@@ -42,6 +47,7 @@ interface TextGenViewProps {
   inputTemplateMask?: boolean[];
   hideSpecialTokens?: boolean;
   hideTemplateTokens?: boolean;
+  tutorialSelection?: TextGenerationTutorialSelection;
 }
 
 export default function TextGenView({
@@ -51,6 +57,7 @@ export default function TextGenView({
   inputTemplateMask,
   hideSpecialTokens = false,
   hideTemplateTokens = false,
+  tutorialSelection,
 }: TextGenViewProps) {
   // Special and template categories overlap: a chat template's control tokens (e.g.
   // <|im_start|>) are flagged by BOTH masks. To give each toggle an independent, visible
@@ -70,6 +77,8 @@ export default function TextGenView({
   // --- STATE ---
   const [selectedType, setSelectedType] = useState<"input" | "output" | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const activeSelectedType = tutorialSelection?.selectedType ?? selectedType;
+  const activeSelectedIndex = tutorialSelection?.selectedIndex ?? selectedIndex;
 
   // --- LOGIC: GET SCORES FOR DISPLAY ---
 
@@ -79,7 +88,7 @@ export default function TextGenView({
    */
   const getOutputBoxData = (outIdx: number) => {
     const step = trace[outIdx];
-    const isSelfSelected = selectedType === "output" && selectedIndex === outIdx;
+    const isSelfSelected = activeSelectedType === "output" && activeSelectedIndex === outIdx;
 
     // Case A: This output is selected -> Show model confidence
     if (isSelfSelected) {
@@ -87,10 +96,10 @@ export default function TextGenView({
     }
 
     // Case B: Other output is selected -> Show attribution if this output is in the context of the selected output
-    if (selectedType === "output" && selectedIndex !== null) {
-      if (outIdx < selectedIndex) {
+    if (activeSelectedType === "output" && activeSelectedIndex !== null) {
+      if (outIdx < activeSelectedIndex) {
         // This output is in the past of the selected output -> Show how much it influenced the selected output
-        const targetStep = trace[selectedIndex];
+        const targetStep = trace[activeSelectedIndex];
         const ctxIdx = inputTokens.length + outIdx;
         const attrScore = targetStep.attribution_scores[ctxIdx] || 0;
         return { score: attrScore, color: getScoreColor(attrScore), label: "ATTR" };
@@ -100,8 +109,8 @@ export default function TextGenView({
     }
 
     // Case C: Input is selected -> Show how much it influenced this output
-    if (selectedType === "input" && selectedIndex !== null) {
-      const attrScore = step.attribution_scores[selectedIndex] || 0;
+    if (activeSelectedType === "input" && activeSelectedIndex !== null) {
+      const attrScore = step.attribution_scores[activeSelectedIndex] || 0;
       return { score: attrScore, color: getScoreColor(attrScore), label: "INFL" };
     }
 
@@ -114,12 +123,12 @@ export default function TextGenView({
    * input box at index `inIdx`, based on current selection
    */
   const getInputBoxData = (inIdx: number) => {
-    const isSelfSelected = selectedType === "input" && selectedIndex === inIdx;
+    const isSelfSelected = activeSelectedType === "input" && activeSelectedIndex === inIdx;
     if (isSelfSelected) {
       return { score: 1.0, color: "rgba(59, 130, 246, 0.5)", label: "SEL" }; // Blue highlight
     }
-    if (selectedType === "output" && selectedIndex !== null) {
-      const targetStep = trace[selectedIndex];
+    if (activeSelectedType === "output" && activeSelectedIndex !== null) {
+      const targetStep = trace[activeSelectedIndex];
       const attrScore = targetStep.attribution_scores[inIdx] || 0;
       return { score: attrScore, color: getScoreColor(attrScore), label: "ATTR" };
     }
@@ -128,6 +137,8 @@ export default function TextGenView({
 
   // --- 4. HANDLERS ---
   const handleInputClick = (idx: number) => {
+    if (tutorialSelection) return;
+
     if (selectedType === "input" && selectedIndex === idx) {
       setSelectedType(null); setSelectedIndex(null);
     } else {
@@ -135,6 +146,8 @@ export default function TextGenView({
     }
   };
   const handleOutputClick = (idx: number) => {
+    if (tutorialSelection) return;
+
     if (selectedType === "output" && selectedIndex === idx) {
       setSelectedType(null); setSelectedIndex(null);
     } else {
@@ -193,7 +206,7 @@ export default function TextGenView({
                 word={token}
                 data={getInputBoxData(idx)}
                 onClick={() => handleInputClick(idx)}
-                isSelected={selectedType === "input" && selectedIndex === idx}
+                isSelected={activeSelectedType === "input" && activeSelectedIndex === idx}
               />
             );
           })}
@@ -215,7 +228,7 @@ export default function TextGenView({
                 word={token}
                 data={getOutputBoxData(idx)}
                 onClick={() => handleOutputClick(idx)}
-                isSelected={selectedType === "output" && selectedIndex === idx}
+                isSelected={activeSelectedType === "output" && activeSelectedIndex === idx}
               />
             );
           })}

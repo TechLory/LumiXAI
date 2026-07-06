@@ -262,3 +262,24 @@ body {
     animation: none;
   }
 }
+
+.tutorial-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.tutorial-highlight {
+  position: relative;
+  z-index: 55;
+  outline: 3px solid var(--info);
+  outline-offset: -3px;
+  box-shadow: 0 0 0 4px var(--info-line), 8px 8px 0 var(--border-strong);
+}
+
+.tutorial-card {
+  max-height: calc(100vh - 2.5rem);
+  overflow-y: auto;
+}

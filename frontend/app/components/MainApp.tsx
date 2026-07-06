@@ -7,20 +7,24 @@ import Navbar from "./layout/Navbar";
 import ConfigurationPanel from "./panels/ConfigurationPanel";
 import InputPanel from "./panels/InputPanel";
 import OutputPanel from "./panels/OutputPanel";
+import TutorialOverlay from "./tutorial/TutorialOverlay";
 
 import { useSystemBoot } from "../hooks/useSystemBoot";
 import { useModelManager } from "../hooks/useModelManager";
 import { useInference } from "../hooks/useInference";
 import { useJobsHistory } from "../hooks/useJobsHistory";
+import { getTutorialExampleForKind } from "../lib/tutorialExamples";
+import { getTutorialSteps } from "../lib/tutorialGuide";
 import type { TutorialKind } from "../types";
 
 type MainAppProps = {
   activeTutorial?: TutorialKind | null;
   onOpenWelcome?: () => void;
   onSelectTutorial?: (tutorial: TutorialKind) => void;
+  onCloseTutorial?: () => void;
 };
 
-export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelectTutorial }: MainAppProps) {
+export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelectTutorial, onCloseTutorial }: MainAppProps) {
   const { systemState, bootLogs } = useSystemBoot();
   const [pendingDeleteJobId, setPendingDeleteJobId] = useState<string | null>(null);
 
@@ -35,16 +39,76 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     isDirty,
     handleLoadConfiguration,
     handleResetConfiguration,
-    handleUnloadConfiguration
+    handleUnloadConfiguration,
+    hydrateConfiguration
   } = useModelManager();
 
   const {
     inputText, setInputText,
     seed, setSeed,
-    inferenceState, handleExplain, loadPastJob, handleDeletedJob
+    inferenceState, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob
   } = useInference();
 
   const { jobs, deletingJobIds, fetchJobPayload, deleteJob } = useJobsHistory();
+
+  const tutorialExample = activeTutorial ? getTutorialExampleForKind(activeTutorial) : null;
+  const isTutorialActive = !!activeTutorial && !!tutorialExample;
+  const tutorialSteps = activeTutorial ? getTutorialSteps(activeTutorial) : [];
+  const [tutorialStepIndex, setTutorialStepIndex] = useState(0);
+  const currentTutorialStep = isTutorialActive ? tutorialSteps[Math.min(tutorialStepIndex, tutorialSteps.length - 1)] : null;
+  const tutorialConfig = tutorialExample?.config;
+  const tutorialManifest = tutorialConfig ? {
+    sources: [{ id: tutorialConfig.sourceId, name: tutorialConfig.sourceName, type: "remote" }],
+    attributors: [{ id: tutorialConfig.attributorId, name: tutorialConfig.attributorName }]
+  } : null;
+  const effectiveSystemState = isTutorialActive && tutorialManifest
+    ? { status: 'success' as const, data: tutorialManifest, error: null }
+    : systemState;
+  const effectiveBootLogs = isTutorialActive
+    ? ["Tutorial mode active.", "Using bundled prepared example data. Backend calls are skipped."]
+    : bootLogs;
+
+  useEffect(() => {
+    setTutorialStepIndex(0);
+  }, [activeTutorial]);
+
+  useEffect(() => {
+    if (!isTutorialActive || !tutorialExample || !tutorialConfig || !currentTutorialStep) {
+      return;
+    }
+
+    const phase = currentTutorialStep.phase;
+    const includeModel = phase !== "source";
+    const includeAttributor = phase !== "source" && phase !== "model";
+    const isLoaded = phase === "configuration" || phase === "input" || phase === "result";
+
+    hydrateConfiguration({
+      source: tutorialConfig.sourceId,
+      sourceName: tutorialConfig.sourceName,
+      modelName: includeModel ? tutorialConfig.modelName : "",
+      attributor: includeAttributor ? tutorialConfig.attributorId : "",
+      attributorName: tutorialConfig.attributorName,
+      detectedTask: tutorialConfig.detectedTask,
+    }, isLoaded);
+
+    setPendingDeleteJobId(null);
+    setReviewedJob(null);
+    setSeed("");
+    setLogsOpen(false);
+    setConfigOpen(phase === "source" || phase === "model" || phase === "attributor" || phase === "configuration");
+
+    if (phase === "input") {
+      resetInferenceState(tutorialExample.prompt);
+      return;
+    }
+
+    if (phase === "result") {
+      loadPastJob(tutorialExample.payload, tutorialExample.prompt);
+      return;
+    }
+
+    resetInferenceState("");
+  }, [activeTutorial, tutorialStepIndex]);
 
   // --- COLLAPSE STATE (setup blocks fold away once they've done their job) ---
   const [logsOpen, setLogsOpen] = useState(true);
@@ -56,32 +120,34 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   // System Logs: expanded while booting or on error, auto-collapse once ready.
   // Effect only fires on status transitions, so manual toggles afterward stick.
   useEffect(() => {
-    if (systemState.status === 'success') setLogsOpen(false);
+    if (effectiveSystemState.status === 'success') setLogsOpen(false);
     else setLogsOpen(true);
-  }, [systemState.status]);
+  }, [effectiveSystemState.status]);
 
   // Configuration: collapse to a summary once a config is active, re-open when
   // unloaded. Loading a config also exits past-job review mode.
   useEffect(() => {
+    if (isTutorialActive) return;
+
     setConfigOpen(!hasActiveConfiguration);
     if (hasActiveConfiguration) setReviewedJob(null);
-  }, [hasActiveConfiguration]);
+  }, [hasActiveConfiguration, isTutorialActive]);
 
   // Status badge shown in the collapsed System Logs header.
   const statusMeta =
-    systemState.status === 'running'
+    effectiveSystemState.status === 'running'
       ? { dot: 'bg-info', text: 'System booting…', cls: 'text-info' }
-      : systemState.status === 'error'
+      : effectiveSystemState.status === 'error'
         ? { dot: 'bg-danger', text: 'System error', cls: 'text-danger' }
-        : systemState.status === 'success'
+        : effectiveSystemState.status === 'success'
           ? { dot: 'bg-ok', text: 'System ready', cls: 'text-ok' }
           : { dot: 'bg-fg-faint', text: 'System status unknown', cls: 'text-fg-subtle' };
 
   // Summary chip shown in the collapsed Configuration header.
   const activeAttributorName =
-    systemState.data?.attributors?.find(a => a.id === selectedAttributor)?.name ?? selectedAttributor;
+    effectiveSystemState.data?.attributors?.find(a => a.id === selectedAttributor)?.name ?? selectedAttributor;
   const shortModelName = modelName?.split('/').pop();
-  const configReady = systemState.status === 'success';
+  const configReady = effectiveSystemState.status === 'success';
   const isReviewingPastJob = !hasActiveConfiguration && !!reviewedJob;
   const configCollapsible = configReady && (hasActiveConfiguration || isReviewingPastJob);
   const showConfigBody = !configCollapsible || configOpen;
@@ -125,6 +191,41 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     }
   };
 
+  const closeTutorial = () => {
+    setTutorialStepIndex(0);
+    onCloseTutorial?.();
+  };
+
+  const goToNextTutorialStep = () => {
+    if (!activeTutorial || tutorialSteps.length === 0) return;
+
+    setTutorialStepIndex(currentIndex => {
+      if (currentIndex >= tutorialSteps.length - 1) {
+        onCloseTutorial?.();
+        return 0;
+      }
+      return currentIndex + 1;
+    });
+  };
+
+  const goToPreviousTutorialStep = () => {
+    setTutorialStepIndex(currentIndex => Math.max(0, currentIndex - 1));
+  };
+
+  const handleTutorialLoadConfiguration = () => {
+    if (!isTutorialActive) return;
+    setTutorialStepIndex(currentIndex => Math.max(currentIndex, 4));
+  };
+
+  const handleTutorialExplain = () => {
+    if (!isTutorialActive) return;
+    setTutorialStepIndex(currentIndex => Math.max(currentIndex, 6));
+  };
+
+  const getTutorialTargetClass = (target: string) => (
+    currentTutorialStep?.target === target ? " tutorial-highlight" : ""
+  );
+
 
 
   return (
@@ -139,7 +240,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
       <div className="flex flex-1 overflow-hidden gap-2 min-h-0 w-full xl:w-10/12 m-auto"> {/* FIX WIDTH */}
 
         {/* SIDE BAR */}
-        <aside className="bg-surface p-6 w-[25%] shrink-0 overflow-y-auto">
+        <aside className={`bg-surface p-6 w-[25%] shrink-0 overflow-y-auto${getTutorialTargetClass("history")}`}>
           <div className="font-mono font-medium uppercase">Job History</div>
           <div className="mt-2 flex flex-col gap-2">
 
@@ -245,7 +346,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
         <main className="flex-1 overflow-y-auto flex flex-col gap-2">
 
           {/* BLOCK 1: SYSTEM LOGS (collapses to a status badge once ready) */}
-          <div className="bg-surface p-6 font-mono font-medium shrink-0">
+          <div className={`bg-surface p-6 font-mono font-medium shrink-0${getTutorialTargetClass("system")}`}>
             <button
               type="button"
               onClick={() => setLogsOpen(open => !open)}
@@ -255,7 +356,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
               <div className="flex items-center gap-3">
                 {!logsOpen && (
                   <div className={`flex items-center gap-2 text-sm normal-case ${statusMeta.cls}`}>
-                    <span className={`inline-block w-2 h-2 rounded-full ${statusMeta.dot} ${systemState.status === 'running' ? 'animate-pulse' : ''}`}></span>
+                    <span className={`inline-block w-2 h-2 rounded-full ${statusMeta.dot} ${effectiveSystemState.status === 'running' ? 'animate-pulse' : ''}`}></span>
                     {statusMeta.text}
                   </div>
                 )}
@@ -266,30 +367,30 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
             {logsOpen && (
               <>
                 {/* Banner */}
-                <div className={`uppercase p-2 text-sm my-2 ${systemState.status === 'running'
+                <div className={`uppercase p-2 text-sm my-2 ${effectiveSystemState.status === 'running'
                   ? 'bg-info-soft text-info'
-                  : systemState.status === 'error'
+                  : effectiveSystemState.status === 'error'
                     ? 'bg-danger-soft text-danger'
-                    : systemState.status === 'success'
+                    : effectiveSystemState.status === 'success'
                       ? 'bg-ok-soft text-ok'
                       : 'bg-fill text-fg-subtle'
                   }`}>
-                  {systemState.status === 'running'
+                  {effectiveSystemState.status === 'running'
                     ? '// System is currently booting and initializing all required components...'
-                    : systemState.status === 'error'
+                    : effectiveSystemState.status === 'error'
                       ? '// System encountered a critical error during initialization. Please check the logs below.'
-                      : systemState.status === 'success'
+                      : effectiveSystemState.status === 'success'
                         ? '// System ready.'
                         : '// System status is unknown. Please wait...'}
                 </div>
                 {/* Logs */}
                 <div>
-                  {bootLogs.map((log, index) => (
+                  {effectiveBootLogs.map((log, index) => (
                     <div key={index} className="font-mono text-fg-faint text-sm">{log}</div>
                   ))}
                 </div>
                 {/* Error Details */}
-                {systemState.status === 'error' && (
+                {effectiveSystemState.status === 'error' && (
                   <div className="text-danger font-mono text-sm mt-0">
                     <div className="uppercase">Failed</div>
                     <div className="font-bold mt-2">{systemState.error}</div>
@@ -301,7 +402,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
 
 
           {/* BLOCK 2: CONFIGURATION (collapses to a summary chip once loaded) */}
-          <div className="bg-surface p-6 relative shrink-0">
+          <div className={`bg-surface p-6 relative shrink-0${getTutorialTargetClass("configuration")}`}>
             {configCollapsible ? (
               <button
                 type="button"
@@ -333,21 +434,21 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
               <div className="font-mono font-medium uppercase">Configuration</div>
             )}
 
-            {systemState.status === 'running' ? (
+            {effectiveSystemState.status === 'running' ? (
               // Loading
               <div className="min-h-60 flex justify-center items-center">
                 <i className='bx bx-loader animate-spin text-2xl text-fg-faint'></i>
               </div>
-            ) : systemState.status === 'error' ? (
+            ) : effectiveSystemState.status === 'error' ? (
               // Error
               <div className="min-h-60 flex justify-center items-center font-mono font-bold text-fg-faint text-sm">
                 FAILED
               </div>
-            ) : systemState.status === 'success' && systemState.data && showConfigBody ? (
+            ) : effectiveSystemState.status === 'success' && effectiveSystemState.data && showConfigBody ? (
               // OK
               <div>
                 <ConfigurationPanel
-                  manifest={systemState.data}
+                  manifest={effectiveSystemState.data}
                   selectedSource={selectedSource}
                   modelName={modelName}
                   selectedAttributor={selectedAttributor}
@@ -359,7 +460,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   hasActiveConfiguration={hasActiveConfiguration}
                   hasResetTarget={!!lastLoadedConfiguration}
                   isInferenceRunning={inferenceState.status === 'running'}
-                  onLoadConfiguration={handleLoadConfiguration}
+                  onLoadConfiguration={isTutorialActive ? handleTutorialLoadConfiguration : handleLoadConfiguration}
                   onResetConfiguration={handleResetConfiguration}
                   onUnloadConfiguration={handleUnloadConfiguration}
                 />
@@ -372,24 +473,24 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
           <div className="flex flex-col 2xl:flex-row gap-2 2xl:items-start">
 
             {/* INPUT */}
-            <div className="bg-surface p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2">
+            <div className={`bg-surface p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2${getTutorialTargetClass("input")}`}>
               <div className="font-mono font-medium uppercase">Input</div>
-              {systemState.status === 'running' ? (
+              {effectiveSystemState.status === 'running' ? (
                 <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
                   <i className='bx bx-loader animate-spin text-2xl text-fg-faint'></i>
                 </div>
-              ) : systemState.status === 'error' ? (
+              ) : effectiveSystemState.status === 'error' ? (
                 <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center font-mono font-bold text-fg-faint text-sm">
                   FAILED
                 </div>
-              ) : systemState.status === 'success' && systemState.data ? (
+              ) : effectiveSystemState.status === 'success' && effectiveSystemState.data ? (
                 <div>
                   <InputPanel
                     inputText={inputText}
                     setInputText={setInputText}
                     seed={seed}
                     setSeed={setSeed}
-                    onExplainClick={handleExplain}
+                    onExplainClick={isTutorialActive ? handleTutorialExplain : handleExplain}
                     inferenceStatus={inferenceState.status}
                     isConfigReady={hasActiveConfiguration}
                     activeAttributorId={activeAttributorId}
@@ -399,19 +500,19 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
             </div>
 
             {/* OUTPUT */}
-            <div className="bg-surface p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2">
+            <div className={`bg-surface p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2${getTutorialTargetClass("output")}`}>
               <div className="font-mono font-medium uppercase">Output</div>
-              {systemState.status === 'running' ? (
+              {effectiveSystemState.status === 'running' ? (
                 <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
                   <i className='bx bx-loader animate-spin text-2xl text-fg-faint'></i>
                 </div>
-              ) : systemState.status === 'error' ? (
+              ) : effectiveSystemState.status === 'error' ? (
                 <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center font-mono font-bold text-fg-faint text-sm">
                   FAILED
                 </div>
-              ) : systemState.status === 'success' && systemState.data ? (
+              ) : effectiveSystemState.status === 'success' && effectiveSystemState.data ? (
                 <div>
-                  <OutputPanel outputResult={inferenceState.data} />
+                  <OutputPanel outputResult={inferenceState.data} tutorialInteraction={currentTutorialStep?.outputInteraction} />
                 </div>
               ) : null}
             </div>
@@ -422,6 +523,18 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
 
 
       </div>
+
+      {activeTutorial && currentTutorialStep && (
+        <TutorialOverlay
+          tutorialKind={activeTutorial}
+          step={currentTutorialStep}
+          stepIndex={Math.min(tutorialStepIndex, tutorialSteps.length - 1)}
+          stepCount={tutorialSteps.length}
+          onBack={goToPreviousTutorialStep}
+          onNext={goToNextTutorialStep}
+          onClose={closeTutorial}
+        />
+      )}
     </div>
   );
 }

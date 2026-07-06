@@ -31,6 +31,7 @@ export default function Home() {
       activeTutorial={activeTutorial}
       onOpenWelcome={() => setScreen("welcome")}
       onSelectTutorial={openTutorial}
+      onCloseTutorial={() => setActiveTutorial(null)}
     />
   );
 }

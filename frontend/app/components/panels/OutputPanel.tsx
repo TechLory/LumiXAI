@@ -2,6 +2,7 @@ import { useState } from "react";
 import TokenExplained from "../layout/TokenExplained";
 import TextGenView from "../layout/TextGenView";
 import ImageGenView from "../layout/ImageGenView";
+import type { TutorialOutputInteraction } from "../../types";
 
 export interface OutputResult {
   target_id?: string | number;
@@ -19,9 +20,10 @@ export interface OutputResult {
 
 interface OutputPanelProps {
   outputResult: OutputResult | null;
+  tutorialInteraction?: TutorialOutputInteraction;
 }
 
-export default function OutputPanel({ outputResult }: OutputPanelProps) {
+export default function OutputPanel({ outputResult, tutorialInteraction }: OutputPanelProps) {
   // Pure display preferences: hiding tokens does NOT re-run the job, it only filters
   // (and rescales) the already-computed attribution for the visualization.
   const [hideSpecialTokens, setHideSpecialTokens] = useState(true);
@@ -55,6 +57,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
       token,
       score: typeof rawScores[index] === "number" ? rawScores[index] : 0,
       isSpecial: !!classMask?.[index],
+      rawIndex: index,
     }))
     .filter((entry) => !(hideSpecialTokens && entry.isSpecial));
 
@@ -105,6 +108,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
               baseImage={outputResult.generated_image!}
               tokens={outputResult.tokens || []}
               heatmaps={Array.isArray(outputResult.scores) ? outputResult.scores : [outputResult.scores]}
+              tutorialSelection={tutorialInteraction?.imageSelection}
             />
           )}
 
@@ -117,6 +121,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
               inputTemplateMask={outputResult.input_template_mask}
               hideSpecialTokens={hideSpecialTokens}
               hideTemplateTokens={hideTemplateTokens}
+              tutorialSelection={tutorialInteraction?.textGenerationSelection}
             />
           )}
 
@@ -126,13 +131,21 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
 
               {/* Token Box */}
               <div className="flex gap-2 flex-wrap p-5 bg-sunken rounded-lg border border-border">
-                {visibleClassTokens.map((entry, index) => (
-                  <TokenExplained
-                    key={index}
-                    token={entry.token}
-                    score={entry.score * classScale}
-                  />
-                ))}
+                {visibleClassTokens.map((entry, index) => {
+                  const isTutorialToken = tutorialInteraction?.classificationTokenIndex === entry.rawIndex;
+
+                  return (
+                    <div
+                      key={index}
+                      className={isTutorialToken ? "rounded ring-2 ring-info ring-offset-2 ring-offset-sunken" : ""}
+                    >
+                      <TokenExplained
+                        token={entry.token}
+                        score={entry.score * classScale}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Label Box */}

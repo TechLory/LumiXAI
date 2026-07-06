@@ -24,6 +24,15 @@ export interface LoadedConfiguration {
   attributor: string;
 }
 
+export interface HydratedConfiguration {
+  source?: string;
+  sourceName?: string;
+  modelName?: string;
+  attributor?: string;
+  attributorName?: string;
+  detectedTask?: string;
+}
+
 export function useModelManager() {
   const [selectedSource, setSelectedSource] = useState("");
   const [modelName, setModelName] = useState("");
@@ -95,6 +104,52 @@ export function useModelManager() {
       errorField: null,
       errorMessage: null
     }));
+  };
+
+  const hydrateConfiguration = (configuration: HydratedConfiguration, isLoaded: boolean) => {
+    const nextSource = configuration.source ?? "";
+    const nextModelName = configuration.modelName ?? "";
+    const nextAttributor = configuration.attributor ?? "";
+
+    setSelectedSource(nextSource);
+    setModelName(nextModelName);
+    setSelectedAttributor(nextAttributor);
+
+    if (isLoaded && nextSource && nextModelName && nextAttributor) {
+      const loadedConfiguration = {
+        source: nextSource,
+        modelName: nextModelName,
+        attributor: nextAttributor
+      };
+
+      setLastLoadedConfiguration(loadedConfiguration);
+      setHasActiveConfiguration(true);
+      setActiveAttributorId(nextAttributor);
+      setConfigState({
+        status: 'success',
+        step: 'ready',
+        errorField: null,
+        errorMessage: null,
+        logs: [
+          "Tutorial configuration loaded from bundled example data.",
+          "Model '" + nextModelName + "' selected from '" + (configuration.sourceName ?? nextSource) + "'.",
+          "Attributor '" + (configuration.attributorName ?? nextAttributor) + "' is ready.",
+          configuration.detectedTask ? "Detected task: " + configuration.detectedTask + "." : "Configuration fully loaded and ready."
+        ].filter(Boolean)
+      });
+      return;
+    }
+
+    setLastLoadedConfiguration(null);
+    setHasActiveConfiguration(false);
+    setActiveAttributorId(null);
+    setConfigState({
+      status: 'idle',
+      step: 'idle',
+      errorField: null,
+      errorMessage: null,
+      logs: []
+    });
   };
 
   const handleLoadConfiguration = async () => {
@@ -287,6 +342,7 @@ export function useModelManager() {
     isDirty,
     handleLoadConfiguration,
     handleResetConfiguration,
-    handleUnloadConfiguration
+    handleUnloadConfiguration,
+    hydrateConfiguration
   };
 }

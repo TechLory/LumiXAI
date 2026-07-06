@@ -89,6 +89,13 @@ export function useInference() {
     }
   };
 
+  const resetInferenceState = (nextInputText: string = "") => {
+    stopPolling();
+    setActiveJobId(null);
+    setInputText(nextInputText);
+    setInferenceState({ status: 'idle', data: null, error: null });
+  };
+
   // Reload past job
   const loadPastJob = (payload: any, prompt: string) => {
     stopPolling();
@@ -107,5 +114,5 @@ export function useInference() {
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
-  return { inputText, setInputText, seed, setSeed, inferenceState, handleExplain, loadPastJob, handleDeletedJob };
+  return { inputText, setInputText, seed, setSeed, inferenceState, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob };
 }

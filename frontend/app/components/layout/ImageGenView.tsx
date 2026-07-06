@@ -30,16 +30,22 @@ interface HeatmapData {
   raw_matrix: number[][];
 }
 
+export type ImageGenerationTutorialSelection = {
+  selectedTokenIndices?: number[];
+  hoveredCell?: { x: number; y: number };
+};
+
 interface ImageGenViewProps {
   baseImage: string;
   tokens: string[];
   heatmaps: HeatmapData[];
+  tutorialSelection?: ImageGenerationTutorialSelection;
 }
 
 const GRID = 64;
 const OVERLAY_ALPHA = 0.6;
 
-export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenViewProps) {
+export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSelection }: ImageGenViewProps) {
   // Token selection (multiple tokens => aggregated heatmap)
   const [selectedTokens, setSelectedTokens] = useState<number[]>([]);
   // Pixel hover
@@ -48,7 +54,9 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const hasSelection = selectedTokens.length > 0;
+  const selectedTokensForRender = tutorialSelection?.selectedTokenIndices ?? selectedTokens;
+  const hoveredCellForRender = tutorialSelection?.hoveredCell ?? hoveredCell;
+  const hasSelection = selectedTokensForRender.length > 0;
 
   // Render the (aggregated) heatmap onto the overlay canvas. Recomputes only when
   // the selection or the heatmaps change -- not on hover.
@@ -57,7 +65,7 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
 
-    const valid = selectedTokens.filter((i) => heatmaps[i]?.raw_matrix);
+    const valid = selectedTokensForRender.filter((i) => heatmaps[i]?.raw_matrix);
     if (valid.length === 0) {
       ctx.clearRect(0, 0, GRID, GRID);
       return;
@@ -91,13 +99,15 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
       img.data[k * 4 + 3] = Math.round(OVERLAY_ALPHA * 255);
     }
     ctx.putImageData(img, 0, 0);
-  }, [selectedTokens, heatmaps]);
+  }, [selectedTokensForRender, heatmaps]);
 
   // --- SELECTION ---
   const handleTokenClick = (e: React.MouseEvent, idx: number) => {
     // Ctrl/Cmd (and Shift, as a fallback since some Linux WMs grab the Super key)
     // add the token to the aggregate instead of replacing the selection.
     const additive = e.metaKey || e.ctrlKey || e.shiftKey;
+    if (tutorialSelection) return;
+
     setSelectedTokens((prev) => {
       if (additive) {
         // Ctrl/Cmd-click toggles this token in/out of the aggregate.
@@ -123,14 +133,18 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
     const gridX = Math.floor(normX * GRID);
     const gridY = Math.floor(normY * GRID);
 
-    setHoveredCell({ x: Math.min(gridX, GRID - 1), y: Math.min(gridY, GRID - 1) });
+    if (!tutorialSelection) {
+      setHoveredCell({ x: Math.min(gridX, GRID - 1), y: Math.min(gridY, GRID - 1) });
+    }
   };
 
   const handleMouseLeaveImage = () => {
-    setHoveredCell(null);
+    if (!tutorialSelection) {
+      setHoveredCell(null);
+    }
   };
 
-  const selectedLabel = selectedTokens.map((i) => tokens[i]).filter(Boolean).join(" + ");
+  const selectedLabel = selectedTokensForRender.map((i) => tokens[i]).filter(Boolean).join(" + ");
 
   return (
     <div className="flex flex-col gap-8 w-full select-none">
@@ -143,8 +157,8 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
           </h3>
           <span className="text-xs text-fg-faint italic">
             {hasSelection
-              ? `Heatmap: ${selectedLabel}${selectedTokens.length > 1 ? " (aggregated)" : ""}`
-              : hoveredCell
+              ? `Heatmap: ${selectedLabel}${selectedTokensForRender.length > 1 ? " (aggregated)" : ""}`
+              : hoveredCellForRender
                 ? "Inspecting Pixel Attention"
                 : "Hover image to inspect pixels"}
           </span>
@@ -167,12 +181,12 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
               className="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-200"
               style={{ opacity: hasSelection ? 1 : 0 }}
             />
-            {hoveredCell && !hasSelection && (
+            {hoveredCellForRender && !hasSelection && (
                 <div
                     className="absolute border border-white/50 bg-white/20 pointer-events-none"
                     style={{
-                        left: `${(hoveredCell.x / GRID) * 100}%`,
-                        top: `${(hoveredCell.y / GRID) * 100}%`,
+                        left: `${(hoveredCellForRender.x / GRID) * 100}%`,
+                        top: `${(hoveredCellForRender.y / GRID) * 100}%`,
                         width: `${100 / GRID}%`,
                         height: `${100 / GRID}%`
                     }}
@@ -197,12 +211,12 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
             let score = 0;
             let color = "transparent";
 
-            if (hoveredCell && heatmaps[idx]?.raw_matrix) {
-              score = heatmaps[idx].raw_matrix[hoveredCell.y][hoveredCell.x];
+            if (hoveredCellForRender && heatmaps[idx]?.raw_matrix) {
+              score = heatmaps[idx].raw_matrix[hoveredCellForRender.y][hoveredCellForRender.x];
               color = getScoreColor(score);
             }
 
-            const isSelected = selectedTokens.includes(idx);
+            const isSelected = selectedTokensForRender.includes(idx);
 
             return (
               <div
@@ -224,7 +238,7 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
                   className="w-full text-[10px] text-center font-bold text-fg py-0.5 border-t border-border transition-colors duration-75"
                   style={{ backgroundColor: color }}
                 >
-                  {hoveredCell ? formatPercent(score) : "-"}
+                  {hoveredCellForRender ? formatPercent(score) : "-"}
                 </div>
               </div>
             );
