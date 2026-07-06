@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="191.07872mm"
+   height="39.033115mm"
+   viewBox="0 0 191.07872 39.033115"
+   version="1.1"
+   id="svg1"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <linearGradient
+       id="linearGradient6">
+      <stop
+         style="stop-color:#ff0003;stop-opacity:1;"
+         offset="0"
+         id="stop6" />
+      <stop
+         style="stop-color:#ffc122;stop-opacity:1;"
+         offset="0.26494563"
+         id="stop8" />
+      <stop
+         style="stop-color:#00ce0a;stop-opacity:1;"
+         offset="0.51494563"
+         id="stop9" />
+      <stop
+         style="stop-color:#00bbff;stop-opacity:1;"
+         offset="0.74728262"
+         id="stop10" />
+      <stop
+         style="stop-color:#0800fc;stop-opacity:1;"
+         offset="1"
+         id="stop7" />
+    </linearGradient>
+    <linearGradient
+       xlink:href="#linearGradient6"
+       id="linearGradient7"
+       x1="118.06781"
+       y1="148.2206"
+       x2="196.96642"
+       y2="148.2206"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="translate(2.1166667)" />
+  </defs>
+  <g
+     id="layer1"
+     transform="translate(-12.83041,-128.83102)">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, @wght=600';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;font-variation-settings:'wght' 600;text-align:start;letter-spacing:-3.96875px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#b2855d;fill-opacity:0.455157;stroke:#c1281b;stroke-width:2;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:0"
+       x="8.9536734"
+       y="166.25458"
+       id="text1"><tspan
+         id="tspan1"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, @wght=600';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;font-variation-settings:'wght' 600;letter-spacing:-3.96875px;fill:#ffffff;fill-opacity:1;stroke-width:2"
+         x="8.9536734"
+         y="166.25458"
+         dx="0">Lumi</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;letter-spacing:-3.96875px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:url(#linearGradient7);fill-opacity:1;stroke:#c1281b;stroke-width:2;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:0"
+       x="118.6445"
+       y="166.25458"
+       id="text6"><tspan
+         id="tspan6"
+         style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#linearGradient7);stroke-width:2"
+         x="118.6445"
+         y="166.25458">XAI</tspan></text>
+  </g>
+</svg>

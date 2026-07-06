@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="readme_files/logo-darkmode.svg">
+    <source media="(prefers-color-scheme: light)" srcset="readme_files/logo-lightmode.svg">
+    <img alt="LumiXAI" src="readme_files/logo-lightmode.svg" width="520">
+  </picture>
+</p>
+
 # LumiXAI: Modular & Interactive Explainable AI Framework
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
