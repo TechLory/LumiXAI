@@ -105,6 +105,13 @@ docker compose down
 
 *(Note: Downloaded HF models and SQLite database states are preserved locally via bind mounts).*
 
+By default, the frontend assumes the API and docs are reachable on the same host it was loaded from (it builds their URLs from the browser's hostname, replacing `localhost` above with whatever's in the address bar). If that's not the case — e.g. the frontend is accessed from a different machine than the one running the backend/docs — the `localhost` default can be overridden via `frontend/.env.local`:
+```
+NEXT_PUBLIC_API_BASE_URL=http://<backend-host>:8000
+NEXT_PUBLIC_DOCS_BASE_URL=http://<backend-host>:8001
+```
+Restart the frontend after changing this file for it to take effect.
+
 ### Option B: Local Installation via Poetry (Recommended for macOS)
 
 For macOS users (Intel or Apple Silicon) or developers who wish to utilize native hardware acceleration (MPS) not supported by Docker passthrough, a local setup is required.
