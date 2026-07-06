@@ -22,3 +22,16 @@ export interface AsyncState<T = any> {
 }
 
 export type TutorialKind = 'text-classification' | 'text-generation' | 'txt2img-generation';
+
+export interface JobHistoryItem {
+  id: string;
+  status: "running" | "completed" | "failed";
+  prompt: string;
+  source_name: string;
+  model_name: string;
+  attributor_name: string;
+  created_at: string;
+  execution_time_sec: number | null;
+  is_builtin_example?: boolean;
+  tutorial_kind?: TutorialKind;
+}

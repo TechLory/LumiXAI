@@ -166,7 +166,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                       ? 'bg-ok-soft text-ok'
                       : 'bg-fill text-fg-subtle'
                   }`}>
-                  <div className="uppercase">// {job.status}</div>
+                  <div className="uppercase">// {job.is_builtin_example ? "example" : job.status}</div>
                   <div
                     className="flex items-center gap-2"
                     onMouseDown={suppressCardClick}
@@ -174,7 +174,9 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   >
                     {job.status === 'running' && <i className='bx bx-loader animate-spin text-info'></i>}
                     {job.execution_time_sec && <div>{job.execution_time_sec}s</div>}
-                    {pendingDeleteJobId === job.id ? (
+                    {job.is_builtin_example ? (
+                      <div className="px-2 py-1 border border-info-line bg-info-soft text-info">Built-in</div>
+                    ) : pendingDeleteJobId === job.id ? (
                       <>
                         <button
                           type="button"
