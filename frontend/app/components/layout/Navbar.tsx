@@ -1,7 +1,9 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 
-import { getDocsBaseUrl } from "../../lib/api";
+import { useDocsUrl } from "../../lib/api";
 import type { TutorialKind } from "../../types";
 import ThemeToggle from "./ThemeToggle";
 
@@ -47,6 +49,8 @@ function LogoMark() {
 }
 
 export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectTutorial }: NavbarProps) {
+  const docsUrl = useDocsUrl();
+
   return (
     <nav className="w-full bg-surface text-fg border-b border-border px-4 sm:px-10 py-3 mb-2 flex justify-between items-center font-mono font-semibold">
       {onOpenWelcome ? (
@@ -90,7 +94,7 @@ export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectT
             </div>
           </details>
         )}
-        <Link className="hover:underline underline-offset-4 decoration-2" href={getDocsBaseUrl()} target="_blank" rel="noreferrer">Docs</Link>
+        <Link className="hover:underline underline-offset-4 decoration-2" href={docsUrl} target="_blank" rel="noreferrer">Docs</Link>
         <Link className="hover:underline underline-offset-4 decoration-2" href={"https://github.com/TechLory/xai-framework-lorenzo-gatta"} target="_blank" rel="noreferrer">GitHub</Link>
         <ThemeToggle />
       </div>

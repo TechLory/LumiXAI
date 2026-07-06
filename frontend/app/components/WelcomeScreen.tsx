@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 
-import { getDocsBaseUrl } from "../lib/api";
+import { useDocsUrl } from "../lib/api";
 import type { TutorialKind } from "../types";
 import ThemeToggle from "./layout/ThemeToggle";
 
@@ -45,6 +45,8 @@ const heatCells = Array.from({ length: 96 }, (_, index) => index);
 const sampleTokens = ["prompt", "model", "attr", "input", "output", "history"];
 
 export default function WelcomeScreen({ onEnterTool, onSelectTutorial }: WelcomeScreenProps) {
+  const docsUrl = useDocsUrl();
+
   return (
     <main className="welcome-screen relative min-h-screen overflow-hidden bg-page text-fg font-mono">
       <div className="welcome-pixel-bg" aria-hidden="true" />
@@ -69,7 +71,7 @@ export default function WelcomeScreen({ onEnterTool, onSelectTutorial }: Welcome
           />
         </div>
         <div className="flex items-center gap-4 text-sm font-semibold sm:gap-8">
-          <Link className="hover:underline underline-offset-4 decoration-2" href={getDocsBaseUrl()} target="_blank" rel="noreferrer">Docs</Link>
+          <Link className="hover:underline underline-offset-4 decoration-2" href={docsUrl} target="_blank" rel="noreferrer">Docs</Link>
           <Link className="hover:underline underline-offset-4 decoration-2" href="https://github.com/TechLory/xai-framework-lorenzo-gatta" target="_blank" rel="noreferrer">GitHub</Link>
           <ThemeToggle />
         </div>
