@@ -223,13 +223,12 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const goToNextTutorialStep = () => {
     if (!activeTutorial || tutorialSteps.length === 0) return;
 
-    setTutorialStepIndex(currentIndex => {
-      if (currentIndex >= tutorialSteps.length - 1) {
-        onCloseTutorial?.();
-        return 0;
-      }
-      return currentIndex + 1;
-    });
+    if (tutorialStepIndex >= tutorialSteps.length - 1) {
+      setTutorialStepIndex(0);
+      onCloseTutorial?.();
+      return;
+    }
+    setTutorialStepIndex(currentIndex => currentIndex + 1);
   };
 
   const goToPreviousTutorialStep = () => {
