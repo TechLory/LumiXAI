@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { getDocsBaseUrl } from "../../lib/api";
 import type { TutorialKind } from "../../types";
 import ThemeToggle from "./ThemeToggle";
 
@@ -89,7 +90,7 @@ export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectT
             </div>
           </details>
         )}
-        <Link className="hover:underline underline-offset-4 decoration-2" href={"http://localhost:8001"} target="_blank" rel="noreferrer">Docs</Link>
+        <Link className="hover:underline underline-offset-4 decoration-2" href={getDocsBaseUrl()} target="_blank" rel="noreferrer">Docs</Link>
         <Link className="hover:underline underline-offset-4 decoration-2" href={"https://github.com/TechLory/xai-framework-lorenzo-gatta"} target="_blank" rel="noreferrer">GitHub</Link>
         <ThemeToggle />
       </div>
