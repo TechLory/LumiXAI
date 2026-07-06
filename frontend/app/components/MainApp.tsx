@@ -176,6 +176,10 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
 
     const fullJob = await fetchJobPayload(jobId);
     if (fullJob && fullJob.payload) {
+      if (isTutorialActive) {
+        setTutorialStepIndex(0);
+        onCloseTutorial?.();
+      }
       loadPastJob(fullJob.payload, prompt);
       // Reviewing a past result: fold the setup away and show the reviewed model.
       setReviewedJob({ modelName });
