@@ -18,100 +18,94 @@ export type TutorialStep = {
   outputInteraction?: TutorialOutputInteraction;
 };
 
-const tutorialNames: Record<TutorialKind, string> = {
-  "text-classification": "text classification",
-  "text-generation": "text generation",
-  "txt2img-generation": "text-to-image generation",
-};
-
 const outputDescriptions: Record<TutorialKind, string> = {
-  "text-classification": "The prepared result predicts a positive class. Token color intensity is the attribution value: stronger green tokens support the selected class more.",
-  "text-generation": "The prepared result shows generated tokens with probabilities. When nothing is selected, each output token displays its model probability.",
-  "txt2img-generation": "The prepared result contains a generated image, prompt tokens, and one spatial attribution matrix per token.",
+  "text-classification": 'The model\'s real prediction for "I like this movie a lot!" is NEGATIVE — a reminder that sentiment models don\'t always match intuition. Token color intensity is the attribution value: stronger tokens pushed harder toward that class.',
+  "text-generation": 'Each generated token is shown with its model probability. The full reply — "The capital of Italy is Rome." — was produced by Qwen2.5-3B-Instruct from the single prompt above.',
+  "txt2img-generation": "The output pairs a generated image with one spatial attribution matrix per prompt token, showing where in the image each word's influence landed.",
 };
 
 const inputHeatmapSteps: Record<TutorialKind, TutorialStep> = {
   "text-classification": {
     title: "Inspect input attributions",
-    body: "For classification, the input tokens themselves carry the attribution heatmap. Stronger token colors indicate larger contribution toward the predicted class.",
+    body: 'For classification, the attribution lives on the input tokens themselves. "lot" carries one of the strongest signals toward the predicted class — click any token to read its exact score.',
     target: "output",
     phase: "result",
-    outputInteraction: { classificationTokenIndex: 5 },
+    outputInteraction: { classificationTokenIndex: 6 },
   },
   "text-generation": {
     title: "Input to output heatmap",
-    body: "Selecting an input token answers: which generated tokens did this input token influence most? The output boxes switch from probability to influence values.",
+    body: 'Selecting an input token answers: which generated tokens did it influence most? Select "Italy" — it drove the model straight to naming Rome.',
     target: "output",
     phase: "result",
-    outputInteraction: { textGenerationSelection: { selectedType: "input", selectedIndex: 3 } },
+    outputInteraction: { textGenerationSelection: { selectedType: "input", selectedIndex: 29 } },
   },
   "txt2img-generation": {
     title: "Prompt token to image heatmap",
-    body: "Selecting a prompt token overlays its prepared spatial heatmap on the image. Here the lighthouse token lights up the generated structure.",
+    body: 'Selecting a prompt token overlays its spatial heatmap on the image. "horses" lights up almost exactly where the horses were rendered.',
     target: "output",
     phase: "result",
-    outputInteraction: { imageSelection: { selectedTokenIndices: [2] } },
+    outputInteraction: { imageSelection: { selectedTokenIndices: [3] } },
   },
 };
 
 const outputHeatmapSteps: Record<TutorialKind, TutorialStep> = {
   "text-classification": {
     title: "Output target context",
-    body: "The output target is the predicted class. The label tells you which class the displayed token attributions explain.",
+    body: "The label above the tokens names the predicted class. Everything shown here explains why the model landed on that class for this sentence, not some other one.",
     target: "output",
     phase: "result",
-    outputInteraction: { classificationTokenIndex: 13 },
+    outputInteraction: { classificationTokenIndex: 4 },
   },
   "text-generation": {
     title: "Output to input heatmap",
-    body: "Selecting a generated token answers: which input tokens and earlier outputs contributed to this token? The input panel inside the output view becomes the heatmap.",
+    body: 'Selecting a generated token flips the view: which earlier words — prompt or already-generated — contributed to it? Select "Rome" to trace it back to "Italy" in the prompt.',
     target: "output",
     phase: "result",
-    outputInteraction: { textGenerationSelection: { selectedType: "output", selectedIndex: 6 } },
+    outputInteraction: { textGenerationSelection: { selectedType: "output", selectedIndex: 5 } },
   },
   "txt2img-generation": {
     title: "Image region to prompt heatmap",
-    body: "Inspecting an image region answers: which prompt tokens were most active for this part of the image? The token scores update from the prepared pixel attribution matrix.",
+    body: 'Hovering a region of the image asks the reverse question: which prompt tokens were active there? This cell sits on the horses — hover it and watch "horses" light up among the token scores.',
     target: "output",
     phase: "result",
-    outputInteraction: { imageSelection: { hoveredCell: { x: 32, y: 34 } } },
+    outputInteraction: { imageSelection: { hoveredCell: { x: 26, y: 31 } } },
   },
 };
 
 export const getTutorialSteps = (tutorialKind: TutorialKind): TutorialStep[] => [
   {
     title: "Choose a source",
-    body: `This ${tutorialNames[tutorialKind]} tutorial uses a bundled example. The source is filled first, just like a normal run, but no backend request is made.`,
+    body: "Every run starts here: pick where the model lives. Hugging Face Hub is the only source LumiXAI ships with today.",
     target: "configuration",
     phase: "source",
   },
   {
     title: "Choose a model",
-    body: "The model field is filled with the model that produced the prepared example. This keeps the walkthrough reproducible after installation.",
+    body: "Paste in any compatible Hugging Face model id. This field now holds the model that actually produced the result you're about to see.",
     target: "configuration",
     phase: "model",
   },
   {
     title: "Choose an attributor",
-    body: "The attributor is selected next. Captum powers the text examples, while DAAM powers the text-to-image example.",
+    body: "Attributors are the algorithms that compute the explanation. Integrated Gradients (Captum) covers classifiers and text generators; DAAM computes spatial maps for diffusion image models.",
     target: "configuration",
     phase: "attributor",
   },
   {
     title: "Load configuration",
-    body: "The tutorial marks this configuration as ready from the bundled fixture. In a real run this button loads the model and attributor on the backend.",
+    body: "In a live session this button loads the model and attributor onto the backend. Here it just confirms readiness, since this example's result already exists.",
     target: "configuration",
     phase: "configuration",
   },
   {
     title: "Add input text",
-    body: "The input panel is filled with the example prompt. You can read it as the exact text that produced the prepared result.",
+    body: "This is exactly what you'd type or paste for a real run. The panel now holds the prompt behind the result you're about to open.",
     target: "input",
     phase: "input",
   },
   {
     title: "Run attribution",
-    body: "The run button is highlighted, but the tutorial loads the prepared result instead of starting inference. This makes the walkthrough instant and deterministic.",
+    body: "In a live session this button starts inference on the backend. Here it jumps straight to the already-computed result, so you can see the output without waiting.",
     target: "input",
     phase: "result",
   },
@@ -125,7 +119,7 @@ export const getTutorialSteps = (tutorialKind: TutorialKind): TutorialStep[] => 
   outputHeatmapSteps[tutorialKind],
   {
     title: "Find it in history",
-    body: "This example is always available in Job History. The same history can also show results created by normal UI runs or inserted by scripts through the app data layer.",
+    body: "This run is pinned at the top of Job History so it's easy to find again — pin any of your own runs the same way to keep them close by. Every real run you explain lands in this same list.",
     target: "history",
     phase: "result",
   },

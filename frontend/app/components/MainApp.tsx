@@ -13,8 +13,9 @@ import { useSystemBoot } from "../hooks/useSystemBoot";
 import { useModelManager } from "../hooks/useModelManager";
 import { useInference } from "../hooks/useInference";
 import { useJobsHistory } from "../hooks/useJobsHistory";
-import { getTutorialExampleForKind } from "../lib/tutorialExamples";
+import { getTutorialExampleForKind, loadTutorialExamplePayload } from "../lib/tutorialExamples";
 import { getTutorialSteps } from "../lib/tutorialGuide";
+import type { OutputResult } from "./panels/OutputPanel";
 import type { TutorialKind } from "../types";
 
 type MainAppProps = {
@@ -49,12 +50,30 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     inferenceState, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob
   } = useInference();
 
-  const { jobs, deletingJobIds, fetchJobPayload, deleteJob } = useJobsHistory();
+  const { jobs, deletingJobIds, fetchJobPayload, deleteJob, togglePinJob } = useJobsHistory();
 
   const tutorialExample = activeTutorial ? getTutorialExampleForKind(activeTutorial) : null;
   const isTutorialActive = !!activeTutorial && !!tutorialExample;
   const tutorialSteps = activeTutorial ? getTutorialSteps(activeTutorial) : [];
   const [tutorialStepIndex, setTutorialStepIndex] = useState(0);
+  const [tutorialPayload, setTutorialPayload] = useState<OutputResult | null>(null);
+
+  // The example's output payload is real, previously-computed data shipped as a static
+  // fixture; fetch it as soon as the tutorial activates so it's ready by the "result" step.
+  useEffect(() => {
+    if (!tutorialExample) {
+      setTutorialPayload(null);
+      return;
+    }
+
+    let cancelled = false;
+    loadTutorialExamplePayload(tutorialExample).then((payload) => {
+      if (!cancelled) setTutorialPayload(payload);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tutorialExample?.id]);
   const currentTutorialStep = isTutorialActive ? tutorialSteps[Math.min(tutorialStepIndex, tutorialSteps.length - 1)] : null;
   const tutorialConfig = tutorialExample?.config;
   const tutorialManifest = tutorialConfig ? {
@@ -103,12 +122,12 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     }
 
     if (phase === "result") {
-      loadPastJob(tutorialExample.payload, tutorialExample.prompt);
+      if (tutorialPayload) loadPastJob(tutorialPayload, tutorialExample.prompt);
       return;
     }
 
     resetInferenceState("");
-  }, [activeTutorial, tutorialStepIndex]);
+  }, [activeTutorial, tutorialStepIndex, tutorialPayload]);
 
   // --- COLLAPSE STATE (setup blocks fold away once they've done their job) ---
   const [logsOpen, setLogsOpen] = useState(true);
@@ -177,6 +196,11 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const cancelDeleteJob = (event: MouseEvent<HTMLButtonElement>) => {
     suppressCardClick(event);
     setPendingDeleteJobId(null);
+  };
+
+  const handleTogglePin = (event: MouseEvent<HTMLButtonElement>, jobId: string) => {
+    suppressCardClick(event);
+    togglePinJob(jobId);
   };
 
   const handleDeleteJob = async (event: MouseEvent<HTMLButtonElement>, jobId: string) => {
@@ -275,8 +299,22 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   >
                     {job.status === 'running' && <i className='bx bx-loader animate-spin text-info'></i>}
                     {job.execution_time_sec && <div>{job.execution_time_sec}s</div>}
+                    {!job.is_builtin_example && job.status !== 'running' && (
+                      <button
+                        type="button"
+                        onClick={(event) => handleTogglePin(event, job.id)}
+                        className={`transition-colors cursor-pointer ${job.pinned ? "text-info" : "text-fg-subtle hover:text-info"}`}
+                        aria-label={job.pinned ? `Unpin job ${job.id}` : `Pin job ${job.id}`}
+                        title={job.pinned ? "Unpin" : "Pin to top"}
+                      >
+                        <i className={`bx ${job.pinned ? "bxs-pin" : "bx-pin"} text-base`}></i>
+                      </button>
+                    )}
                     {job.is_builtin_example ? (
-                      <div className="px-2 py-1 border border-info-line bg-info-soft text-info">Built-in</div>
+                      <div className="flex items-center gap-2 px-2 py-1 border border-info-line bg-info-soft text-info">
+                        <i className="bx bxs-pin text-base" title="Pinned"></i>
+                        Built-in
+                      </div>
                     ) : pendingDeleteJobId === job.id ? (
                       <>
                         <button

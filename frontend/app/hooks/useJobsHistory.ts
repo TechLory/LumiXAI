@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 import { buildApiUrl } from "../lib/api";
-import { getTutorialExampleJob, isTutorialExampleJobId, tutorialExampleSummaries } from "../lib/tutorialExamples";
+import { getTutorialExampleMeta, isTutorialExampleJobId, loadTutorialExamplePayload, tutorialExampleSummaries } from "../lib/tutorialExamples";
 import type { JobHistoryItem } from "../types";
 
 export type { JobHistoryItem } from "../types";
@@ -11,11 +11,18 @@ const getJobTimestamp = (job: JobHistoryItem) => {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 };
 
+// Pinned jobs always sort above unpinned ones; within each group, newest first.
+const sortJobs = (jobs: JobHistoryItem[]) =>
+  [...jobs].sort((a, b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    return getJobTimestamp(b) - getJobTimestamp(a);
+  });
+
 const mergeJobsWithTutorialExamples = (jobs: JobHistoryItem[]) => {
   const seenIds = new Set(jobs.map((job) => job.id));
   const builtInExamples = tutorialExampleSummaries.filter((job) => !seenIds.has(job.id));
 
-  return [...jobs, ...builtInExamples].sort((a, b) => getJobTimestamp(b) - getJobTimestamp(a));
+  return sortJobs([...jobs, ...builtInExamples]);
 };
 
 export function useJobsHistory() {
@@ -44,9 +51,10 @@ export function useJobsHistory() {
 
   // Download job payload for a specific job ID
   const fetchJobPayload = async (jobId: string) => {
-    const tutorialExample = getTutorialExampleJob(jobId);
-    if (tutorialExample) {
-      const { payload, ...jobSummary } = tutorialExample;
+    const tutorialExampleMeta = getTutorialExampleMeta(jobId);
+    if (tutorialExampleMeta) {
+      const { config, payloadUrl, ...jobSummary } = tutorialExampleMeta;
+      const payload = await loadTutorialExamplePayload(tutorialExampleMeta);
       return { ...jobSummary, payload };
     }
 
@@ -92,5 +100,27 @@ export function useJobsHistory() {
     }
   };
 
-  return { jobs, deletingJobIds, fetchJobs, fetchJobPayload, deleteJob };
+  const togglePinJob = async (jobId: string) => {
+    if (isTutorialExampleJobId(jobId)) return; // built-in examples are always pinned
+
+    const targetJob = jobs.find((job) => job.id === jobId);
+    if (!targetJob) return;
+    const nextPinned = !targetJob.pinned;
+
+    setJobs(prev => sortJobs(prev.map(job => job.id === jobId ? { ...job, pinned: nextPinned } : job)));
+
+    try {
+      const res = await fetch(buildApiUrl(`/api/jobs/${jobId}/pin`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: nextPinned }),
+      });
+      if (!res.ok) throw new Error("Failed to update pin state.");
+    } catch (e) {
+      console.error("Failed to update pin state", e);
+      setJobs(prev => sortJobs(prev.map(job => job.id === jobId ? { ...job, pinned: !nextPinned } : job)));
+    }
+  };
+
+  return { jobs, deletingJobIds, fetchJobs, fetchJobPayload, deleteJob, togglePinJob };
 }

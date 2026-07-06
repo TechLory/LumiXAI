@@ -38,7 +38,7 @@ export default function TutorialOverlay({
         <div className="mb-3 flex items-start justify-between gap-4">
           <div>
             <div className="text-[11px] font-bold uppercase text-info">
-              {tutorialLabels[tutorialKind]} tutorial // Step {stepIndex + 1} of {stepCount}
+              {tutorialLabels[tutorialKind]} // Step {stepIndex + 1} of {stepCount}
             </div>
             <h2 className="mt-1 text-base font-bold uppercase">{step.title}</h2>
           </div>

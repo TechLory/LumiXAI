@@ -23,19 +23,19 @@ const tutorialActions: TutorialAction[] = [
   {
     kind: "text-classification",
     label: "Text classification",
-    description: "Prepared sentiment attribution walkthrough",
+    description: "See which words drive a real sentiment prediction",
     icon: "bx-category-alt",
   },
   {
     kind: "text-generation",
     label: "Text generation",
-    description: "Prepared token influence walkthrough",
+    description: "Trace a real reply back to the prompt that shaped it",
     icon: "bx-text",
   },
   {
     kind: "txt2img-generation",
     label: "Text to image",
-    description: "Prepared prompt-to-pixel walkthrough",
+    description: "Map prompt words onto the pixels they generated",
     icon: "bx-image-add",
   },
 ];

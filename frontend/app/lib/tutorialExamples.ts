@@ -10,27 +10,15 @@ export type TutorialExampleConfiguration = {
   detectedTask: string;
 };
 
-export interface TutorialExampleJob extends JobHistoryItem {
+export interface TutorialExampleMeta extends JobHistoryItem {
   status: "completed";
   is_builtin_example: true;
+  pinned: true;
   tutorial_kind: TutorialKind;
   config: TutorialExampleConfiguration;
-  payload: OutputResult;
+  payloadUrl: string;
 }
 
-type TextGenerationStep = {
-  generated_token: string;
-  probability: number;
-  context_tokens: string[];
-  attribution_scores: number[];
-};
-
-type ImageHeatmap = {
-  image_base64: string;
-  raw_matrix: number[][];
-};
-
-const GRID_SIZE = 64;
 const EXAMPLE_SOURCE_ID = "huggingface";
 const EXAMPLE_SOURCE_NAME = "Hugging Face Hub";
 const CAPTUM_ATTRIBUTOR_ID = "captum_ig";
@@ -38,184 +26,106 @@ const CAPTUM_ATTRIBUTOR = "Integrated Gradients (Captum)";
 const DAAM_ATTRIBUTOR_ID = "daam";
 const DAAM_ATTRIBUTOR = "DAAM (Diffusion Attentive Attribution Maps)";
 
-const EXAMPLE_IMAGE_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAB7UlEQVR42u2WOU4DMRiF30EoqSAECISwBSJFoqChoKGg4iDsS1jDzhk4BhJL2NeBKDQUCBaIo00Qsnvicn4xVga6WvG0vP7P0u2Bi3Tp04D5wVaZ86cBonZM6dBYu7cadA2d+40SM5fOA2SCyW7fJ3kdVDF0b5YsoumgCqOjqVLu2gKqOLuC3QuX9lFU0AVR2rl2i6aAqo4UoVru+gKKOLoKtzYRVNAFUf36o1dNAVUcaTXbu2iKaCKI71+ZxddAUUcPRt3dtEUUMWR2bi3i6aAKo7M5j2Dj8/3Mt/euI//yShC79YDA1GAUYS+4iMDUYBRxBWogCLQv/3EQBRgFGFg54mBl89UwyjCwO4zA1mAUITBvRcGogCjCNm9FwaiAKMI2X2PgSxAKMLQgcdAfIUYRRg+fGUgCjCKkDt6YyAKMIrcFxgpHjMQBRhFLAHxFYoFjAq0T074uCcQjP4bNwTE0UWNPwmEn4UZgZqjV0yg8wrpH0ckgT+NHhAiUMdudQrUN3qIQJQNVSYwPjpVoNoExkdvjEAAjI/uI75CLAHGvo0TaB6bDWia2g+IuC4KGNw/AIxNy5+iAOOwYoGq9dFsLhzDAsZPpaaA4TsQC9gWcP4OxAKW1+Hi0NxLHAv8j3+hxt2BWCB+haKt/wA0/iqaDX+ggQAAAABJRU5ErkJggg==";
-
-const roundScore = (value: number) => Number(value.toFixed(4));
-
-const gaussian = (x: number, y: number, centerX: number, centerY: number, radius: number) => {
-  const dx = (x - centerX) / radius;
-  const dy = (y - centerY) / radius;
-  return Math.exp(-(dx * dx + dy * dy));
-};
-
-const buildImageHeatmaps = (tokens: readonly string[]): ImageHeatmap[] => {
-  const centers = [
-    [48, 13, 9],
-    [31, 35, 13],
-    [32, 34, 9],
-    [33, 43, 11],
-    [22, 44, 16],
-    [48, 50, 17],
-    [42, 14, 10],
-    [15, 18, 16],
-  ];
-
-  return tokens.map((_, tokenIndex) => {
-    const [centerX, centerY, radius] = centers[tokenIndex] ?? [32, 32, 18];
-
-    return {
-      image_base64: "",
-      raw_matrix: Array.from({ length: GRID_SIZE }, (_, y) =>
-        Array.from({ length: GRID_SIZE }, (_, x) => {
-          const primary = gaussian(x, y, centerX, centerY, radius);
-          const secondary = gaussian(x, y, 64 - centerX, Math.max(8, centerY - 6), radius * 1.35);
-          const ripple = Math.max(0, Math.sin((x + tokenIndex * 7) / 6) * Math.cos((y + tokenIndex * 3) / 8)) * 0.06;
-          return roundScore(Math.min(1, primary + secondary * 0.28 + ripple));
-        })
-      ),
-    };
-  });
-};
-
-const buildTextGenerationTrace = (): TextGenerationStep[] => {
-  const inputTokens = ["Explain", "Ġwhy", "Ġattribution", "Ġheatmaps", "Ġhelp", "Ġresearchers", ":"];
-  const outputTokens = ["Ġthey", "Ġreveal", "Ġwhich", "Ġwords", "Ġguide", "Ġeach", "Ġprediction", "."];
-  const probabilities = [0.74, 0.68, 0.63, 0.71, 0.59, 0.61, 0.66, 0.82];
-  const inputInfluence = [0.08, 0.11, 0.31, 0.37, 0.18, 0.27, 0.12];
-
-  return outputTokens.map((generatedToken, outputIndex) => {
-    const contextLength = inputTokens.length + outputIndex;
-    const attribution_scores = Array.from({ length: contextLength }, (_, contextIndex) => {
-      if (contextIndex < inputTokens.length) {
-        const pulse = Math.cos((outputIndex + 1) * (contextIndex + 2)) * 0.025;
-        const decay = 1 - outputIndex * 0.018;
-        return roundScore(inputInfluence[contextIndex] * decay + pulse);
-      }
-
-      const previousOutputIndex = contextIndex - inputTokens.length;
-      const distance = outputIndex - previousOutputIndex;
-      return roundScore(Math.max(0.04, 0.2 - distance * 0.028));
-    });
-
-    return {
-      generated_token: generatedToken,
-      probability: probabilities[outputIndex],
-      context_tokens: inputTokens,
-      attribution_scores,
-    };
-  });
-};
-
-const imageTokens = ["pixel", "art", "lighthouse", "sunset", "glowing", "ocean", "warm", "sky"];
-
-export const tutorialExampleJobs: readonly TutorialExampleJob[] = [
+// Each example below is a real, previously-run job (prompt, model, and output all captured
+// from an actual backend inference) rather than a synthetic fixture. The heavy payload is
+// shipped alongside the app as a static JSON file and fetched lazily so the JS bundle stays
+// small; only the lightweight metadata below is loaded eagerly.
+export const tutorialExampleMetas: readonly TutorialExampleMeta[] = [
   {
     id: "example-text-classification",
     status: "completed",
-    prompt: "The interface is surprisingly clear and the heatmaps make every decision easier to inspect.",
+    prompt: "I like this movie a lot!",
     source_name: EXAMPLE_SOURCE_NAME,
-    model_name: "distilbert-base-uncased-finetuned-sst-2-english",
+    model_name: "lxyuan/distilbert-base-multilingual-cased-sentiments-student",
     attributor_name: CAPTUM_ATTRIBUTOR,
-    created_at: "2026-01-10T09:00:00.000Z",
-    execution_time_sec: 1.42,
+    created_at: "2026-07-04T09:54:26.877Z",
+    execution_time_sec: 0.15,
     is_builtin_example: true,
+    pinned: true,
     tutorial_kind: "text-classification",
     config: {
       sourceId: EXAMPLE_SOURCE_ID,
       sourceName: EXAMPLE_SOURCE_NAME,
-      modelName: "distilbert-base-uncased-finetuned-sst-2-english",
+      modelName: "lxyuan/distilbert-base-multilingual-cased-sentiments-student",
       attributorId: CAPTUM_ATTRIBUTOR_ID,
       attributorName: CAPTUM_ATTRIBUTOR,
       detectedTask: "text-classification",
     },
-    payload: {
-      target_id: 1,
-      predicted_token: "POSITIVE",
-      tokens: ["[CLS]", "the", "interface", "is", "surprisingly", "clear", "and", "the", "heat", "##maps", "make", "every", "decision", "easier", "to", "inspect", ".", "[SEP]"],
-      scores: [0.03, 0.08, 0.36, 0.09, 0.44, 0.72, 0.12, 0.05, 0.48, 0.51, 0.42, 0.22, 0.39, 0.57, 0.15, 0.33, 0.04, 0.02],
-      special_tokens_mask: [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    },
+    payloadUrl: "/tutorial-examples/text-classification.json",
   },
   {
     id: "example-text-generation",
     status: "completed",
-    prompt: "Explain why attribution heatmaps help researchers:",
+    prompt: "Which is the capital of Italy?",
     source_name: EXAMPLE_SOURCE_NAME,
-    model_name: "gpt2-large",
+    model_name: "Qwen/Qwen2.5-3B-Instruct",
     attributor_name: CAPTUM_ATTRIBUTOR,
-    created_at: "2026-01-10T09:05:00.000Z",
-    execution_time_sec: 4.86,
+    created_at: "2026-07-02T16:31:33.247Z",
+    execution_time_sec: 132.13,
     is_builtin_example: true,
+    pinned: true,
     tutorial_kind: "text-generation",
     config: {
       sourceId: EXAMPLE_SOURCE_ID,
       sourceName: EXAMPLE_SOURCE_NAME,
-      modelName: "gpt2-large",
+      modelName: "Qwen/Qwen2.5-3B-Instruct",
       attributorId: CAPTUM_ATTRIBUTOR_ID,
       attributorName: CAPTUM_ATTRIBUTOR,
       detectedTask: "text-generation",
     },
-    payload: {
-      target_id: "text_generation",
-      predicted_token: undefined,
-      tokens: [],
-      scores: buildTextGenerationTrace(),
-      input_special_mask: [false, false, false, false, false, false, false],
-      output_special_mask: [false, false, false, false, false, false, false, false],
-      input_template_mask: [false, false, false, false, false, false, false],
-    },
+    payloadUrl: "/tutorial-examples/text-generation.json",
   },
   {
     id: "example-txt2img-generation",
     status: "completed",
-    prompt: "pixel art lighthouse at sunset with glowing ocean and warm sky",
+    prompt: "Astronauts riding horses on Mars.",
     source_name: EXAMPLE_SOURCE_NAME,
-    model_name: "runwayml/stable-diffusion-v1-5",
+    model_name: "stable-diffusion-v1-5/stable-diffusion-v1-5",
     attributor_name: DAAM_ATTRIBUTOR,
-    created_at: "2026-01-10T09:10:00.000Z",
-    execution_time_sec: 18.3,
+    created_at: "2026-04-09T08:13:37.040Z",
+    execution_time_sec: 11.48,
     is_builtin_example: true,
+    pinned: true,
     tutorial_kind: "txt2img-generation",
     config: {
       sourceId: EXAMPLE_SOURCE_ID,
       sourceName: EXAMPLE_SOURCE_NAME,
-      modelName: "runwayml/stable-diffusion-v1-5",
+      modelName: "stable-diffusion-v1-5/stable-diffusion-v1-5",
       attributorId: DAAM_ATTRIBUTOR_ID,
       attributorName: DAAM_ATTRIBUTOR,
       detectedTask: "text-to-image",
     },
-    payload: {
-      target_id: "image_generation",
-      predicted_token: undefined,
-      tokens: imageTokens,
-      scores: buildImageHeatmaps(imageTokens),
-      generated_image: EXAMPLE_IMAGE_BASE64,
-    },
+    payloadUrl: "/tutorial-examples/txt2img-generation.json",
   },
 ];
 
-export const tutorialExampleSummaries: JobHistoryItem[] = tutorialExampleJobs.map((job) => ({
-  id: job.id,
-  status: job.status,
-  prompt: job.prompt,
-  source_name: job.source_name,
-  model_name: job.model_name,
-  attributor_name: job.attributor_name,
-  created_at: job.created_at,
-  execution_time_sec: job.execution_time_sec,
-  is_builtin_example: job.is_builtin_example,
-  tutorial_kind: job.tutorial_kind,
-}));
+const payloadCache = new Map<string, Promise<OutputResult>>();
 
-export const getTutorialExampleJob = (jobId: string) =>
-  tutorialExampleJobs.find((job) => job.id === jobId) ?? null;
+export const loadTutorialExamplePayload = (meta: TutorialExampleMeta): Promise<OutputResult> => {
+  const cached = payloadCache.get(meta.id);
+  if (cached) return cached;
+
+  const request = fetch(meta.payloadUrl).then((res) => {
+    if (!res.ok) throw new Error(`Failed to load tutorial example payload: ${meta.id}`);
+    return res.json() as Promise<OutputResult>;
+  });
+
+  payloadCache.set(meta.id, request);
+  return request;
+};
+
+export const tutorialExampleSummaries: JobHistoryItem[] = tutorialExampleMetas.map(
+  ({ config, payloadUrl, ...summary }) => summary
+);
+
+export const getTutorialExampleMeta = (jobId: string) =>
+  tutorialExampleMetas.find((meta) => meta.id === jobId) ?? null;
 
 export const getTutorialExampleForKind = (tutorialKind: TutorialKind) =>
-  tutorialExampleJobs.find((job) => job.tutorial_kind === tutorialKind) ?? null;
+  tutorialExampleMetas.find((meta) => meta.tutorial_kind === tutorialKind) ?? null;
 
 export const getTutorialExampleConfiguration = (tutorialKind: TutorialKind) =>
   getTutorialExampleForKind(tutorialKind)?.config ?? null;
 
 export const isTutorialExampleJobId = (jobId: string) =>
-  tutorialExampleJobs.some((job) => job.id === jobId);
+  tutorialExampleMetas.some((meta) => meta.id === jobId);

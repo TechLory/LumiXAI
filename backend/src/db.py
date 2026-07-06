@@ -11,7 +11,7 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Float
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, Boolean, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # --- SETUP PATHS ---
@@ -58,8 +58,17 @@ class Job(Base):
     execution_time_sec = Column(Float, nullable=True)
     error_message = Column(Text, nullable=True)
     result_file = Column(String, nullable=True)
+    pinned = Column(Boolean, default=False, nullable=False)
 
 Base.metadata.create_all(bind=engine)
+
+# `create_all` only creates missing tables, so a `jobs` table left over from before the
+# `pinned` column was introduced needs an explicit migration.
+with engine.connect() as _conn:
+    _existing_columns = {row[1] for row in _conn.execute(text("PRAGMA table_info(jobs)"))}
+    if "pinned" not in _existing_columns:
+        _conn.execute(text("ALTER TABLE jobs ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT 0"))
+        _conn.commit()
 
 # --- HELPER FUNCTIONS ---
 def delete_result_file(file_name: str | None) -> None:
@@ -189,6 +198,7 @@ def get_job(job_id: str) -> dict | None:
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "execution_time_sec": job.execution_time_sec,
         "error_message": job.error_message,
+        "pinned": job.pinned,
         "payload": None
     }
 
@@ -212,7 +222,7 @@ def get_all_jobs() -> list:
     db = SessionLocal()
     jobs = db.query(Job).order_by(Job.created_at.desc()).all()
     db.close()
-    
+
     return [
         {
             "id": j.id,
@@ -222,10 +232,27 @@ def get_all_jobs() -> list:
             "model_name": j.model_name,
             "attributor_name": j.attributor_name,
             "created_at": j.created_at.isoformat() if j.created_at else None,
-            "execution_time_sec": j.execution_time_sec
+            "execution_time_sec": j.execution_time_sec,
+            "pinned": j.pinned,
         }
         for j in jobs
     ]
+
+
+def set_job_pinned(job_id: str, pinned: bool) -> bool:
+    """Updates the pinned state of a job so it can be kept at the top of history."""
+    with db_write_lock:
+        db = SessionLocal()
+        try:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                return False
+
+            job.pinned = pinned
+            db.commit()
+            return True
+        finally:
+            db.close()
 
 
 def delete_job(job_id: str) -> bool:

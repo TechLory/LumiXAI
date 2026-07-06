@@ -34,7 +34,7 @@ from src.wrappers.hf_text_generation import HFTextGenerationWrapper
 from src.wrappers.hf_image import HFImageWrapper
 from src.attributors.captum_grad import CaptumGradientsAttributor
 
-from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_job, delete_all_jobs
+from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_job, delete_all_jobs, set_job_pinned
 
 # Global Mutex to prevent concurrent threads from crashing the GPU during inference
 gpu_lock = threading.Lock()
@@ -250,6 +250,9 @@ class ExplainRequest(BaseModel):
 class JobResponse(BaseModel):
     job_id: str
     status: str
+
+class PinRequest(BaseModel):
+    pinned: bool
 
 # --- 4. SETUP APP ---
 app = FastAPI()
@@ -527,6 +530,14 @@ def get_job_status(job_id: str):
     if not job:
         raise HTTPException(404, "Job not found")
     return job
+
+@app.patch("/api/jobs/{job_id}/pin")
+def pin_job(job_id: str, req: PinRequest):
+    """Pins or unpins a job so it can be kept at the top of the history list."""
+    was_updated = set_job_pinned(job_id, req.pinned)
+    if not was_updated:
+        raise HTTPException(404, "Job not found")
+    return {"status": "success", "pinned": req.pinned}
 
 @app.delete("/api/jobs/{job_id}")
 def delete_job_by_id(job_id: str):

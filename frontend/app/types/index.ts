@@ -34,6 +34,7 @@ export interface JobHistoryItem {
   execution_time_sec: number | null;
   is_builtin_example?: boolean;
   tutorial_kind?: TutorialKind;
+  pinned?: boolean;
 }
 
 export type TutorialOutputInteraction = {
