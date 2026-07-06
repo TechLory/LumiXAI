@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MouseEvent } from "react";
 
 import Navbar from "./layout/Navbar";
@@ -38,6 +38,40 @@ export default function MainApp() {
   } = useInference();
 
   const { jobs, deletingJobIds, fetchJobPayload, deleteJob } = useJobsHistory();
+
+  // --- COLLAPSE STATE (setup blocks fold away once they've done their job) ---
+  const [logsOpen, setLogsOpen] = useState(true);
+  const [configOpen, setConfigOpen] = useState(true);
+
+  // System Logs: expanded while booting or on error, auto-collapse once ready.
+  // Effect only fires on status transitions, so manual toggles afterward stick.
+  useEffect(() => {
+    if (systemState.status === 'success') setLogsOpen(false);
+    else setLogsOpen(true);
+  }, [systemState.status]);
+
+  // Configuration: collapse to a summary once a config is active, re-open when unloaded.
+  useEffect(() => {
+    setConfigOpen(!hasActiveConfiguration);
+  }, [hasActiveConfiguration]);
+
+  // Status badge shown in the collapsed System Logs header.
+  const statusMeta =
+    systemState.status === 'running'
+      ? { dot: 'bg-blue-400', text: 'System booting…', cls: 'text-blue-300' }
+      : systemState.status === 'error'
+        ? { dot: 'bg-red-400', text: 'System error', cls: 'text-red-300' }
+        : systemState.status === 'success'
+          ? { dot: 'bg-green-400', text: 'System ready', cls: 'text-green-300' }
+          : { dot: 'bg-neutral-400', text: 'System status unknown', cls: 'text-neutral-300' };
+
+  // Summary chip shown in the collapsed Configuration header.
+  const activeAttributorName =
+    systemState.data?.attributors?.find(a => a.id === selectedAttributor)?.name ?? selectedAttributor;
+  const shortModelName = modelName?.split('/').pop();
+  const configReady = systemState.status === 'success';
+  const configCollapsible = configReady && hasActiveConfiguration;
+  const showConfigBody = !configCollapsible || configOpen;
 
   const handleHistoryClick = async (jobId: string, status: string, prompt: string) => {
     if (status !== 'completed') return; // Ignora se fallito o in corso
@@ -186,58 +220,100 @@ export default function MainApp() {
         </aside>
 
         {/* RIGHT COLUMN */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto flex flex-col gap-2">
 
-          {/* BLOCK 1: SYSTEM LOGS */}
-          <div className="bg-neutral-800 p-6 mb-2 font-mono font-medium">
-            <div className="uppercase">System logs</div>
-            {/* Banner */}
-            <div className={`uppercase p-2 text-sm my-2 ${systemState.status === 'running'
-              ? 'bg-blue-400/10 text-blue-300'
-              : systemState.status === 'error'
-                ? 'bg-red-400/10 text-red-300'
-                : systemState.status === 'success'
-                  ? 'bg-green-400/10 text-green-300'
-                  : 'bg-neutral-400/10 text-neutral-300'
-              }`}>
-              {systemState.status === 'running'
-                ? '// System is currently booting and initializing all required components...'
-                : systemState.status === 'error'
-                  ? '// System encountered a critical error during initialization. Please check the logs below.'
-                  : systemState.status === 'success'
-                    ? '// System ready.'
-                    : '// System status is unknown. Please wait...'}
-            </div>
-            {/* Logs */}
-            <div>
-              {bootLogs.map((log, index) => (
-                <div key={index} className="font-mono text-neutral-600 text-sm">{log}</div>
-              ))}
-            </div>
-            {/* Error Details */}
-            {systemState.status === 'error' && (
-              <div className="text-red-500 font-mono text-sm mt-0">
-                <div className="uppercase">Failed</div>
-                <div className="font-bold mt-2">{systemState.error}</div>
+          {/* BLOCK 1: SYSTEM LOGS (collapses to a status badge once ready) */}
+          <div className="bg-neutral-800 p-6 font-mono font-medium shrink-0">
+            <button
+              type="button"
+              onClick={() => setLogsOpen(open => !open)}
+              className="w-full flex items-center justify-between gap-4 cursor-pointer"
+            >
+              <div className="uppercase">System Logs</div>
+              <div className="flex items-center gap-3">
+                {!logsOpen && (
+                  <div className={`flex items-center gap-2 text-sm normal-case ${statusMeta.cls}`}>
+                    <span className={`inline-block w-2 h-2 rounded-full ${statusMeta.dot} ${systemState.status === 'running' ? 'animate-pulse' : ''}`}></span>
+                    {statusMeta.text}
+                  </div>
+                )}
+                <i className={`bx ${logsOpen ? 'bx-chevron-up' : 'bx-chevron-down'} text-xl text-neutral-500`}></i>
               </div>
+            </button>
+
+            {logsOpen && (
+              <>
+                {/* Banner */}
+                <div className={`uppercase p-2 text-sm my-2 ${systemState.status === 'running'
+                  ? 'bg-blue-400/10 text-blue-300'
+                  : systemState.status === 'error'
+                    ? 'bg-red-400/10 text-red-300'
+                    : systemState.status === 'success'
+                      ? 'bg-green-400/10 text-green-300'
+                      : 'bg-neutral-400/10 text-neutral-300'
+                  }`}>
+                  {systemState.status === 'running'
+                    ? '// System is currently booting and initializing all required components...'
+                    : systemState.status === 'error'
+                      ? '// System encountered a critical error during initialization. Please check the logs below.'
+                      : systemState.status === 'success'
+                        ? '// System ready.'
+                        : '// System status is unknown. Please wait...'}
+                </div>
+                {/* Logs */}
+                <div>
+                  {bootLogs.map((log, index) => (
+                    <div key={index} className="font-mono text-neutral-600 text-sm">{log}</div>
+                  ))}
+                </div>
+                {/* Error Details */}
+                {systemState.status === 'error' && (
+                  <div className="text-red-500 font-mono text-sm mt-0">
+                    <div className="uppercase">Failed</div>
+                    <div className="font-bold mt-2">{systemState.error}</div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
 
-          {/* BLOCK 2: CONFIGURATION PANEL */}
-          <div className="bg-neutral-800 p-6 mb-2 min-h-60 relative">
-            <div className="font-mono font-medium uppercase">Configuration panel</div>
+          {/* BLOCK 2: CONFIGURATION (collapses to a summary chip once loaded) */}
+          <div className="bg-neutral-800 p-6 relative shrink-0">
+            {configCollapsible ? (
+              <button
+                type="button"
+                onClick={() => setConfigOpen(open => !open)}
+                className="w-full flex items-center justify-between gap-4 cursor-pointer"
+              >
+                <div className="font-mono font-medium uppercase">Configuration</div>
+                <div className="flex items-center gap-3">
+                  {!configOpen && (
+                    <div className="flex items-center gap-2 text-sm font-mono text-neutral-300">
+                      <i className="bx bx-check text-emerald-400 text-base"></i>
+                      <span className="text-neutral-200">{shortModelName}</span>
+                      <span className="text-neutral-600">·</span>
+                      <span className="text-neutral-400">{activeAttributorName}</span>
+                    </div>
+                  )}
+                  <i className={`bx ${configOpen ? 'bx-chevron-up' : 'bx-chevron-down'} text-xl text-neutral-500`}></i>
+                </div>
+              </button>
+            ) : (
+              <div className="font-mono font-medium uppercase">Configuration</div>
+            )}
+
             {systemState.status === 'running' ? (
               // Loading
-              <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
+              <div className="min-h-60 flex justify-center items-center">
                 <i className='bx bx-loader animate-spin text-2xl text-neutral-600'></i>
               </div>
             ) : systemState.status === 'error' ? (
               // Error
-              <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center font-mono font-bold text-neutral-600 text-sm">
+              <div className="min-h-60 flex justify-center items-center font-mono font-bold text-neutral-600 text-sm">
                 FAILED
               </div>
-            ) : systemState.status === 'success' && systemState.data ? (
+            ) : systemState.status === 'success' && systemState.data && showConfigBody ? (
               // OK
               <div>
                 <ConfigurationPanel
@@ -262,55 +338,54 @@ export default function MainApp() {
           </div>
 
 
-          {/* BLOCK 3: INPUT PANEL */}
-          <div className="bg-neutral-800 p-6 mb-2 min-h-60 relative">
-            <div className="font-mono font-medium uppercase">Input panel</div>
-            {systemState.status === 'running' ? (
-              // Loading
-              <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
-                <i className='bx bx-loader animate-spin text-2xl text-neutral-500'></i>
-              </div>
-            ) : systemState.status === 'error' ? (
-              // Error
-              <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center font-mono font-bold text-neutral-600 text-sm">
-                FAILED
-              </div>
-            ) : systemState.status === 'success' && systemState.data ? (
-              // OK
-              <div>
-                <InputPanel
-                  inputText={inputText}
-                  setInputText={setInputText}
-                  seed={seed}
-                  setSeed={setSeed}
-                  onExplainClick={handleExplain}
-                  inferenceStatus={inferenceState.status}
-                  isConfigReady={hasActiveConfiguration}
-                  activeAttributorId={activeAttributorId}
-                />
-              </div>
-            ) : null}
-          </div>
+          {/* WORKSPACE: INPUT + OUTPUT side by side on wide screens, stacked below 2xl */}
+          <div className="flex flex-col 2xl:flex-row gap-2 2xl:items-start">
 
-          {/* BLOCK 4: OUTPUT PANEL */}
-          <div className="bg-neutral-800 p-6 mb-2 min-h-60 relative">
-            <div className="font-mono font-medium uppercase">Output panel</div>
-            {systemState.status === 'running' ? (
-              // SYSTEM LOADING
-              <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
-                <i className='bx bx-loader animate-spin text-2xl text-neutral-500'></i>
-              </div>
-            ) : systemState.status === 'error' ? (
-              // BOOT ERROR
-              <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center font-mono font-bold text-neutral-600 text-sm">
-                FAILED
-              </div>
-            ) : systemState.status === 'success' && systemState.data ? (
-              // OK
-              <div>
-                <OutputPanel outputResult={inferenceState.data} />
-              </div>
-            ) : null}
+            {/* INPUT */}
+            <div className="bg-neutral-800 p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2">
+              <div className="font-mono font-medium uppercase">Input</div>
+              {systemState.status === 'running' ? (
+                <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
+                  <i className='bx bx-loader animate-spin text-2xl text-neutral-500'></i>
+                </div>
+              ) : systemState.status === 'error' ? (
+                <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center font-mono font-bold text-neutral-600 text-sm">
+                  FAILED
+                </div>
+              ) : systemState.status === 'success' && systemState.data ? (
+                <div>
+                  <InputPanel
+                    inputText={inputText}
+                    setInputText={setInputText}
+                    seed={seed}
+                    setSeed={setSeed}
+                    onExplainClick={handleExplain}
+                    inferenceStatus={inferenceState.status}
+                    isConfigReady={hasActiveConfiguration}
+                    activeAttributorId={activeAttributorId}
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            {/* OUTPUT */}
+            <div className="bg-neutral-800 p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2">
+              <div className="font-mono font-medium uppercase">Output</div>
+              {systemState.status === 'running' ? (
+                <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
+                  <i className='bx bx-loader animate-spin text-2xl text-neutral-500'></i>
+                </div>
+              ) : systemState.status === 'error' ? (
+                <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center font-mono font-bold text-neutral-600 text-sm">
+                  FAILED
+                </div>
+              ) : systemState.status === 'success' && systemState.data ? (
+                <div>
+                  <OutputPanel outputResult={inferenceState.data} />
+                </div>
+              ) : null}
+            </div>
+
           </div>
 
         </main>

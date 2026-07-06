@@ -97,7 +97,7 @@ export default function OutputPanel({ outputResult }: OutputPanelProps) {
           </div>
         </div>
 
-        <div className="bg-neutral-400/10 p-6">
+        <div className="bg-neutral-400/10 p-3">
 
           {/* --- CASE 1: IMAGE GENERATION --- */}
           {isImage && (

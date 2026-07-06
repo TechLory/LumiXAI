@@ -136,7 +136,7 @@ export default function ImageGenView({ baseImage, tokens, heatmaps }: ImageGenVi
     <div className="flex flex-col gap-8 w-full select-none">
 
       {/* INTERACTIVE IMAGE */}
-      <div className="flex flex-col items-center bg-neutral-900 p-6 rounded-lg border border-neutral-700">
+      <div className="flex flex-col items-center bg-neutral-900 p-4 rounded-lg border border-neutral-700">
         <div className="flex justify-between w-full max-w-lg mb-4">
           <h3 className="text-gray-400 text-sm uppercase font-bold">
             Generated Image
