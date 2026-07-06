@@ -139,7 +139,9 @@ class DAAMAttributor(BaseAttributor):
         def _render_overlay_b64(hm_obj) -> str:
             fig = hm_obj.plot_overlay(generated_image)
             buf = BytesIO()
-            fig.savefig(buf, format="PNG", bbox_inches='tight', pad_inches=0)
+            # No bbox_inches='tight': the figure already has the image's aspect ratio
+            # with the axes filling it, so the PNG matches the generated image's shape.
+            fig.savefig(buf, format="PNG")
             return base64.b64encode(buf.getvalue()).decode("utf-8")
 
         heatmap_data = []

@@ -54,10 +54,15 @@ class CustomDAAMHeatmap:
 
         heatmap_np = np.clip((heatmap_np - vmin) / (vmax - vmin + 1e-8), 0, 1)
 
-        fig = Figure(figsize=(6, 6))
+        # Render with the figure aspect ratio matching the source image and the axes
+        # filling the whole figure (no borders/whitespace). Saved without a tight
+        # bbox, the overlay PNG then has the same aspect ratio as the generated
+        # image, so the frontend (which shows both in the same <img>) sizes them
+        # identically.
+        fig = Figure(figsize=(6.0, 6.0 * h / w))
         FigureCanvasAgg(fig)
-        ax = fig.subplots()
-        ax.imshow(image)
+        ax = fig.add_axes((0, 0, 1, 1))
+        ax.imshow(image, extent=(0, w, h, 0))
         ax.imshow(heatmap_np, cmap='jet', alpha=0.6, extent=(0, w, h, 0))
         ax.axis('off')
         return fig
