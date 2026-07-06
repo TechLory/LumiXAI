@@ -10,7 +10,7 @@ export enum BootLog {
 
 export type Manifest = {
   sources: { id: string; name: string; type: string }[];
-  attributors: { id: string; name: string }[];
+  attributors: { id: string; name: string; compatible_wrappers: string[] }[];
 };
 
 export type ProcessStatus = 'idle' | 'running' | 'success' | 'error';

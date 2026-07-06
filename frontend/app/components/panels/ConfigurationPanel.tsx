@@ -4,11 +4,13 @@ import { ConfigurationState } from "../../hooks/useModelManager";
 interface ConfigurationPanelProps {
   manifest: {
     sources: { id: string; name: string; type: string }[];
-    attributors: { id: string; name: string }[]
+    attributors: { id: string; name: string; compatible_wrappers: string[] }[]
   } | null;
   selectedSource: string;
   modelName: string;
   selectedAttributor: string;
+  detectedTask: string | null;
+  detectedWrapperName: string | null;
 
   configState: ConfigurationState;
   isDirty: boolean;
@@ -17,7 +19,7 @@ interface ConfigurationPanelProps {
   isInferenceRunning: boolean;
 
   onSourceChange: (newValue: string) => void;
-  onModelNameChange: (newValue: string) => void;
+  onModelNameChange: (newValue: string, task?: string) => void;
   onAttributorChange: (newValue: string) => void;
   onLoadConfiguration: () => void;
   onResetConfiguration: () => void;
@@ -88,6 +90,13 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
           </div>
         </div>
 
+        {/* DETECTED MODEL TYPE */}
+        <div className="px-2 -mt-1 mb-0.5 text-xs font-mono text-fg-faint">
+          {props.detectedTask
+            ? <>Detected type: <span className="text-fg-subtle">{props.detectedTask}</span></>
+            : "Detected type: unknown until a model is selected"}
+        </div>
+
         {/* 3: ATTRIBUTOR */}
         <div className={getRowClasses('attributor')}>
           {/* SX Label */}
@@ -103,9 +112,22 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
               disabled={isInteractionDisabled}
             >
               <option value="" disabled className="bg-surface text-fg">Select an attributor...</option>
-              {props.manifest?.attributors.map(w => (
-                <option key={w.id} value={w.id} className="bg-surface text-fg">{w.name}</option>
-              ))}
+              {props.manifest?.attributors.map(w => {
+                const isCompatible = !props.detectedWrapperName
+                  || w.compatible_wrappers.length === 0
+                  || w.compatible_wrappers.includes(props.detectedWrapperName);
+                return (
+                  <option
+                    key={w.id}
+                    value={w.id}
+                    disabled={!isCompatible}
+                    title={!isCompatible ? `Requires: ${w.compatible_wrappers.join(", ")}` : undefined}
+                    className="bg-surface text-fg"
+                  >
+                    {w.name}{!isCompatible ? " (incompatible)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>

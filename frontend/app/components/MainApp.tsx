@@ -15,6 +15,7 @@ import { useInference } from "../hooks/useInference";
 import { useJobsHistory } from "../hooks/useJobsHistory";
 import { getTutorialExampleForKind, loadTutorialExamplePayload } from "../lib/tutorialExamples";
 import { getTutorialSteps } from "../lib/tutorialGuide";
+import { guessWrapperFromTask } from "../lib/taskToWrapper";
 import type { OutputResult } from "./panels/OutputPanel";
 import type { TutorialKind } from "../types";
 
@@ -29,6 +30,21 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const { systemState, bootLogs } = useSystemBoot();
   const [pendingDeleteJobId, setPendingDeleteJobId] = useState<string | null>(null);
 
+  const tutorialExample = activeTutorial ? getTutorialExampleForKind(activeTutorial) : null;
+  const isTutorialActive = !!activeTutorial && !!tutorialExample;
+  const tutorialConfig = tutorialExample?.config;
+  const tutorialManifest = tutorialConfig ? {
+    sources: [{ id: tutorialConfig.sourceId, name: tutorialConfig.sourceName, type: "remote" }],
+    attributors: [{
+      id: tutorialConfig.attributorId,
+      name: tutorialConfig.attributorName,
+      compatible_wrappers: [guessWrapperFromTask(tutorialConfig.detectedTask)].filter((w): w is string => !!w)
+    }]
+  } : null;
+  const effectiveSystemState = isTutorialActive && tutorialManifest
+    ? { status: 'success' as const, data: tutorialManifest, error: null }
+    : systemState;
+
   const {
     selectedSource, onSourceChange,
     modelName, onModelNameChange,
@@ -37,12 +53,14 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     lastLoadedConfiguration,
     hasActiveConfiguration,
     activeAttributorId,
+    detectedWrapperName,
+    detectedTask,
     isDirty,
     handleLoadConfiguration,
     handleResetConfiguration,
     handleUnloadConfiguration,
     hydrateConfiguration
-  } = useModelManager();
+  } = useModelManager(effectiveSystemState.data?.attributors ?? []);
 
   const {
     inputText, setInputText,
@@ -52,8 +70,6 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
 
   const { jobs, deletingJobIds, fetchJobPayload, deleteJob, togglePinJob } = useJobsHistory();
 
-  const tutorialExample = activeTutorial ? getTutorialExampleForKind(activeTutorial) : null;
-  const isTutorialActive = !!activeTutorial && !!tutorialExample;
   const tutorialSteps = activeTutorial ? getTutorialSteps(activeTutorial) : [];
   const [tutorialStepIndex, setTutorialStepIndex] = useState(0);
   const [tutorialPayload, setTutorialPayload] = useState<OutputResult | null>(null);
@@ -75,14 +91,6 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     };
   }, [tutorialExample?.id]);
   const currentTutorialStep = isTutorialActive ? tutorialSteps[Math.min(tutorialStepIndex, tutorialSteps.length - 1)] : null;
-  const tutorialConfig = tutorialExample?.config;
-  const tutorialManifest = tutorialConfig ? {
-    sources: [{ id: tutorialConfig.sourceId, name: tutorialConfig.sourceName, type: "remote" }],
-    attributors: [{ id: tutorialConfig.attributorId, name: tutorialConfig.attributorName }]
-  } : null;
-  const effectiveSystemState = isTutorialActive && tutorialManifest
-    ? { status: 'success' as const, data: tutorialManifest, error: null }
-    : systemState;
   const effectiveBootLogs = isTutorialActive
     ? ["Tutorial mode active.", "Using bundled prepared example data. Backend calls are skipped."]
     : bootLogs;
@@ -493,6 +501,8 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   selectedSource={selectedSource}
                   modelName={modelName}
                   selectedAttributor={selectedAttributor}
+                  detectedTask={detectedTask}
+                  detectedWrapperName={detectedWrapperName}
                   onSourceChange={onSourceChange}
                   onModelNameChange={onModelNameChange}
                   onAttributorChange={onAttributorChange}

@@ -12,7 +12,7 @@ interface HFModelResult {
 interface ModelSelectorProps {
   currentSource: string;
   currentModel: string;
-  onModelSelect: (modelId: string) => void;
+  onModelSelect: (modelId: string, task?: string) => void;
   disabled?: boolean;
 }
 
@@ -34,7 +34,8 @@ export default function ModelSelector(props: ModelSelectorProps) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setQuery(val);
-    props.onModelSelect(val);
+    // Task is unknown for a manually-typed model id (not picked from search results).
+    props.onModelSelect(val, undefined);
 
     if (val.length < 2) {
       setResults([]);
@@ -71,7 +72,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
 
   const selectModel = (model: HFModelResult) => {
     setQuery(model.id);
-    props.onModelSelect(model.id);
+    props.onModelSelect(model.id, model.task);
     setIsOpen(false);
   };
 

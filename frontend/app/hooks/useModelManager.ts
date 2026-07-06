@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import { guessWrapperFromTask } from "../lib/taskToWrapper";
 
 export type ConfigStep =
   | 'idle'
@@ -22,6 +23,7 @@ export interface LoadedConfiguration {
   source: string;
   modelName: string;
   attributor: string;
+  detectedTask?: string;
 }
 
 export interface HydratedConfiguration {
@@ -33,13 +35,45 @@ export interface HydratedConfiguration {
   detectedTask?: string;
 }
 
-export function useModelManager() {
+export interface AttributorCompatibility {
+  id: string;
+  compatible_wrappers: string[];
+}
+
+export function useModelManager(availableAttributors: AttributorCompatibility[] = []) {
   const [selectedSource, setSelectedSource] = useState("");
   const [modelName, setModelName] = useState("");
   const [selectedAttributor, setSelectedAttributor] = useState("");
   const [lastLoadedConfiguration, setLastLoadedConfiguration] = useState<LoadedConfiguration | null>(null);
   const [hasActiveConfiguration, setHasActiveConfiguration] = useState(false);
   const [activeAttributorId, setActiveAttributorId] = useState<string | null>(null);
+  const [detectedWrapperName, setDetectedWrapperName] = useState<string | null>(null);
+  const [detectedTask, setDetectedTask] = useState<string | null>(null);
+
+  const isAttributorCompatible = (attributorId: string, wrapperName: string | null): boolean => {
+    if (!wrapperName) return true;
+    const attributor = availableAttributors.find(a => a.id === attributorId);
+    if (!attributor || attributor.compatible_wrappers.length === 0) return true;
+    return attributor.compatible_wrappers.includes(wrapperName);
+  };
+
+  // Updates the detected model type and, if the currently-selected draft attributor is no
+  // longer valid for it, clears that draft selection (never touches an already-active
+  // backend configuration).
+  const applyDetectedWrapper = (wrapperName: string | null, task: string | null) => {
+    setDetectedWrapperName(wrapperName);
+    setDetectedTask(task);
+    setSelectedAttributor(prevAttributor => {
+      if (prevAttributor && !isAttributorCompatible(prevAttributor, wrapperName)) {
+        return "";
+      }
+      return prevAttributor;
+    });
+  };
+
+  const applyDetectedTask = (task?: string | null) => {
+    applyDetectedWrapper(guessWrapperFromTask(task), task ?? null);
+  };
 
   const [configState, setConfigState] = useState<ConfigurationState>({
     status: 'idle',
@@ -74,8 +108,9 @@ export function useModelManager() {
     clearErrors();
   };
 
-  const onModelNameChange = (newValue: string) => {
+  const onModelNameChange = (newValue: string, task?: string) => {
     setModelName(newValue);
+    applyDetectedTask(task);
     clearErrors();
   };
 
@@ -97,6 +132,7 @@ export function useModelManager() {
     setSelectedSource(lastLoadedConfiguration.source);
     setModelName(lastLoadedConfiguration.modelName);
     setSelectedAttributor(lastLoadedConfiguration.attributor);
+    applyDetectedTask(lastLoadedConfiguration.detectedTask);
     setConfigState(prev => ({
       ...prev,
       status: hasActiveConfiguration ? 'success' : 'idle',
@@ -114,12 +150,14 @@ export function useModelManager() {
     setSelectedSource(nextSource);
     setModelName(nextModelName);
     setSelectedAttributor(nextAttributor);
+    applyDetectedTask(configuration.detectedTask);
 
     if (isLoaded && nextSource && nextModelName && nextAttributor) {
       const loadedConfiguration = {
         source: nextSource,
         modelName: nextModelName,
-        attributor: nextAttributor
+        attributor: nextAttributor,
+        detectedTask: configuration.detectedTask
       };
 
       setLastLoadedConfiguration(loadedConfiguration);
@@ -207,6 +245,12 @@ export function useModelManager() {
       const modelData = await modelRes.json();
       addLog(`Model loaded successfully. Task: ${modelData.detected_task}`);
 
+      // Authoritative update from the backend (covers manually-typed model ids that never
+      // went through ModelSelector's search results). Strips any " (fallback)" suffix so
+      // it matches the plain wrapper-name keys used in compatible_wrappers.
+      const rawWrapperName = typeof modelData.wrapper === "string" ? modelData.wrapper.split(" ")[0] : null;
+      applyDetectedWrapper(rawWrapperName, modelData.detected_task ?? null);
+
       setConfigState(prev => ({ ...prev, step: 'setting_attributor' }));
       addLog(`Setting attributor to '${selectedAttributor}'...`);
 
@@ -237,7 +281,8 @@ export function useModelManager() {
       const loadedConfiguration = {
         source: selectedSource,
         modelName,
-        attributor: selectedAttributor
+        attributor: selectedAttributor,
+        detectedTask: modelData.detected_task ?? undefined
       };
 
       setLastLoadedConfiguration(loadedConfiguration);
@@ -339,6 +384,8 @@ export function useModelManager() {
     lastLoadedConfiguration,
     hasActiveConfiguration,
     activeAttributorId,
+    detectedWrapperName,
+    detectedTask,
     isDirty,
     handleLoadConfiguration,
     handleResetConfiguration,

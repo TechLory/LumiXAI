@@ -33,6 +33,12 @@ from src.wrappers.hf_text_classification import HFTextClassificationWrapper
 from src.wrappers.hf_text_generation import HFTextGenerationWrapper
 from src.wrappers.hf_image import HFImageWrapper
 from src.attributors.captum_grad import CaptumGradientsAttributor
+from src.attributors.captum_deeplift import CaptumDeepLiftAttributor
+from src.attributors.captum_saliency import CaptumSaliencyAttributor
+from src.attributors.captum_inputxgrad import CaptumInputXGradientAttributor
+from src.attributors.captum_gradientshap import CaptumGradientShapAttributor
+from src.attributors.captum_occlusion import CaptumOcclusionAttributor
+from src.attributors.captum_lime import CaptumLimeAttributor
 
 from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_job, delete_all_jobs, set_job_pinned
 
@@ -175,14 +181,51 @@ AVAILABLE_SOURCES = [
     {"id": "huggingface", "name": "Hugging Face Hub", "type": "remote"},
 ]
 
+# Wrapper names an attributor can be applied to, keyed on the same strings produced by
+# the task-detection `match` in /api/load. Used both to validate /api/set_attributor
+# requests server-side and to let the frontend gray out incompatible options.
+TEXT_WRAPPERS = ["hf_text_classification", "hf_text_generation"]
+
 AVAILABLE_ATTRIBUTORS = {
     "captum_ig": {
         "name": "Integrated Gradients (Captum)",
         "class": CaptumGradientsAttributor,
+        "compatible_wrappers": TEXT_WRAPPERS,
+    },
+    "captum_deeplift": {
+        "name": "DeepLift (Captum)",
+        "class": CaptumDeepLiftAttributor,
+        "compatible_wrappers": TEXT_WRAPPERS,
+    },
+    "captum_saliency": {
+        "name": "Saliency (Captum)",
+        "class": CaptumSaliencyAttributor,
+        "compatible_wrappers": TEXT_WRAPPERS,
+    },
+    "captum_inputxgrad": {
+        "name": "Input x Gradient (Captum)",
+        "class": CaptumInputXGradientAttributor,
+        "compatible_wrappers": TEXT_WRAPPERS,
+    },
+    "captum_gradientshap": {
+        "name": "GradientSHAP (Captum)",
+        "class": CaptumGradientShapAttributor,
+        "compatible_wrappers": TEXT_WRAPPERS,
+    },
+    "captum_occlusion": {
+        "name": "Occlusion (Captum)",
+        "class": CaptumOcclusionAttributor,
+        "compatible_wrappers": TEXT_WRAPPERS,
+    },
+    "captum_lime": {
+        "name": "LIME (Captum)",
+        "class": CaptumLimeAttributor,
+        "compatible_wrappers": TEXT_WRAPPERS,
     },
     "daam": {
         "name": "DAAM (Diffusion Attentive Attribution Maps)",
         "import_path": "src.attributors.daam:DAAMAttributor",
+        "compatible_wrappers": ["hf_image"],
     },
 }
 
@@ -206,7 +249,11 @@ def get_available_attributors():
     for attributor_id, metadata in AVAILABLE_ATTRIBUTORS.items():
         try:
             resolve_attributor_class(attributor_id)
-            available_attributors.append({"id": attributor_id, "name": metadata["name"]})
+            available_attributors.append({
+                "id": attributor_id,
+                "name": metadata["name"],
+                "compatible_wrappers": metadata.get("compatible_wrappers", []),
+            })
         except Exception as exc:
             print(f"Skipping unavailable attributor '{attributor_id}': {exc}")
 
@@ -215,6 +262,7 @@ def get_available_attributors():
 # --- 2. GLOBAL STATE ---
 app_state: Dict[str, Any] = {
     "active_wrapper": None,
+    "active_wrapper_name": None,
     "active_attributor": None,
     "active_attributor_id": None,
     "active_source": None,
@@ -387,6 +435,7 @@ def load_model(req: LoadRequest):
             del app_state["active_wrapper"]
             del app_state["active_attributor"]
             app_state["active_wrapper"] = None
+            app_state["active_wrapper_name"] = None
             app_state["active_attributor"] = None
             app_state["active_attributor_id"] = None
             gc.collect()
@@ -434,7 +483,10 @@ def load_model(req: LoadRequest):
         else:
             raise HTTPException(400, f"Source '{req.source}' not supported")
 
+        # Strip any " (fallback)" suffix so this matches the plain wrapper-name keys
+        # used in AVAILABLE_ATTRIBUTORS[...]["compatible_wrappers"].
         app_state["active_wrapper"] = wrapper_instance
+        app_state["active_wrapper_name"] = wrapper_name.split(" ")[0]
         app_state["active_attributor"] = None
         app_state["active_attributor_id"] = None
         app_state["active_source"] = req.source
@@ -471,6 +523,7 @@ def unload_model():
                 del app_state["active_wrapper"]
                 del app_state["active_attributor"]
                 app_state["active_wrapper"] = None
+                app_state["active_wrapper_name"] = None
                 app_state["active_attributor"] = None
                 app_state["active_attributor_id"] = None
                 app_state["active_source"] = None
@@ -492,6 +545,17 @@ def set_attributor(req: AttributorRequest):
         raise HTTPException(400, "No model loaded.")
     if req.attributor_id not in AVAILABLE_ATTRIBUTORS:
         raise HTTPException(400, "Attributor ID not found")
+
+    compatible_wrappers = AVAILABLE_ATTRIBUTORS[req.attributor_id].get("compatible_wrappers", [])
+    active_wrapper_name = app_state.get("active_wrapper_name")
+    if compatible_wrappers and active_wrapper_name not in compatible_wrappers:
+        attributor_name = AVAILABLE_ATTRIBUTORS[req.attributor_id]["name"]
+        raise HTTPException(
+            400,
+            f"Attributor '{attributor_name}' is not compatible with the loaded model "
+            f"(detected type: '{active_wrapper_name}'). It requires one of: {', '.join(compatible_wrappers)}.",
+        )
+
     try:
         AttrClass = resolve_attributor_class(req.attributor_id)
         app_state["active_attributor"] = AttrClass(app_state["active_wrapper"])
