@@ -6,6 +6,7 @@ the generation process.
 """
 
 import torch
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import Optional, List, Dict, Any
@@ -54,20 +55,59 @@ class CustomDAAMHeatmap:
 
 class CaptureAttnProcessor:
     """Custom attention processor used as a hook.
-    
-    Replaces the standard attention processor in the UNet. It intercepts 
-    Query, Key, and Value matrices to compute and store the cross-attention 
-    probabilities without altering the actual forward pass computation.
+
+    Replaces the standard attention processor in the UNet. It intercepts
+    Query, Key, and Value matrices to compute the cross-attention probabilities
+    without altering the actual forward pass computation.
+
+    For efficiency the captured maps are aggregated **incrementally on the GPU**
+    into a single fixed 64x64 accumulator: maps outside the useful resolution
+    range are skipped before any work, and there is exactly one GPU->CPU
+    transfer at the end (in ``trace.compute_heat_maps``) instead of one per
+    layer per denoising step. This is numerically equivalent to averaging all
+    valid maps, but avoids the hundreds of per-step device syncs that dominated
+    generation time.
     """
+    TARGET_DIM = 64
+    MIN_PIXELS = 256
+    MAX_PIXELS = 4096
+
     def __init__(self):
-        self.attention_probs = []
+        # Lazily-created GPU accumulator of shape (TARGET_DIM, TARGET_DIM, num_tokens).
+        self.accumulator: Optional[torch.Tensor] = None
+        self.count = 0
+
+    def _accumulate(self, attn_probs: torch.Tensor) -> None:
+        """Fold one cross-attention map (batch*heads, pixels, tokens) into the accumulator."""
+        num_pixels = attn_probs.shape[1]
+        if not (self.MIN_PIXELS <= num_pixels <= self.MAX_PIXELS):
+            return  # skip resolutions we never use (e.g. the huge 1024^2-latent maps)
+
+        side = int(np.sqrt(num_pixels))
+        if side * side != num_pixels:
+            return
+
+        num_tokens = attn_probs.shape[-1]
+        # Average over batch*heads (identical to the previous m.mean(dim=0)), then
+        # reshape to a spatial grid and bicubically upscale to TARGET_DIM on-GPU.
+        m_avg = attn_probs.mean(dim=0)                                  # (pixels, tokens)
+        m_2d = m_avg.view(side, side, num_tokens).permute(2, 0, 1).unsqueeze(1)  # (tokens, 1, side, side)
+        m_resized = F.interpolate(
+            m_2d.to(torch.float32), size=(self.TARGET_DIM, self.TARGET_DIM),
+            mode="bicubic", align_corners=False,
+        ).squeeze(1).permute(1, 2, 0)                                  # (TARGET_DIM, TARGET_DIM, tokens)
+
+        if self.accumulator is None:
+            self.accumulator = torch.zeros_like(m_resized)
+        self.accumulator += m_resized
+        self.count += 1
 
     def __call__(self, attn: Attention, hidden_states: torch.Tensor, encoder_hidden_states: Optional[torch.Tensor]=None, attention_mask: Optional[torch.Tensor]=None, temb: Optional[torch.Tensor]=None, scale: float=1.0) -> torch.Tensor:
-        """Executes the attention mechanism and stores cross-attention probabilities."""
+        """Executes the attention mechanism and captures cross-attention probabilities."""
         batch_size, sequence_length, _ = hidden_states.shape
         is_cross = encoder_hidden_states is not None
         context = encoder_hidden_states if is_cross else hidden_states
-        
+
         heads = attn.heads
         dim_head = attn.to_q.out_features // heads
 
@@ -83,12 +123,12 @@ class CaptureAttnProcessor:
         attn_probs = attn_scores.softmax(dim=-1)
 
         if is_cross:
-            self.attention_probs.append(attn_probs.detach().cpu())
+            self._accumulate(attn_probs.detach())
 
         hidden_states = torch.bmm(attn_probs, value)
         hidden_states = hidden_states.reshape(batch_size, heads, -1, dim_head).transpose(1, 2).reshape(batch_size, -1, heads * dim_head)
-        hidden_states = attn.to_out[0](hidden_states) 
-        hidden_states = attn.to_out[1](hidden_states) 
+        hidden_states = attn.to_out[0](hidden_states)
+        hidden_states = attn.to_out[1](hidden_states)
         return hidden_states
 
 class trace:
@@ -137,53 +177,18 @@ class trace:
         Raises:
             ValueError: If no attention maps were captured during the tracing process.
         """
-        if not self.capture_processor.attention_probs:
+        proc = self.capture_processor
+        if proc.accumulator is None or proc.count == 0:
             raise ValueError("No attention captured.")
 
-        all_maps = self.capture_processor.attention_probs
-
-        valid_maps = []
-        for m in all_maps:
-            num_pixels = m.shape[1]
-            if 256 <= num_pixels <= 4096:
-                valid_maps.append(m)
-
-        if not valid_maps:
-            print("No valid attention maps found. Using all captured maps.")
-            valid_maps = all_maps
-
-        num_tokens = valid_maps[0].shape[-1]
-        
-        target_dim = 64 
-        accumulated_maps = torch.zeros(target_dim, target_dim, num_tokens)
-        count = 0
-
-        for m in valid_maps:
-            m_avg_heads = m.mean(dim=0) 
-            
-            side = int(np.sqrt(m_avg_heads.shape[0]))
-            if side * side != m_avg_heads.shape[0]: continue
-            
-            m_2d = m_avg_heads.view(side, side, num_tokens)
-            m_permuted = m_2d.permute(2, 0, 1).unsqueeze(1) 
-            
-            m_resized = torch.nn.functional.interpolate(
-                m_permuted.to(torch.float32), 
-                size=(target_dim, target_dim), 
-                mode='bicubic', 
-                align_corners=False
-            ).to(m_permuted.dtype)
-            
-            accumulated_maps += m_resized.squeeze(1).permute(1, 2, 0)
-            count += 1
-
-        if count > 0:
-            accumulated_maps /= count
+        # Single GPU->CPU transfer of the aggregated (already interpolated) maps.
+        accumulated_maps = (proc.accumulator / proc.count).cpu()
+        num_tokens = accumulated_maps.shape[-1]
 
         results = {}
         for token_idx in range(num_tokens):
             token_map = accumulated_maps[:, :, token_idx]
             if token_map.max() > 0:
                 results[token_idx] = CustomDAAMHeatmap(token_map)
-                
+
         return results
