@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="191.07869mm"
-   height="39.033115mm"
-   viewBox="0 0 191.07869 39.033115"
+   width="191.05632mm"
+   height="39.033195mm"
+   viewBox="0 0 191.05632 39.033195"
    version="1.1"
    id="svg1"
    xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -47,27 +47,16 @@
   </defs>
   <g
      id="layer1"
-     transform="translate(-11.124512,-188.26037)">
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, @wght=600';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;font-variation-settings:'wght' 600;text-align:start;letter-spacing:-3.96875px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#c1281b;stroke-width:2;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:0"
-       x="7.2477756"
-       y="225.68393"
-       id="text1-1"><tspan
-         id="tspan1-3"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, @wght=600';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;font-variation-settings:'wght' 600;letter-spacing:-3.96875px;fill:#000000;fill-opacity:1;stroke-width:2"
-         x="7.2477756"
-         y="225.68393"
-         dx="0">Lumi</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;letter-spacing:-3.96875px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:url(#linearGradient10);fill-opacity:1;stroke:#c1281b;stroke-width:2;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:0"
-       x="116.93858"
-       y="225.68393"
-       id="text6-8"><tspan
-         id="tspan6-4"
-         style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#linearGradient10);stroke-width:2"
-         x="116.93858"
-         y="225.68393">XAI</tspan></text>
+     transform="translate(-11.124574,-188.26033)">
+    <path
+       d="m 12.124575,225.68393 v -36.068 h 6.2992 v 34.036 l -4.318,-3.7592 h 20.7772 v 5.7912 z m 34.131269,0.6096 q -3.9116,0 -6.1976,-2.5908 -2.2352,-2.6416 -2.2352,-7.4676 v -17.6784 h 5.9944 v 16.1036 q 0,3.4036 1.1176,4.9784 1.1684,1.524 3.5052,1.524 2.4384,0 3.9624,-1.7272 1.5748,-1.778 1.5748,-4.9784 v -15.9004 h 6.0452 v 27.1272 h -5.588 l -0.1016,-7.4676 0.762,0.254 q -0.6604,3.7592 -2.9464,5.7912 -2.286,2.032 -5.8928,2.032 z m 15.640069,-0.6096 v -27.1272 h 5.0292 l 0.254,6.1976 -0.6096,-0.1524 q 0.6096,-3.2512 2.0828,-4.9276 1.4732,-1.7272 3.7084,-1.7272 2.4384,0 3.6576,1.7272 1.2192,1.7272 1.5748,5.1816 h -0.6604 q 0.508,-3.3528 2.1336,-5.1308 1.676399,-1.778 4.114799,-1.778 3.0988,0 4.5212,2.1844 1.4224,2.1844 1.4224,6.9596 v 18.5928 h -5.7404 v -17.4244 q 0,-2.9972 -0.5588,-4.064 -0.5588,-1.1176 -1.778,-1.1176 -0.8128,0 -1.4732,0.5588 -0.609599,0.508 -1.015999,1.6764 -0.3556,1.1684 -0.3556,2.9972 v 17.3736 h -5.3848 v -17.4244 q 0,-2.8448 -0.5588,-4.0132 -0.5588,-1.1684 -1.8288,-1.1684 -0.8636,0 -1.4732,0.5588 -0.6096,0.508 -0.9652,1.6764 -0.3556,1.1684 -0.3556,2.9972 v 17.3736 z m 28.543268,0 v -4.8768 h 10.363199 v -20.0152 l 2.6416,2.6416 H 90.947181 v -4.8768 h 15.849599 v 22.2504 h 8.8392 v 4.8768 h -8.8392 -5.9944 z m 10.109199,-30.734 v -5.6896 h 6.096 v 5.6896 z"
+       id="text1-1"
+       style="font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, @wght=600';font-variation-settings:'wght' 600;letter-spacing:-3.96875px;stroke:#c1281b;stroke-width:2;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:0"
+       aria-label="Lumi" />
+    <path
+       d="m 116.63378,225.68393 13.8176,-18.2372 -5.9436,-17.8308 h 4.9276 l 4.4196,14.478 10.5156,-14.478 h 5.1308 l -13.5636,18.0848 6.096,17.9832 h -4.9276 l -4.6228,-14.6812 -10.7188,14.6812 z m 25.29207,0 18.6436,-36.068 h 5.8928 l 3.302,36.068 h -4.6228 l -2.4384,-32.1056 -16.0528,32.1056 z m 7.7216,-10.2616 2.4384,-4.2672 h 13.716 l 0.6096,4.2672 z m 21.53287,10.2616 0.9144,-4.2672 h 8.9916 l 5.842,-27.5336 h -8.9916 l 0.9144,-4.2672 h 22.352 l -0.9144,4.2672 h -8.9916 l -5.842,27.5336 h 8.9916 l -0.9144,4.2672 z"
+       id="text6-8"
+       style="font-style:italic;font-size:50.8px;font-family:'Geist Mono';-inkscape-font-specification:'Geist Mono, Italic';letter-spacing:-3.96875px;fill:url(#linearGradient10);stroke:#c1281b;stroke-width:2;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:0"
+       aria-label="XAI" />
   </g>
 </svg>
