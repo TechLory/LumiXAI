@@ -42,6 +42,9 @@ export default function MainApp() {
   // --- COLLAPSE STATE (setup blocks fold away once they've done their job) ---
   const [logsOpen, setLogsOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
+  // Set while reviewing a past job (no live config is loaded in that case, so
+  // hasActiveConfiguration can't drive the collapse). Holds the reviewed model.
+  const [reviewedJob, setReviewedJob] = useState<{ modelName: string } | null>(null);
 
   // System Logs: expanded while booting or on error, auto-collapse once ready.
   // Effect only fires on status transitions, so manual toggles afterward stick.
@@ -50,9 +53,11 @@ export default function MainApp() {
     else setLogsOpen(true);
   }, [systemState.status]);
 
-  // Configuration: collapse to a summary once a config is active, re-open when unloaded.
+  // Configuration: collapse to a summary once a config is active, re-open when
+  // unloaded. Loading a config also exits past-job review mode.
   useEffect(() => {
     setConfigOpen(!hasActiveConfiguration);
+    if (hasActiveConfiguration) setReviewedJob(null);
   }, [hasActiveConfiguration]);
 
   // Status badge shown in the collapsed System Logs header.
@@ -70,15 +75,19 @@ export default function MainApp() {
     systemState.data?.attributors?.find(a => a.id === selectedAttributor)?.name ?? selectedAttributor;
   const shortModelName = modelName?.split('/').pop();
   const configReady = systemState.status === 'success';
-  const configCollapsible = configReady && hasActiveConfiguration;
+  const isReviewingPastJob = !hasActiveConfiguration && !!reviewedJob;
+  const configCollapsible = configReady && (hasActiveConfiguration || isReviewingPastJob);
   const showConfigBody = !configCollapsible || configOpen;
 
-  const handleHistoryClick = async (jobId: string, status: string, prompt: string) => {
+  const handleHistoryClick = async (jobId: string, status: string, prompt: string, modelName: string) => {
     if (status !== 'completed') return; // Ignora se fallito o in corso
 
     const fullJob = await fetchJobPayload(jobId);
     if (fullJob && fullJob.payload) {
       loadPastJob(fullJob.payload, prompt);
+      // Reviewing a past result: fold the setup away and show the reviewed model.
+      setReviewedJob({ modelName });
+      setConfigOpen(false);
     }
   };
 
@@ -131,7 +140,7 @@ export default function MainApp() {
             {jobs.map(job => (
               <div
                 key={job.id}
-                onClick={() => handleHistoryClick(job.id, job.status, job.prompt)}
+                onClick={() => handleHistoryClick(job.id, job.status, job.prompt, job.model_name)}
                 className={`bg-neutral-600/30 p-1.5
                 ${job.status === 'running' ? 'border-blue-400/10 border-2 cursor-wait' :
                     job.status === 'failed' ? 'border-red-900/10 border-2' :
@@ -289,12 +298,20 @@ export default function MainApp() {
                 <div className="font-mono font-medium uppercase">Configuration</div>
                 <div className="flex items-center gap-3">
                   {!configOpen && (
-                    <div className="flex items-center gap-2 text-sm font-mono text-neutral-300">
-                      <i className="bx bx-check text-emerald-400 text-base"></i>
-                      <span className="text-neutral-200">{shortModelName}</span>
-                      <span className="text-neutral-600">·</span>
-                      <span className="text-neutral-400">{activeAttributorName}</span>
-                    </div>
+                    isReviewingPastJob ? (
+                      <div className="flex items-center gap-2 text-sm font-mono text-neutral-300">
+                        <i className="bx bx-history text-neutral-400 text-base"></i>
+                        <span className="text-neutral-200">{reviewedJob?.modelName?.split('/').pop()}</span>
+                        <span className="text-neutral-500 normal-case text-xs italic">reviewing</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm font-mono text-neutral-300">
+                        <i className="bx bx-check text-emerald-400 text-base"></i>
+                        <span className="text-neutral-200">{shortModelName}</span>
+                        <span className="text-neutral-600">·</span>
+                        <span className="text-neutral-400">{activeAttributorName}</span>
+                      </div>
+                    )
                   )}
                   <i className={`bx ${configOpen ? 'bx-chevron-up' : 'bx-chevron-down'} text-xl text-neutral-500`}></i>
                 </div>
