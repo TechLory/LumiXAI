@@ -77,3 +77,20 @@ class HFTextClassificationWrapper(BaseWrapper):
             torch.nn.Module: The PyTorch embedding layer.
         """
         return self.model.get_input_embeddings()
+
+    def get_predicted_label(self, class_id: int) -> str:
+        """Resolves a predicted class index to its human-readable label.
+
+        Unlike autoregressive generation, ``class_id`` here indexes the classifier head
+        (e.g. 0-4 for a 5-star sentiment model), not the tokenizer vocabulary, so it must
+        be looked up via the model's `id2label` config rather than decoded as a token id.
+
+        Args:
+            class_id (int): The predicted class index.
+
+        Returns:
+            str: The label from `model.config.id2label`, or the raw index as a string
+                if no mapping is available.
+        """
+        id2label = getattr(self.model.config, "id2label", None) or {}
+        return id2label.get(class_id, str(class_id))

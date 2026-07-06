@@ -365,11 +365,17 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
                     "input_template_mask": output.metadata.get("input_template_mask"),
                 }
             else:
-                if hasattr(wrapper, "tokenizer") and isinstance(output.target, int):
-                    try:
-                        predicted_word = wrapper.tokenizer.decode([output.target])
-                    except:
-                        pass
+                if isinstance(output.target, int):
+                    if hasattr(wrapper, "get_predicted_label"):
+                        try:
+                            predicted_word = wrapper.get_predicted_label(output.target)
+                        except:
+                            pass
+                    elif hasattr(wrapper, "tokenizer"):
+                        try:
+                            predicted_word = wrapper.tokenizer.decode([output.target])
+                        except:
+                            pass
 
                 payload = {
                     "target_id": output.target,
