@@ -20,3 +20,5 @@ export interface AsyncState<T = any> {
   data: T | null;
   error: string | null;
 }
+
+export type TutorialKind = 'text-classification' | 'text-generation' | 'txt2img-generation';

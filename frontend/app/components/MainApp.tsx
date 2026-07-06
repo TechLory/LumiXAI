@@ -12,8 +12,15 @@ import { useSystemBoot } from "../hooks/useSystemBoot";
 import { useModelManager } from "../hooks/useModelManager";
 import { useInference } from "../hooks/useInference";
 import { useJobsHistory } from "../hooks/useJobsHistory";
+import type { TutorialKind } from "../types";
 
-export default function MainApp() {
+type MainAppProps = {
+  activeTutorial?: TutorialKind | null;
+  onOpenWelcome?: () => void;
+  onSelectTutorial?: (tutorial: TutorialKind) => void;
+};
+
+export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelectTutorial }: MainAppProps) {
   const { systemState, bootLogs } = useSystemBoot();
   const [pendingDeleteJobId, setPendingDeleteJobId] = useState<string | null>(null);
 
@@ -123,7 +130,11 @@ export default function MainApp() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-page text-fg">
 
-      <Navbar />
+      <Navbar
+        activeTutorial={activeTutorial}
+        onOpenWelcome={onOpenWelcome}
+        onSelectTutorial={onSelectTutorial}
+      />
 
       <div className="flex flex-1 overflow-hidden gap-2 min-h-0 w-full xl:w-10/12 m-auto"> {/* FIX WIDTH */}
 
