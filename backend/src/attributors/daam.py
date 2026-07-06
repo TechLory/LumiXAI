@@ -72,6 +72,16 @@ class DAAMAttributor(BaseAttributor):
                 guidance_scale = 7.5
                 neg_prompt = "blurry, low quality, distortion, ugly, bad anatomy, watermark, text"
 
+            # Optional per-request overrides. guidance_scale=None keeps the default;
+            # negative_prompt=None keeps the default, while "" explicitly disables it
+            # (used to reproduce runs that generated without a negative prompt).
+            gs_override = kwargs.get("guidance_scale", None)
+            if gs_override is not None:
+                guidance_scale = float(gs_override)
+            np_override = kwargs.get("negative_prompt", None)
+            if np_override is not None:
+                neg_prompt = np_override if np_override != "" else None
+
             pipeline_args = {
                 "prompt": prompt,
                 "num_inference_steps": inference_steps,

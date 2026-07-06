@@ -107,7 +107,9 @@ class Client:
                         "text": job['prompt'],
                         "target_class": job.get('target_class', None),
                         "ignore_special_tokens": job.get('ignore_special_tokens', False),
-                        "seed": job.get('seed', None)
+                        "seed": job.get('seed', None),
+                        "guidance_scale": job.get('guidance_scale', None),
+                        "negative_prompt": job.get('negative_prompt', None)
                     })
                     res.raise_for_status()
                     job_ids_in_flight.append((job['_original_index'], res.json()["job_id"]))
