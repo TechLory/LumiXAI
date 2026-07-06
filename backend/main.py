@@ -274,8 +274,11 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
         seed (Optional[int], optional): Seed for reproducible generation. Currently honored by
             attributors that involve stochastic generation (e.g. DAAM). Ignored otherwise.
     """
-    start_time = time.time()
     with gpu_lock:
+        # Start the clock only after acquiring the GPU lock, so execution_time_sec
+        # reflects the actual compute time and not the time spent queued behind
+        # other jobs waiting for the lock.
+        start_time = time.time()
         try:
             attributor = app_state["active_attributor"]
             wrapper = app_state["active_wrapper"]
