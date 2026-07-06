@@ -29,7 +29,7 @@ uvicorn = "^0.40.0"
 requests = "*"
 
 # --- AI & HuggingFace ---
-torch = "2.2.2"
+torch = "2.6.0"
 transformers = ">=4.56.1,<5.0.0"
 diffusers = ">=0.33.0,<0.34.0"
 accelerate = "^0.28.0"
