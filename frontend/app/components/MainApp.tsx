@@ -65,6 +65,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const {
     inputText, setInputText,
     inputImageBase64, setInputImageBase64,
+    inputImageFileName, setInputImageFileName,
     seed, setSeed,
     maxNewTokens, setMaxNewTokens,
     inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob
@@ -128,6 +129,10 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
 
     if (phase === "input") {
       resetInferenceState(tutorialExample.prompt);
+      if (tutorialConfig.detectedTask === "image-classification" && tutorialPayload?.input_image) {
+        setInputImageBase64(tutorialPayload.input_image);
+        setInputImageFileName(tutorialExample.prompt);
+      }
       return;
     }
 
@@ -137,6 +142,10 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
           modelName: tutorialConfig.modelName,
           attributorName: tutorialConfig.attributorName,
         });
+        if (tutorialConfig.detectedTask === "image-classification" && tutorialPayload.input_image) {
+          setInputImageBase64(tutorialPayload.input_image);
+          setInputImageFileName(tutorialExample.prompt);
+        }
       }
       return;
     }
@@ -574,6 +583,8 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                     setInputText={setInputText}
                     inputImageBase64={inputImageBase64}
                     setInputImageBase64={setInputImageBase64}
+                    inputImageFileName={inputImageFileName}
+                    setInputImageFileName={setInputImageFileName}
                     seed={seed}
                     setSeed={setSeed}
                     maxNewTokens={maxNewTokens}

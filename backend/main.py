@@ -309,6 +309,9 @@ class ExplainRequest(BaseModel):
     text: Optional[str] = None
     # Base64-encoded input image, used instead of `text` for image classification models.
     image_base64: Optional[str] = None
+    # Original file name of the uploaded image, used to label the job in history
+    # instead of a generic placeholder.
+    image_filename: Optional[str] = None
     target_class: Optional[int] = None
     ignore_special_tokens: bool = True
     seed: Optional[int] = None
@@ -626,7 +629,7 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
     if not req.text and not req.image_base64:
         raise HTTPException(400, "Either 'text' or 'image_base64' must be provided.")
 
-    job_prompt = req.text if req.text else "[Uploaded Image]"
+    job_prompt = req.text if req.text else (req.image_filename or "[Uploaded Image]")
     job_id = create_job(job_prompt, source_name, model_name, attributor_name)
 
     background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed, req.guidance_scale, req.negative_prompt, req.disable_thinking, req.max_new_tokens, req.image_base64)

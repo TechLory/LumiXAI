@@ -39,6 +39,12 @@ const tutorialActions: TutorialAction[] = [
     description: "Map prompt words onto the pixels they generated",
     icon: "bx-image-add",
   },
+  {
+    kind: "image-classification",
+    label: "Image classification",
+    description: "See which pixels drove a real MNIST digit prediction",
+    icon: "bx-grid-alt",
+  },
 ];
 
 const heatCells = Array.from({ length: 96 }, (_, index) => index);
@@ -111,7 +117,7 @@ export default function WelcomeScreen({ onEnterTool, onSelectTutorial }: Welcome
             <button
               type="button"
               onClick={onEnterTool}
-              className="welcome-action welcome-action-primary group flex min-h-24 items-center gap-4 border-2 border-fg bg-fg px-4 py-3 text-left text-page transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-info focus:ring-offset-2 focus:ring-offset-page"
+              className="welcome-action welcome-action-primary group flex min-h-24 items-center gap-4 border-2 border-fg bg-fg px-4 py-3 text-left text-page transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-info focus:ring-offset-2 focus:ring-offset-page sm:col-span-2"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-page bg-page text-fg">
                 <i className="bx bx-right-arrow-alt text-2xl" aria-hidden="true"></i>

@@ -39,12 +39,14 @@ const outputDescriptions: Record<TutorialKind, string> = {
   "text-classification": `The CardiffNLP Twitter RoBERTa model predicts POSITIVE for "I like this movie a lot!". Token color intensity shows which input pieces pushed most strongly toward that sentiment label.`,
   "text-generation": `Each generated token is shown with its model probability. Qwen3-0.6B answers "The capital of Italy is **Rome**." from the prompt above, with "Rome" split into the token fragments "R" and "ome".`,
   "txt2img-generation": `The SDXL output pairs the generated Baroque elephant image with one spatial attribution matrix per prompt token, showing where each word influenced the pixels.`,
+  "image-classification": `The ViT MNIST model predicts the digit 3 for the uploaded handwritten digit image. The overlay heatmap shows which pixels drove that prediction most strongly.`,
 };
 
 const outputOverviewFocusTargets: Record<TutorialKind, TutorialFocusTarget> = {
   "text-classification": "output-result",
   "text-generation": "output-generation-output",
   "txt2img-generation": "output-image",
+  "image-classification": "output-result",
 };
 
 const inputHeatmapSteps: Record<TutorialKind, TutorialStep> = {
@@ -72,6 +74,13 @@ const inputHeatmapSteps: Record<TutorialKind, TutorialStep> = {
     phase: "result",
     outputInteraction: { imageSelection: { selectedTokenIndices: [4] } },
   },
+  "image-classification": {
+    title: "Inspect the attribution overlay",
+    body: `Grad-CAM attributes at a deep spatial feature map and upsamples the result, producing a smooth heatmap over the digit. The brightest region traces the strokes that most convinced the model it was looking at a 3.`,
+    target: "output",
+    focusTarget: "output-image",
+    phase: "result",
+  },
 };
 
 const outputHeatmapSteps: Record<TutorialKind, TutorialStep> = {
@@ -97,6 +106,13 @@ const outputHeatmapSteps: Record<TutorialKind, TutorialStep> = {
     focusTarget: "output-image",
     phase: "result",
     outputInteraction: { imageSelection: { hoveredCell: { x: 32, y: 34 } } },
+  },
+  "image-classification": {
+    title: "Output target context",
+    body: "The label below the image names the predicted class. Everything shown here explains why this run landed on the digit 3, not any other digit.",
+    target: "output",
+    focusTarget: "output-classification-label",
+    phase: "result",
   },
 };
 

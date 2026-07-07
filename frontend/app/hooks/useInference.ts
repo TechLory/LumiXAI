@@ -8,6 +8,9 @@ export function useInference() {
   // for image classification models. Cleared whenever a new image is picked or the
   // input is reset.
   const [inputImageBase64, setInputImageBase64] = useState<string | null>(null);
+  // Original file name of the uploaded image, sent alongside `inputImageBase64` so the
+  // backend can label the job with it instead of a generic placeholder.
+  const [inputImageFileName, setInputImageFileName] = useState<string | null>(null);
   // Optional seed for reproducible image generation. Empty string => random
   // (the backend picks fresh noise, preserving the previous default behavior).
   const [seed, setSeed] = useState<string>("");
@@ -98,6 +101,7 @@ export function useInference() {
         body: JSON.stringify({
           text: inputImageBase64 ? undefined : inputText,
           image_base64: inputImageBase64 ?? undefined,
+          image_filename: inputImageBase64 ? inputImageFileName ?? undefined : undefined,
           ignore_special_tokens: ignoreSpecialTokens,
           seed: seedValue,
           max_new_tokens: maxNewTokensValue,
@@ -127,6 +131,7 @@ export function useInference() {
     pendingResultMetadataRef.current = null;
     setInputText(nextInputText);
     setInputImageBase64(null);
+    setInputImageFileName(null);
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
@@ -138,6 +143,7 @@ export function useInference() {
     pendingResultMetadataRef.current = null;
     setInputText(prompt);
     setInputImageBase64(null);
+    setInputImageFileName(null);
     setInferenceState({ status: 'success', data: payload, error: null });
   };
 
@@ -153,5 +159,5 @@ export function useInference() {
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
-  return { inputText, setInputText, inputImageBase64, setInputImageBase64, seed, setSeed, maxNewTokens, setMaxNewTokens, inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob };
+  return { inputText, setInputText, inputImageBase64, setInputImageBase64, inputImageFileName, setInputImageFileName, seed, setSeed, maxNewTokens, setMaxNewTokens, inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob };
 }

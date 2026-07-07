@@ -26,7 +26,7 @@ export interface ResultMetadata {
   attributorName: string;
 }
 
-export type TutorialKind = 'text-classification' | 'text-generation' | 'txt2img-generation';
+export type TutorialKind = 'text-classification' | 'text-generation' | 'txt2img-generation' | 'image-classification';
 
 export interface JobHistoryItem {
   id: string;

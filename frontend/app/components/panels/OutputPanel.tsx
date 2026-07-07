@@ -185,6 +185,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction, tutoria
               baseImage={outputResult.input_image!}
               heatmap={outputResult.scores[0]}
               predictedLabel={displayClassLabel}
+              tutorialFocusTarget={tutorialFocusTarget}
             />
           )}
 

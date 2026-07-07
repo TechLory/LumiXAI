@@ -24,6 +24,7 @@ const tutorialItems: TutorialNavItem[] = [
   { kind: "text-classification", label: "Text classification", icon: "bx-category-alt" },
   { kind: "text-generation", label: "Text generation", icon: "bx-text" },
   { kind: "txt2img-generation", label: "Text to image", icon: "bx-image-add" },
+  { kind: "image-classification", label: "Image classification", icon: "bx-grid-alt" },
 ];
 
 function LogoMark() {

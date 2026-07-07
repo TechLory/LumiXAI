@@ -6,6 +6,8 @@ interface InputPanelProps {
   setInputText: (text: string) => void;
   inputImageBase64: string | null;
   setInputImageBase64: (image: string | null) => void;
+  inputImageFileName: string | null;
+  setInputImageFileName: (name: string | null) => void;
   seed: string;
   setSeed: (seed: string) => void;
   maxNewTokens: string;
@@ -45,12 +47,14 @@ export default function InputPanel(props: InputPanelProps) {
       // Strip the "data:image/...;base64," prefix; the backend expects raw base64.
       const base64 = result.split(",")[1] ?? result;
       props.setInputImageBase64(base64);
+      props.setInputImageFileName(file.name);
     };
     reader.readAsDataURL(file);
   };
 
   const clearImage = () => {
     props.setInputImageBase64(null);
+    props.setInputImageFileName(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -92,6 +96,9 @@ export default function InputPanel(props: InputPanelProps) {
                   alt="Selected input"
                   className="max-h-64 w-auto object-contain"
                 />
+                {props.inputImageFileName && (
+                  <div className="text-xs font-mono text-fg-subtle break-all">{props.inputImageFileName}</div>
+                )}
                 <button
                   type="button"
                   onClick={clearImage}

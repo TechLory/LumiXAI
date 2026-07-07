@@ -15,6 +15,7 @@ const tutorialLabels: Record<TutorialKind, string> = {
   "text-classification": "Text classification",
   "text-generation": "Text generation",
   "txt2img-generation": "Text to image",
+  "image-classification": "Image classification",
 };
 
 export default function TutorialOverlay({

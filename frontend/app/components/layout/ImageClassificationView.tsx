@@ -10,6 +10,8 @@ function jet(t: number): [number, number, number] {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
+import type { TutorialFocusTarget } from "../../lib/tutorialGuide";
+
 interface HeatmapData {
   image_base64: string;
   raw_matrix: number[][];
@@ -19,11 +21,15 @@ interface ImageClassificationViewProps {
   baseImage: string;
   heatmap: HeatmapData;
   predictedLabel: string;
+  tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 const GRID = 64;
 
-export default function ImageClassificationView({ baseImage, heatmap, predictedLabel }: ImageClassificationViewProps) {
+export default function ImageClassificationView({ baseImage, heatmap, predictedLabel, tutorialFocusTarget }: ImageClassificationViewProps) {
+  const getTutorialFocusClass = (target: TutorialFocusTarget) => (
+    tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
+  );
   const [showOverlay, setShowOverlay] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -60,7 +66,7 @@ export default function ImageClassificationView({ baseImage, heatmap, predictedL
 
   return (
     <div className="flex flex-col gap-6 w-full select-none">
-      <div className="flex flex-col items-center bg-sunken p-4 rounded-lg border border-border">
+      <div className={`flex flex-col items-center bg-sunken p-4 rounded-lg border border-border${getTutorialFocusClass("output-image")}`}>
         <div className="flex justify-between w-full max-w-lg mb-4">
           <h3 className="text-fg-subtle text-sm uppercase font-bold">Input Image</h3>
           <button
@@ -89,7 +95,7 @@ export default function ImageClassificationView({ baseImage, heatmap, predictedL
       </div>
 
       {/* Label Box */}
-      <div className="font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border">
+      <div className={`font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border${getTutorialFocusClass("output-classification-label")}`}>
         <div className="uppercase text-fg-faint text-sm tracking-wider">Predicted Class: </div>
         <div className="font-bold text-info bg-info-soft px-3 py-1 rounded">
           {predictedLabel.toUpperCase()}

@@ -27,6 +27,8 @@ const DEEPLIFT_ATTRIBUTOR_ID = "captum_deeplift";
 const DEEPLIFT_ATTRIBUTOR = "DeepLift (Captum)";
 const DAAM_ATTRIBUTOR_ID = "daam";
 const DAAM_ATTRIBUTOR = "DAAM (Diffusion Attentive Attribution Maps)";
+const GRADCAM_ATTRIBUTOR_ID = "captum_gradcam";
+const GRADCAM_ATTRIBUTOR = "Grad-CAM (Captum)";
 
 // Each example below is a real, previously-run job (prompt, model, and output all captured
 // from an actual backend inference) rather than a synthetic fixture. The heavy payload is
@@ -98,6 +100,28 @@ export const tutorialExampleMetas: readonly TutorialExampleMeta[] = [
       detectedTask: "text-to-image",
     },
     payloadUrl: "/tutorial-examples/txt2img-generation.json",
+  },
+  {
+    id: "example-image-classification",
+    status: "completed",
+    prompt: "mnist_digit_3.png",
+    source_name: EXAMPLE_SOURCE_NAME,
+    model_name: "farleyknight-org-username/vit-base-mnist",
+    attributor_name: GRADCAM_ATTRIBUTOR,
+    created_at: "2026-07-07T08:37:55.734Z",
+    execution_time_sec: 0.13,
+    is_builtin_example: true,
+    pinned: true,
+    tutorial_kind: "image-classification",
+    config: {
+      sourceId: EXAMPLE_SOURCE_ID,
+      sourceName: EXAMPLE_SOURCE_NAME,
+      modelName: "farleyknight-org-username/vit-base-mnist",
+      attributorId: GRADCAM_ATTRIBUTOR_ID,
+      attributorName: GRADCAM_ATTRIBUTOR,
+      detectedTask: "image-classification",
+    },
+    payloadUrl: "/tutorial-examples/image-classification.json",
   },
 ];
 
