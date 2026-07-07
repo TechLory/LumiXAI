@@ -13,6 +13,11 @@ from ..utils.image_attribution import render_image_heatmap, image_to_base64, dec
 # each sample is one noisy forward+backward pass, so cost scales linearly with this value.
 DEFAULT_N_SAMPLES = 5
 DEFAULT_STDEVS = 0.01
+# Images need a richer expectation than a few text tokens: Captum's vision tutorial uses
+# n_samples=50, stdevs~=0.1. We halve the sample count as a CPU compromise but keep the
+# tutorial's noise scale, which is what actually smooths the SHAP estimate.
+DEFAULT_N_SAMPLES_IMAGE = 25
+DEFAULT_STDEVS_IMAGE = 0.1
 
 class CaptumGradientShapAttributor(BaseAttributor):
     """Universal Attributor utilizing Captum GradientSHAP.
@@ -37,15 +42,17 @@ class CaptumGradientShapAttributor(BaseAttributor):
         Returns:
             AttributionOutput: The structured attribution results.
         """
-        n_samples = kwargs.get("n_samples", DEFAULT_N_SAMPLES) or DEFAULT_N_SAMPLES
-        stdevs = kwargs.get("stdevs", DEFAULT_STDEVS) or DEFAULT_STDEVS
+        if isinstance(self.wrapper, HFImageClassificationWrapper):
+            n_samples = kwargs.get("n_samples") or DEFAULT_N_SAMPLES_IMAGE
+            stdevs = kwargs.get("stdevs") or DEFAULT_STDEVS_IMAGE
+            return self._attribute_image_classification(input_data, target_output, n_samples, stdevs)
 
+        n_samples = kwargs.get("n_samples") or DEFAULT_N_SAMPLES
+        stdevs = kwargs.get("stdevs") or DEFAULT_STDEVS
         if isinstance(self.wrapper, HFTextGenerationWrapper):
             disable_thinking = bool(kwargs.get("disable_thinking", False))
             max_new_tokens = kwargs.get("max_new_tokens", None)
             return self._attribute_generative(input_data, n_samples, stdevs, disable_thinking, max_new_tokens)
-        elif isinstance(self.wrapper, HFImageClassificationWrapper):
-            return self._attribute_image_classification(input_data, target_output, n_samples, stdevs)
         else:
             return self._attribute_classification(input_data, target_output, n_samples, stdevs)
 
@@ -78,7 +85,12 @@ class CaptumGradientShapAttributor(BaseAttributor):
                 logits = wrapper.model(pixel_values=pixel_values).logits
             target_output = torch.argmax(logits, dim=1).item()
 
-        baselines = torch.zeros_like(pixel_values).repeat(2, 1, 1, 1)
+        # Captum's vision tutorial samples baselines from a distribution spanning the black
+        # image AND the input itself (`torch.cat([input * 0, input * 1])`), not two identical
+        # black images. GradientSHAP draws random baselines from this set and integrates
+        # gradients along random points between input and baseline; a degenerate all-black
+        # set collapses it into a high-variance IG-from-black, so we include the input here.
+        baselines = torch.cat([pixel_values * 0, pixel_values * 1])
 
         attributions = gradient_shap.attribute(
             inputs=pixel_values,
@@ -88,7 +100,8 @@ class CaptumGradientShapAttributor(BaseAttributor):
             target=target_output,
         )
 
-        return self._package_image_output(attributions, image, target_output)
+        display_image = wrapper.get_display_image(pixel_values)
+        return self._package_image_output(attributions, display_image, target_output)
 
     # =========================================================
     # 1. CLASSIFICATION (GradientSHAP)

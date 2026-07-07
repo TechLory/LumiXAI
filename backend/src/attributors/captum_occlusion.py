@@ -81,16 +81,23 @@ class CaptumOcclusionAttributor(BaseAttributor):
             target_output = torch.argmax(logits, dim=1).item()
 
         channels = pixel_values.shape[1]
+        # Overlapping windows (stride ~= half the window), as in Captum's vision tutorial
+        # (window 15, stride 8). Overlap yields a smoother, higher-resolution map than the
+        # disjoint blocks that stride == window would produce, at the cost of ~4x more
+        # forward passes. The channel stride equals `channels` so the window never slides
+        # within the channel dim: every window always spans all channels of a spatial patch.
+        stride = max(1, patch_size // 2)
 
         attributions = occlusion.attribute(
             inputs=pixel_values,
             sliding_window_shapes=(channels, patch_size, patch_size),
-            strides=(channels, patch_size, patch_size),
+            strides=(channels, stride, stride),
             baselines=0,
             target=target_output,
         )
 
-        return self._package_image_output(attributions, image, target_output)
+        display_image = wrapper.get_display_image(pixel_values)
+        return self._package_image_output(attributions, display_image, target_output)
 
     # =========================================================
     # 1. CLASSIFICATION (Occlusion)

@@ -124,7 +124,8 @@ class CaptumDeepLiftAttributor(BaseAttributor):
             target=target_output,
         )
 
-        return self._package_image_output(attributions, image, target_output)
+        display_image = wrapper.get_display_image(pixel_values)
+        return self._package_image_output(attributions, display_image, target_output)
 
     # =========================================================
     # 1. CLASSIFICATION (DeepLift)

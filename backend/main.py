@@ -41,6 +41,8 @@ from src.attributors.captum_inputxgrad import CaptumInputXGradientAttributor
 from src.attributors.captum_gradientshap import CaptumGradientShapAttributor
 from src.attributors.captum_occlusion import CaptumOcclusionAttributor
 from src.attributors.captum_lime import CaptumLimeAttributor
+from src.attributors.captum_smoothgrad import CaptumSmoothGradAttributor
+from src.attributors.captum_gradcam import CaptumGradCamAttributor
 
 from src.db import create_job, update_job_success, update_job_failed, get_job, get_all_jobs, delete_job, delete_all_jobs, set_job_pinned
 
@@ -229,6 +231,16 @@ AVAILABLE_ATTRIBUTORS = {
         "name": "LIME (Captum)",
         "class": CaptumLimeAttributor,
         "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
+    },
+    "captum_smoothgrad": {
+        "name": "SmoothGrad (Captum)",
+        "class": CaptumSmoothGradAttributor,
+        "compatible_wrappers": IMAGE_CLASSIFICATION_WRAPPERS,
+    },
+    "captum_gradcam": {
+        "name": "Grad-CAM (Captum)",
+        "class": CaptumGradCamAttributor,
+        "compatible_wrappers": IMAGE_CLASSIFICATION_WRAPPERS,
     },
     "daam": {
         "name": "DAAM (Diffusion Attentive Attribution Maps)",

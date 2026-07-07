@@ -4,6 +4,7 @@ from PIL import Image
 from transformers import AutoModelForImageClassification, AutoImageProcessor
 from ..abstract import BaseWrapper
 from ..utils.hf_auth import hf_auth_kwargs
+from ..utils.image_attribution import denormalize_pixel_values
 
 class HFImageClassificationWrapper(BaseWrapper):
     """Wrapper for Image Classification models (e.g., ViT, ResNet, ConvNeXt).
@@ -55,6 +56,79 @@ class HFImageClassificationWrapper(BaseWrapper):
 
         inputs = self.processor(images=input_data, return_tensors="pt")
         return inputs["pixel_values"].to(self.device)
+
+    def get_display_image(self, pixel_values: torch.Tensor) -> Image.Image:
+        """Reconstructs the exact image the model saw from its normalized pixel tensor.
+
+        Attributions live in the processor's normalized pixel space, so this de-normalized
+        image (not the raw upload) is the correct background for the heatmap overlay: it
+        stays aligned with the attribution grid no matter how the processor resized,
+        cropped, or squished the original. Pulls the normalization constants straight from
+        the model's own processor, so it works for any loaded model without configuration.
+
+        Args:
+            pixel_values (torch.Tensor): The `[1, C, H, W]` tensor from `preprocess`.
+
+        Returns:
+            PIL.Image.Image: The de-normalized image the model actually received.
+        """
+        normalizes = getattr(self.processor, "do_normalize", True)
+        image_mean = getattr(self.processor, "image_mean", None) if normalizes else None
+        image_std = getattr(self.processor, "image_std", None) if normalizes else None
+        return denormalize_pixel_values(pixel_values, image_mean, image_std)
+
+    def get_gradcam_layer(self, pixel_values: torch.Tensor) -> torch.nn.Module:
+        """Finds the target layer for Grad-CAM generically, for any loaded architecture.
+
+        Grad-CAM needs a layer that still has spatial structure (a `[B, C, H, W]` feature
+        map). Rather than hardcode per-model layer paths — which would break the moment an
+        unfamiliar model is loaded — this runs one forward pass with hooks and returns the
+        *last* module (in execution order) whose output is a 4D tensor with both spatial
+        dims > 1. That single heuristic lands on the right layer for both families:
+
+        - **CNNs** (ResNet/ConvNeXt): the deepest convolutional feature map (e.g. 7x7),
+          the canonical Grad-CAM target.
+        - **ViTs**: the patch-embedding projection's `[B, hidden, 14, 14]` output — the
+          only 4D map, since everything after it is a flattened `[B, seq, hidden]` token
+          sequence. This yields clean per-patch attribution instead of pixel-grid artifacts.
+
+        Args:
+            pixel_values (torch.Tensor): A `[1, C, H, W]` tensor from `preprocess`.
+
+        Returns:
+            torch.nn.Module: The module to attach Grad-CAM to.
+
+        Raises:
+            RuntimeError: If no spatial feature map is found (e.g. a non-convolutional,
+                non-patch model Grad-CAM cannot meaningfully explain).
+        """
+        candidates: list[torch.nn.Module] = []
+        handles = []
+
+        def hook(module, _inputs, output):
+            tensor = output[0] if isinstance(output, tuple) else output
+            if isinstance(tensor, torch.Tensor) and tensor.dim() == 4 and tensor.shape[2] > 1 and tensor.shape[3] > 1:
+                candidates.append(module)
+
+        for module in self.model.modules():
+            if module is not self.model:
+                handles.append(module.register_forward_hook(hook))
+
+        try:
+            with torch.no_grad():
+                self.model(pixel_values=pixel_values)
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        if not candidates:
+            raise RuntimeError(
+                f"Could not locate a spatial (4D) feature map in {self.model_id} for Grad-CAM; "
+                "this model may not be convolutional or patch-based."
+            )
+        # Hooks fire in execution order, and a container fires after its children, so the
+        # last candidate is the deepest spatial feature map in the forward pass.
+        return candidates[-1]
 
     def generate(self, input_data: Image.Image) -> torch.Tensor:
         """Performs a forward pass to compute classification logits.

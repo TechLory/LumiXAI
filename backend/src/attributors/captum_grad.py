@@ -9,6 +9,13 @@ from ..wrappers.hf_text_generation import HFTextGenerationWrapper
 from ..wrappers.hf_image_classification import HFImageClassificationWrapper
 from ..utils.image_attribution import render_image_heatmap, image_to_base64, decode_base64_image
 
+# Number of interpolation steps for the Riemann approximation of the IG path integral.
+# Captum's default is 50; the vision tutorials use 200. More steps mean a finer, less
+# noisy approximation at linear cost, so 100 is a middle ground that keeps the map clean
+# without doubling runtime on CPU-only machines. (Text uses Captum's default 50, since a
+# short token sequence is far cheaper to over-resolve than a 224x224 image.)
+DEFAULT_IMAGE_N_STEPS = 100
+
 class CaptumGradientsAttributor(BaseAttributor):
     """Universal Attributor utilizing Captum Integrated Gradients.
 
@@ -70,10 +77,12 @@ class CaptumGradientsAttributor(BaseAttributor):
             inputs=pixel_values,
             baselines=torch.zeros_like(pixel_values),
             target=target_output,
+            n_steps=DEFAULT_IMAGE_N_STEPS,
             internal_batch_size=2,
         )
 
-        return self._package_image_output(attributions, image, target_output)
+        display_image = wrapper.get_display_image(pixel_values)
+        return self._package_image_output(attributions, display_image, target_output)
 
     # =========================================================
     # 1. CLASSIFICATION (Standard IG)

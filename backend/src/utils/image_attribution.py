@@ -38,8 +38,8 @@ def render_image_heatmap(attributions: torch.Tensor, image: Image.Image) -> dict
     Args:
         attributions (torch.Tensor): Raw attribution tensor of shape `[1, C, H, W]`,
             in the same spatial resolution the model's processor produced.
-        image (PIL.Image.Image): The original (un-resized) input image, used as the
-            background for the rendered overlay.
+        image (PIL.Image.Image): The *preprocessed* image the model saw (see
+            `denormalize_pixel_values`), so the overlay aligns with the attribution grid.
 
     Returns:
         dict: `{"image_base64": str, "raw_matrix": List[List[float]]}`, matching the
@@ -75,6 +75,41 @@ def render_image_heatmap(attributions: torch.Tensor, image: Image.Image) -> dict
     }
 
 
+def denormalize_pixel_values(pixel_values: torch.Tensor, image_mean, image_std) -> Image.Image:
+    """Reconstructs a displayable RGB PIL image from the model's normalized pixel tensor.
+
+    Every image attributor operates in the processor's *normalized pixel space* — the
+    `[1, C, H, W]` tensor after resize/crop/rescale/normalize — and the attribution grid
+    lives in that same space. Overlaying the heatmap on the user's original upload is
+    therefore only correct when the processor did a plain aspect-preserving resize; any
+    center-crop, squish, or letterbox shifts the pixels relative to the map.
+
+    Reversing the normalize (and rescale) step here yields exactly the image the model
+    saw, so the overlay aligns pixel-for-pixel with the attribution for *any* processor,
+    with no per-model configuration needed. `image_mean`/`image_std` may be None (e.g. a
+    processor with `do_normalize=False`), in which case the tensor is already in the
+    rescaled [0, 1] range and only clamped.
+
+    Args:
+        pixel_values (torch.Tensor): The processor's `[1, C, H, W]` normalized tensor.
+        image_mean: Per-channel mean used for normalization, or None.
+        image_std: Per-channel std used for normalization, or None.
+
+    Returns:
+        PIL.Image.Image: The de-normalized image the model actually received.
+    """
+    tensor = pixel_values.detach().to(torch.float32).cpu().squeeze(0)  # [C, H, W]
+    if image_mean is not None and image_std is not None:
+        mean = torch.tensor(image_mean, dtype=torch.float32).view(-1, 1, 1)
+        std = torch.tensor(image_std, dtype=torch.float32).view(-1, 1, 1)
+        tensor = tensor * std + mean
+
+    array = tensor.clamp(0, 1).mul(255).round().to(torch.uint8).permute(1, 2, 0).numpy()
+    if array.shape[2] == 1:  # single-channel models: drop the trailing dim for PIL
+        array = array[:, :, 0]
+    return Image.fromarray(array).convert("RGB")
+
+
 def image_to_base64(image: Image.Image) -> str:
     """Encodes a PIL Image as a base64 PNG string."""
     buf = BytesIO()
@@ -88,6 +123,38 @@ def decode_base64_image(data: str) -> Image.Image:
         data = data.split(",", 1)[1]
     raw = base64.b64decode(data)
     return Image.open(BytesIO(raw)).convert("RGB")
+
+
+def build_superpixel_feature_mask(image: Image.Image, n_segments: int, device: str) -> torch.Tensor:
+    """Builds a `[1, 1, H, W]` grid of SLIC superpixel ids for LIME's feature mask.
+
+    Captum's LIME vision tutorial groups pixels into *segmentation* superpixels rather
+    than a fixed grid, so each perturbed "feature" is a coherent, edge-following region
+    (an object part) instead of an arbitrary square. Perturbing whole superpixels makes
+    the resulting attribution align with real boundaries in the image, which is both what
+    the tutorial does and what produces clean, interpretable maps.
+
+    Runs SLIC on the *preprocessed* (de-normalized) image so the returned ids line up
+    spatially with the model's `[1, C, H, W]` pixel tensor. The `[1, 1, H, W]` shape
+    broadcasts over the channel dimension, so every channel of a superpixel is perturbed
+    together, exactly like `build_patch_feature_mask`.
+
+    Args:
+        image (PIL.Image.Image): The preprocessed image the model saw (see
+            `denormalize_pixel_values`).
+        n_segments (int): Approximate number of superpixels SLIC should produce; the
+            actual count varies with image content.
+        device (str): Device to place the returned mask tensor on.
+
+    Returns:
+        torch.Tensor: A `[1, 1, H, W]` long tensor of contiguous superpixel ids.
+    """
+    from skimage.segmentation import slic
+
+    array = np.asarray(image).astype(np.float32) / 255.0  # [H, W, C] in [0, 1]
+    segments = slic(array, n_segments=n_segments, compactness=10.0, start_label=0)
+    mask = torch.as_tensor(segments, dtype=torch.long, device=device)
+    return mask.unsqueeze(0).unsqueeze(0)
 
 
 def build_patch_feature_mask(height: int, width: int, patch_size: int, device: str) -> torch.Tensor:

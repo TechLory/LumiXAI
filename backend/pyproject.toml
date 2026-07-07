@@ -45,6 +45,7 @@ numba = "0.59.0"
 
 # --- Storage ---
 sqlalchemy = "^2.0.48"
+scikit-image = "^0.26.0"
 
 [tool.poetry]
 package-mode = false

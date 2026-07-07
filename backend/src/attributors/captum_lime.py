@@ -12,7 +12,7 @@ from ..utils.image_attribution import (
     render_image_heatmap,
     image_to_base64,
     decode_base64_image,
-    build_patch_feature_mask,
+    build_superpixel_feature_mask,
 )
 
 # LIME's cost is dominated by `n_samples` (one forward pass per sample), not input size,
@@ -20,16 +20,16 @@ from ..utils.image_attribution import (
 # a lower default since the cost multiplies by the number of generated tokens.
 DEFAULT_N_SAMPLES_CLASSIFICATION = 25
 DEFAULT_N_SAMPLES_GENERATION = 15
-# Side length (pixels) of the square "superpixel" patches LIME perturbs as a single unit,
-# analogous to how text LIME perturbs one token at a time. At the default 224x224 input
-# resolution this yields 7x7 = 49 patches/features for the surrogate regression.
-DEFAULT_IMAGE_PATCH_SIZE = 32
+# Approximate number of SLIC superpixels LIME perturbs as single units, following Captum's
+# vision LIME tutorial (which segments into superpixels rather than a fixed grid). Each
+# superpixel is one coherent, edge-following region, so the attribution aligns with real
+# object boundaries instead of arbitrary squares. The actual count varies per image.
+DEFAULT_IMAGE_N_SEGMENTS = 60
 # LIME's linear surrogate needs enough perturbed samples relative to the number of
-# patches (features) or the regression is underdetermined and produces an essentially
+# superpixels (features) or the regression is underdetermined and produces an essentially
 # arbitrary, noisy result uncorrelated with the actual image content. 25 (the text
-# default) is drastically too few for ~49+ image patches; ~3x the patch count at the
-# default patch size gives a clean, well-localized result on real models (verified on
-# a ResNet-18 goldfish classification example).
+# default) is drastically too few for ~60 superpixels; ~2-3x the feature count gives a
+# clean, well-localized result on real models (verified on a ResNet-18 goldfish example).
 DEFAULT_N_SAMPLES_IMAGE = 150
 
 
@@ -85,23 +85,23 @@ class CaptumLimeAttributor(BaseAttributor):
             return self._attribute_generative(input_data, n_samples, disable_thinking, max_new_tokens)
         elif isinstance(self.wrapper, HFImageClassificationWrapper):
             n_samples = kwargs.get("n_samples", DEFAULT_N_SAMPLES_IMAGE) or DEFAULT_N_SAMPLES_IMAGE
-            patch_size = kwargs.get("patch_size", DEFAULT_IMAGE_PATCH_SIZE) or DEFAULT_IMAGE_PATCH_SIZE
-            return self._attribute_image_classification(input_data, target_output, n_samples, patch_size)
+            n_segments = kwargs.get("n_segments", DEFAULT_IMAGE_N_SEGMENTS) or DEFAULT_IMAGE_N_SEGMENTS
+            return self._attribute_image_classification(input_data, target_output, n_samples, n_segments)
         else:
             n_samples = kwargs.get("n_samples", DEFAULT_N_SAMPLES_CLASSIFICATION) or DEFAULT_N_SAMPLES_CLASSIFICATION
             return self._attribute_classification(input_data, target_output, n_samples)
 
     # =========================================================
-    # 0. IMAGE CLASSIFICATION (Patch-space LIME)
+    # 0. IMAGE CLASSIFICATION (Superpixel-space LIME)
     # =========================================================
-    def _attribute_image_classification(self, input_data: Any, target_output: Optional[int], n_samples: int, patch_size: int) -> AttributionOutput:
-        """Performs LIME attribution over square pixel patches ("superpixels").
+    def _attribute_image_classification(self, input_data: Any, target_output: Optional[int], n_samples: int, n_segments: int) -> AttributionOutput:
+        """Performs LIME attribution over SLIC superpixels.
 
         Args:
             input_data (Any): A PIL Image or a base64-encoded image string.
             target_output (Optional[int]): The specific class to attribute towards. If None, the predicted class is used.
             n_samples (int): Number of perturbed samples used to fit the local surrogate model.
-            patch_size (int): Side length (in pixels) of each square patch treated as one LIME feature.
+            n_segments (int): Approximate number of SLIC superpixels, each treated as one LIME feature.
 
         Returns:
             AttributionOutput: A single-entry pixel heatmap mapping image regions to their importance scores.
@@ -109,6 +109,7 @@ class CaptumLimeAttributor(BaseAttributor):
         wrapper = self.wrapper
         image = input_data if isinstance(input_data, Image.Image) else decode_base64_image(input_data)
         pixel_values = wrapper.preprocess(image)
+        display_image = wrapper.get_display_image(pixel_values)
 
         def forward_func(pixels):
             return wrapper.model(pixel_values=pixels).logits
@@ -120,8 +121,8 @@ class CaptumLimeAttributor(BaseAttributor):
                 logits = wrapper.model(pixel_values=pixel_values).logits
             target_output = torch.argmax(logits, dim=1).item()
 
-        height, width = pixel_values.shape[-2], pixel_values.shape[-1]
-        feature_mask = build_patch_feature_mask(height, width, patch_size, wrapper.device)
+        # Segment the preprocessed image so superpixel ids align with the pixel tensor.
+        feature_mask = build_superpixel_feature_mask(display_image, n_segments, wrapper.device)
 
         attributions = lime.attribute(
             inputs=pixel_values,
@@ -131,7 +132,7 @@ class CaptumLimeAttributor(BaseAttributor):
             n_samples=n_samples,
         )
 
-        return self._package_image_output(attributions, image, target_output)
+        return self._package_image_output(attributions, display_image, target_output)
 
     def _get_baseline_token_id(self) -> int:
         """Picks a reasonable "absent" token id to substitute for occluded features."""
