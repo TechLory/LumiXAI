@@ -51,7 +51,7 @@ export function useInference() {
     }
   };
 
-  const handleExplain = async (ignoreSpecialTokens: boolean = true) => {
+  const handleExplain = async (ignoreSpecialTokens: boolean = true, disableThinking: boolean = false) => {
     if (!inputText.trim()) return;
 
     // Spinner
@@ -72,7 +72,8 @@ export function useInference() {
         body: JSON.stringify({
           text: inputText,
           ignore_special_tokens: ignoreSpecialTokens,
-          seed: seedValue
+          seed: seedValue,
+          disable_thinking: disableThinking
         })
       });
 

@@ -38,7 +38,8 @@ class CaptumGradientShapAttributor(BaseAttributor):
         stdevs = kwargs.get("stdevs", DEFAULT_STDEVS) or DEFAULT_STDEVS
 
         if isinstance(self.wrapper, HFTextGenerationWrapper):
-            return self._attribute_generative(input_data, n_samples, stdevs)
+            disable_thinking = bool(kwargs.get("disable_thinking", False))
+            return self._attribute_generative(input_data, n_samples, stdevs, disable_thinking)
         else:
             return self._attribute_classification(input_data, target_output, n_samples, stdevs)
 
@@ -90,7 +91,7 @@ class CaptumGradientShapAttributor(BaseAttributor):
     # =========================================================
     # 2. GENERATION (Autoregressive GradientSHAP)
     # =========================================================
-    def _attribute_generative(self, prompt: str, n_samples: int, stdevs: float) -> AttributionOutput:
+    def _attribute_generative(self, prompt: str, n_samples: int, stdevs: float, disable_thinking: bool = False) -> AttributionOutput:
         """Performs step-by-step GradientSHAP for autoregressive text generation.
 
         Args:
@@ -104,9 +105,9 @@ class CaptumGradientShapAttributor(BaseAttributor):
         wrapper = self.wrapper
         print(f"Captum GradientSHAP: Analyzing '{prompt}' on {wrapper.device}")
 
-        full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt) # pyright: ignore[reportAttributeAccessIssue]
+        full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt, disable_thinking=disable_thinking) # pyright: ignore[reportAttributeAccessIssue]
 
-        inputs = wrapper.tokenize_generation_prompt(prompt) # pyright: ignore[reportAttributeAccessIssue]
+        inputs = wrapper.tokenize_generation_prompt(prompt, disable_thinking=disable_thinking) # pyright: ignore[reportAttributeAccessIssue]
         current_input_ids = inputs["input_ids"]
         attribution_trace = []
 

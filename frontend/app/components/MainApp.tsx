@@ -174,6 +174,9 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const activeAttributorName =
     effectiveSystemState.data?.attributors?.find(a => a.id === selectedAttributor)?.name ?? selectedAttributor;
   const shortModelName = modelName?.split('/').pop();
+  const inputWrapperName = hasActiveConfiguration
+    ? guessWrapperFromTask(lastLoadedConfiguration?.detectedTask)
+    : detectedWrapperName;
   const configReady = effectiveSystemState.status === 'success';
   const isReviewingPastJob = !hasActiveConfiguration && !!reviewedJob;
   const configCollapsible = configReady && (hasActiveConfiguration || isReviewingPastJob);
@@ -545,6 +548,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                     inferenceStatus={inferenceState.status}
                     isConfigReady={hasActiveConfiguration}
                     activeAttributorId={activeAttributorId}
+                    activeWrapperName={inputWrapperName}
                   />
                 </div>
               ) : null}

@@ -5,10 +5,11 @@ interface InputPanelProps {
   setInputText: (text: string) => void;
   seed: string;
   setSeed: (seed: string) => void;
-  onExplainClick: (ignoreSpecialTokens: boolean) => void;
+  onExplainClick: (ignoreSpecialTokens: boolean, disableThinking: boolean) => void;
   inferenceStatus?: 'idle' | 'running' | 'success' | 'error' | string;
   isConfigReady: boolean;
   activeAttributorId: string | null;
+  activeWrapperName: string | null;
 }
 
 export default function InputPanel(props: InputPanelProps) {
@@ -17,6 +18,8 @@ export default function InputPanel(props: InputPanelProps) {
   // DAAM filters special tokens at generation time (they can't be toggled after the fact,
   // unlike the text views), so default to ignoring them to avoid the attention sink.
   const [isSpecialTokensDisabled, setIsSpecialTokensDisabled] = useState(true);
+  const [isThinkingDisabled, setIsThinkingDisabled] = useState(false);
+  const showDisableThinkingToggle = props.activeWrapperName === "hf_text_generation";
 
   const isButtonDisabled = !props.isConfigReady || isRunning || wordCount === 0;
 
@@ -53,7 +56,7 @@ export default function InputPanel(props: InputPanelProps) {
         {/* SPECIAL TOKENS TOGGLE */}
         {props.activeAttributorId === "daam" && (
           <div className="mt-6 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex justify-between p-4 ">
-            <div>// DAAM will <span className="text-warn">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
+            <div>{"// DAAM will "}<span className="text-warn">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
             <button
               className="underline underline-offset-4 cursor-pointer hover:text-fg transition-colors"
               onClick={() => setIsSpecialTokensDisabled(!isSpecialTokensDisabled)}
@@ -63,11 +66,27 @@ export default function InputPanel(props: InputPanelProps) {
           </div>
         )}
 
+        {/* THINKING TOGGLE (only meaningful for reasoning-capable text generation models) */}
+        {showDisableThinkingToggle && (
+          <div className="mt-6 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>{"// Thinking "}<span className="text-warn">{isThinkingDisabled ? "disabled" : "enabled"}</span>.</div>
+            <button
+              type="button"
+              className="underline underline-offset-4 cursor-pointer hover:text-fg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setIsThinkingDisabled(!isThinkingDisabled)}
+              disabled={isRunning}
+              title="For supported chat templates, requests non-thinking mode during generation."
+            >
+              {isThinkingDisabled ? "Enable" : "Disable"} Thinking
+            </button>
+          </div>
+        )}
+
         {/* SEED PICKER (only meaningful for image generation) */}
         {props.activeAttributorId === "daam" && (
           <div className="mt-2 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex items-center justify-between gap-3 p-4">
             <div className="whitespace-nowrap">
-              // Seed{" "}
+              {"// Seed "}
               <span className="text-warn">
                 {props.seed.trim() === "" ? "(random)" : "(fixed)"}
               </span>
@@ -108,7 +127,7 @@ export default function InputPanel(props: InputPanelProps) {
         <div className="mt-0">
           <button
             className="bg-info-soft hover:bg-info-hover border border-info-line text-info w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-            onClick={() => props.onExplainClick(isSpecialTokensDisabled)}
+            onClick={() => props.onExplainClick(isSpecialTokensDisabled, showDisableThinkingToggle && isThinkingDisabled)}
             disabled={isButtonDisabled}
           >
             {!props.isConfigReady ? (

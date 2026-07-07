@@ -107,27 +107,36 @@ class HFTextGenerationWrapper(BaseWrapper):
         chat_template = getattr(self.tokenizer, "chat_template", None)
         return isinstance(chat_template, str) and bool(chat_template.strip())
 
-    def tokenize_generation_prompt(self, prompt: str) -> Dict[str, torch.Tensor]:
+    def tokenize_generation_prompt(self, prompt: str, disable_thinking: bool = False) -> Dict[str, torch.Tensor]:
         
         force_plain = False  # Set to True to bypass chat template for test
         
         if not force_plain and self.has_chat_template():
             messages = [{"role": "user", "content": prompt}]
+            chat_template_kwargs = {
+                "tokenize": True,
+                "add_generation_prompt": True,
+                "return_dict": True,
+                "return_tensors": "pt",
+            }
+            if disable_thinking:
+                chat_template_kwargs["enable_thinking"] = False
+
             try:
-                batch = self.tokenizer.apply_chat_template(
-                    messages,
-                    tokenize=True,
-                    add_generation_prompt=True,
-                    return_dict=True,
-                    return_tensors="pt",
-                )
-            except TypeError:
-                input_ids = self.tokenizer.apply_chat_template(
-                    messages,
-                    tokenize=True,
-                    add_generation_prompt=True,
-                    return_tensors="pt",
-                )
+                batch = self.tokenizer.apply_chat_template(messages, **chat_template_kwargs)
+            except TypeError as first_error:
+                fallback_kwargs = {
+                    key: value
+                    for key, value in chat_template_kwargs.items()
+                    if key != "return_dict"
+                }
+                try:
+                    input_ids = self.tokenizer.apply_chat_template(messages, **fallback_kwargs)
+                except TypeError:
+                    if not disable_thinking:
+                        raise first_error
+                    fallback_kwargs.pop("enable_thinking", None)
+                    input_ids = self.tokenizer.apply_chat_template(messages, **fallback_kwargs)
                 batch = {
                     "input_ids": input_ids,
                     "attention_mask": torch.ones_like(input_ids),
@@ -198,13 +207,15 @@ class HFTextGenerationWrapper(BaseWrapper):
 
         return ordered_ids
 
-    def generate_text(self, prompt: str, max_new_tokens: int | None = None) -> Tuple[str, List[int], List[str], List[float]]:
+    def generate_text(self, prompt: str, max_new_tokens: int | None = None, disable_thinking: bool = False) -> Tuple[str, List[int], List[str], List[float]]:
         """Generates a sequence of text deterministically and extracts token probabilities.
 
         Args:
             prompt (str): The initial text context.
             max_new_tokens (int | None, optional): The maximum number of tokens to generate.
                 If omitted, the backend uses `LUMIXAI_TEXT_MAX_NEW_TOKENS` or falls back to 64.
+            disable_thinking (bool, optional): Requests non-thinking mode for chat templates
+                that expose a reasoning/thinking switch. Defaults to False.
 
         Returns:
             Tuple[str, List[int], List[str], List[float]]: A tuple containing:
@@ -213,7 +224,7 @@ class HFTextGenerationWrapper(BaseWrapper):
                 - A list of individual generated token strings.
                 - A list of float probabilities (0.0 - 1.0) for each generated token.
         """
-        inputs = self.tokenize_generation_prompt(prompt)
+        inputs = self.tokenize_generation_prompt(prompt, disable_thinking=disable_thinking)
         resolved_max_new_tokens = max_new_tokens if max_new_tokens is not None else get_default_text_max_new_tokens()
         input_length = inputs["input_ids"].shape[1]
         max_positions = get_model_max_positions(self.model)

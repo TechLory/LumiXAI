@@ -27,7 +27,8 @@ class CaptumGradientsAttributor(BaseAttributor):
             AttributionOutput: The structured attribution results.
         """
         if isinstance(self.wrapper, HFTextGenerationWrapper):
-            return self._attribute_generative(input_data)
+            disable_thinking = bool(kwargs.get("disable_thinking", False))
+            return self._attribute_generative(input_data, disable_thinking)
         else:
             return self._attribute_classification(input_data, target_output)
 
@@ -71,7 +72,7 @@ class CaptumGradientsAttributor(BaseAttributor):
     # =========================================================
     # 2. GENERATION (Autoregressive IG)
     # =========================================================
-    def _attribute_generative(self, prompt: str) -> AttributionOutput:
+    def _attribute_generative(self, prompt: str, disable_thinking: bool = False) -> AttributionOutput:
         """Performs step-by-step Integrated Gradients for autoregressive text generation.
 
         This method analyzes the causal effect of the evolving context on each newly 
@@ -87,9 +88,9 @@ class CaptumGradientsAttributor(BaseAttributor):
         wrapper = self.wrapper
         print(f"Captum IG: Analyzing '{prompt}' on {wrapper.device}")
 
-        full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt) # pyright: ignore[reportAttributeAccessIssue]
+        full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt, disable_thinking=disable_thinking) # pyright: ignore[reportAttributeAccessIssue]
         
-        inputs = wrapper.tokenize_generation_prompt(prompt) # pyright: ignore[reportAttributeAccessIssue]
+        inputs = wrapper.tokenize_generation_prompt(prompt, disable_thinking=disable_thinking) # pyright: ignore[reportAttributeAccessIssue]
         current_input_ids = inputs["input_ids"]
         attribution_trace = [] 
 
