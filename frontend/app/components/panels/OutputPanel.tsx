@@ -65,6 +65,22 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
   // washed-out "everything sinks to [CLS]/[SEP]" look). Only applied while hiding.
   const classMaxAbs = visibleClassTokens.reduce((max, entry) => Math.max(max, Math.abs(entry.score)), 0);
   const classScale = hideSpecialTokens && classMaxAbs > 0 ? 1 / classMaxAbs : 1;
+  const rawPredictedClassLabel =
+    typeof outputResult.predicted_token === "string" ? outputResult.predicted_token.trim() : "";
+  const fallbackClassLabel =
+    outputResult.target_id === 0 ? "NEGATIVE" :
+      outputResult.target_id === 1 ? "POSITIVE" :
+        "UNKNOWN";
+  const displayClassLabel =
+    rawPredictedClassLabel && !rawPredictedClassLabel.startsWith("[")
+      ? rawPredictedClassLabel
+      : fallbackClassLabel;
+  const normalizedClassLabel = displayClassLabel.toLowerCase();
+  const predictedClassBadgeClass = normalizedClassLabel.includes("negative")
+    ? "font-bold text-danger bg-danger-soft px-3 py-1 rounded"
+    : normalizedClassLabel.includes("positive")
+      ? "font-bold text-ok bg-ok-soft px-3 py-1 rounded"
+      : "font-bold text-info bg-info-soft px-3 py-1 rounded";
 
   return (
     <div className="mt-5 mb-10">
@@ -152,15 +168,9 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
               <div className="font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border">
                 <div className="uppercase text-fg-faint text-sm tracking-wider">Predicted Class: </div>
 
-                {outputResult.target_id === 0 ? (
-                  <div className="font-bold text-danger bg-danger-soft px-3 py-1 rounded">NEGATIVE</div>
-                ) : outputResult.target_id === 1 ? (
-                  <div className="font-bold text-ok bg-ok-soft px-3 py-1 rounded">POSITIVE</div>
-                ) : (
-                  <div className="font-bold text-info bg-info-soft px-3 py-1 rounded">
-                    {outputResult.predicted_token || "UNKNOWN"}
-                  </div>
-                )}
+                <div className={predictedClassBadgeClass}>
+                  {displayClassLabel.toUpperCase()}
+                </div>
               </div>
 
             </div>

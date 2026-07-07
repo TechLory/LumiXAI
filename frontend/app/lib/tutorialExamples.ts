@@ -23,6 +23,8 @@ const EXAMPLE_SOURCE_ID = "huggingface";
 const EXAMPLE_SOURCE_NAME = "Hugging Face Hub";
 const CAPTUM_ATTRIBUTOR_ID = "captum_ig";
 const CAPTUM_ATTRIBUTOR = "Integrated Gradients (Captum)";
+const DEEPLIFT_ATTRIBUTOR_ID = "captum_deeplift";
+const DEEPLIFT_ATTRIBUTOR = "DeepLift (Captum)";
 const DAAM_ATTRIBUTOR_ID = "daam";
 const DAAM_ATTRIBUTOR = "DAAM (Diffusion Attentive Attribution Maps)";
 
@@ -36,17 +38,17 @@ export const tutorialExampleMetas: readonly TutorialExampleMeta[] = [
     status: "completed",
     prompt: "I like this movie a lot!",
     source_name: EXAMPLE_SOURCE_NAME,
-    model_name: "lxyuan/distilbert-base-multilingual-cased-sentiments-student",
+    model_name: "cardiffnlp/twitter-roberta-base-sentiment-latest",
     attributor_name: CAPTUM_ATTRIBUTOR,
-    created_at: "2026-07-04T09:54:26.877Z",
-    execution_time_sec: 0.15,
+    created_at: "2026-07-06T18:10:55.264Z",
+    execution_time_sec: 0.25,
     is_builtin_example: true,
     pinned: true,
     tutorial_kind: "text-classification",
     config: {
       sourceId: EXAMPLE_SOURCE_ID,
       sourceName: EXAMPLE_SOURCE_NAME,
-      modelName: "lxyuan/distilbert-base-multilingual-cased-sentiments-student",
+      modelName: "cardiffnlp/twitter-roberta-base-sentiment-latest",
       attributorId: CAPTUM_ATTRIBUTOR_ID,
       attributorName: CAPTUM_ATTRIBUTOR,
       detectedTask: "text-classification",
@@ -58,19 +60,19 @@ export const tutorialExampleMetas: readonly TutorialExampleMeta[] = [
     status: "completed",
     prompt: "Which is the capital of Italy?",
     source_name: EXAMPLE_SOURCE_NAME,
-    model_name: "Qwen/Qwen2.5-3B-Instruct",
-    attributor_name: CAPTUM_ATTRIBUTOR,
-    created_at: "2026-07-02T16:31:33.247Z",
-    execution_time_sec: 132.13,
+    model_name: "Qwen/Qwen3-0.6B",
+    attributor_name: DEEPLIFT_ATTRIBUTOR,
+    created_at: "2026-07-07T05:54:49.615Z",
+    execution_time_sec: 1.84,
     is_builtin_example: true,
     pinned: true,
     tutorial_kind: "text-generation",
     config: {
       sourceId: EXAMPLE_SOURCE_ID,
       sourceName: EXAMPLE_SOURCE_NAME,
-      modelName: "Qwen/Qwen2.5-3B-Instruct",
-      attributorId: CAPTUM_ATTRIBUTOR_ID,
-      attributorName: CAPTUM_ATTRIBUTOR,
+      modelName: "Qwen/Qwen3-0.6B",
+      attributorId: DEEPLIFT_ATTRIBUTOR_ID,
+      attributorName: DEEPLIFT_ATTRIBUTOR,
       detectedTask: "text-generation",
     },
     payloadUrl: "/tutorial-examples/text-generation.json",
@@ -78,19 +80,19 @@ export const tutorialExampleMetas: readonly TutorialExampleMeta[] = [
   {
     id: "example-txt2img-generation",
     status: "completed",
-    prompt: "Astronauts riding horses on Mars.",
+    prompt: "a painting of an elephant in the Baroque style",
     source_name: EXAMPLE_SOURCE_NAME,
-    model_name: "stable-diffusion-v1-5/stable-diffusion-v1-5",
+    model_name: "stabilityai/stable-diffusion-xl-base-1.0",
     attributor_name: DAAM_ATTRIBUTOR,
-    created_at: "2026-04-09T08:13:37.040Z",
-    execution_time_sec: 11.48,
+    created_at: "2026-07-06T18:13:00.713Z",
+    execution_time_sec: 4.16,
     is_builtin_example: true,
     pinned: true,
     tutorial_kind: "txt2img-generation",
     config: {
       sourceId: EXAMPLE_SOURCE_ID,
       sourceName: EXAMPLE_SOURCE_NAME,
-      modelName: "stable-diffusion-v1-5/stable-diffusion-v1-5",
+      modelName: "stabilityai/stable-diffusion-xl-base-1.0",
       attributorId: DAAM_ATTRIBUTOR_ID,
       attributorName: DAAM_ATTRIBUTOR,
       detectedTask: "text-to-image",
