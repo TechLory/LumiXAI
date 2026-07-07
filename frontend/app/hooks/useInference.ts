@@ -4,6 +4,10 @@ import { AsyncState, ResultMetadata } from "../types";
 
 export function useInference() {
   const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
+  // Uploaded image, base64-encoded (no data-URI prefix), used instead of `inputText`
+  // for image classification models. Cleared whenever a new image is picked or the
+  // input is reset.
+  const [inputImageBase64, setInputImageBase64] = useState<string | null>(null);
   // Optional seed for reproducible image generation. Empty string => random
   // (the backend picks fresh noise, preserving the previous default behavior).
   const [seed, setSeed] = useState<string>("");
@@ -67,7 +71,7 @@ export function useInference() {
     disableThinking: boolean = false,
     nextResultMetadata: ResultMetadata | null = null
   ) => {
-    if (!inputText.trim()) return;
+    if (!inputImageBase64 && !inputText.trim()) return;
 
     // Spinner
     setResultMetadata(null);
@@ -92,7 +96,8 @@ export function useInference() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: inputText,
+          text: inputImageBase64 ? undefined : inputText,
+          image_base64: inputImageBase64 ?? undefined,
           ignore_special_tokens: ignoreSpecialTokens,
           seed: seedValue,
           max_new_tokens: maxNewTokensValue,
@@ -121,6 +126,7 @@ export function useInference() {
     setResultMetadata(null);
     pendingResultMetadataRef.current = null;
     setInputText(nextInputText);
+    setInputImageBase64(null);
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
@@ -131,6 +137,7 @@ export function useInference() {
     setResultMetadata(nextResultMetadata);
     pendingResultMetadataRef.current = null;
     setInputText(prompt);
+    setInputImageBase64(null);
     setInferenceState({ status: 'success', data: payload, error: null });
   };
 
@@ -146,5 +153,5 @@ export function useInference() {
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
-  return { inputText, setInputText, seed, setSeed, maxNewTokens, setMaxNewTokens, inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob };
+  return { inputText, setInputText, inputImageBase64, setInputImageBase64, seed, setSeed, maxNewTokens, setMaxNewTokens, inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob };
 }

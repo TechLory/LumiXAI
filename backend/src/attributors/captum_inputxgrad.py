@@ -1,10 +1,13 @@
 import torch
 from typing import Optional, List, Dict, Any
+from PIL import Image
 from captum.attr import InputXGradient
 
 from ..abstract import BaseAttributor
 from ..schema import AttributionOutput, InputFeature
 from ..wrappers.hf_text_generation import HFTextGenerationWrapper
+from ..wrappers.hf_image_classification import HFImageClassificationWrapper
+from ..utils.image_attribution import render_image_heatmap, image_to_base64, decode_base64_image
 
 class CaptumInputXGradientAttributor(BaseAttributor):
     """Universal Attributor utilizing Captum Input x Gradient.
@@ -13,15 +16,16 @@ class CaptumInputXGradientAttributor(BaseAttributor):
     signal compared to raw Saliency while still costing a single backward pass with no
     baseline or integration steps — a lightweight-machine-friendly method.
 
-    Supports both text classification and autoregressive text generation models, acting
-    as a dynamic dispatcher depending on the injected Wrapper type.
+    Supports text classification, autoregressive text generation, and image classification
+    models, acting as a dynamic dispatcher depending on the injected Wrapper type.
     """
 
     def attribute(self, input_data: str, target_output: Optional[int] = None, **kwargs) -> AttributionOutput:
         """Dispatches the attribution request to the appropriate internal method based on the model type.
 
         Args:
-            input_data (str): The raw input text prompt.
+            input_data (str): The raw input text prompt, or (for image classification) a
+                PIL Image / base64-encoded image string.
             target_output (Optional[int], optional): The target class index (for classification only). Defaults to None.
             **kwargs: Additional parameters for the attribution process.
 
@@ -32,8 +36,41 @@ class CaptumInputXGradientAttributor(BaseAttributor):
             disable_thinking = bool(kwargs.get("disable_thinking", False))
             max_new_tokens = kwargs.get("max_new_tokens", None)
             return self._attribute_generative(input_data, disable_thinking, max_new_tokens)
+        elif isinstance(self.wrapper, HFImageClassificationWrapper):
+            return self._attribute_image_classification(input_data, target_output)
         else:
             return self._attribute_classification(input_data, target_output)
+
+    # =========================================================
+    # 0. IMAGE CLASSIFICATION (Pixel-space Input x Gradient)
+    # =========================================================
+    def _attribute_image_classification(self, input_data: Any, target_output: Optional[int]) -> AttributionOutput:
+        """Performs Input x Gradient attribution directly on pixel values.
+
+        Args:
+            input_data (Any): A PIL Image or a base64-encoded image string.
+            target_output (Optional[int]): The specific class to attribute towards. If None, the predicted class is used.
+
+        Returns:
+            AttributionOutput: A single-entry pixel heatmap mapping image regions to their importance scores.
+        """
+        wrapper = self.wrapper
+        image = input_data if isinstance(input_data, Image.Image) else decode_base64_image(input_data)
+        pixel_values = wrapper.preprocess(image)
+
+        def model_forward(pixels):
+            return wrapper.model(pixel_values=pixels).logits
+
+        input_x_gradient = InputXGradient(model_forward)
+
+        if target_output is None:
+            with torch.no_grad():
+                logits = wrapper.model(pixel_values=pixel_values).logits
+            target_output = torch.argmax(logits, dim=1).item()
+
+        attributions = input_x_gradient.attribute(inputs=pixel_values, target=target_output)
+
+        return self._package_image_output(attributions, image, target_output)
 
     # =========================================================
     # 1. CLASSIFICATION (Input x Gradient)
@@ -169,3 +206,14 @@ class CaptumInputXGradientAttributor(BaseAttributor):
         if norm > 0:
             token_scores = token_scores / norm
         return token_scores.detach().cpu().numpy().tolist()
+
+    def _package_image_output(self, attributions: torch.Tensor, image: Image.Image, target: int) -> AttributionOutput:
+        """Helper to convert raw pixel attributions into the standardized image format."""
+        heatmap_payload = render_image_heatmap(attributions, image)
+        feature = InputFeature(index=0, content="image", modality="image")
+        return AttributionOutput(
+            heatmap=[heatmap_payload],
+            target=target,
+            input_features=[feature],
+            metadata={"input_image": image_to_base64(image)},
+        )

@@ -1,10 +1,13 @@
 import torch
 from typing import Optional, List, Dict, Any
+from PIL import Image
 from captum.attr import GradientShap
 
 from ..abstract import BaseAttributor
 from ..schema import AttributionOutput, InputFeature
 from ..wrappers.hf_text_generation import HFTextGenerationWrapper
+from ..wrappers.hf_image_classification import HFImageClassificationWrapper
+from ..utils.image_attribution import render_image_heatmap, image_to_base64, decode_base64_image
 
 # Small, fixed sample counts keep GradientSHAP cheap on lightweight (CPU-only) machines:
 # each sample is one noisy forward+backward pass, so cost scales linearly with this value.
@@ -41,8 +44,51 @@ class CaptumGradientShapAttributor(BaseAttributor):
             disable_thinking = bool(kwargs.get("disable_thinking", False))
             max_new_tokens = kwargs.get("max_new_tokens", None)
             return self._attribute_generative(input_data, n_samples, stdevs, disable_thinking, max_new_tokens)
+        elif isinstance(self.wrapper, HFImageClassificationWrapper):
+            return self._attribute_image_classification(input_data, target_output, n_samples, stdevs)
         else:
             return self._attribute_classification(input_data, target_output, n_samples, stdevs)
+
+    # =========================================================
+    # 0. IMAGE CLASSIFICATION (Pixel-space GradientSHAP)
+    # =========================================================
+    def _attribute_image_classification(self, input_data: Any, target_output: Optional[int], n_samples: int, stdevs: float) -> AttributionOutput:
+        """Performs GradientSHAP attribution directly on pixel values.
+
+        Args:
+            input_data (Any): A PIL Image or a base64-encoded image string.
+            target_output (Optional[int]): The specific class to attribute towards. If None, the predicted class is used.
+            n_samples (int): Number of noisy samples used to approximate the expectation.
+            stdevs (float): Standard deviation of the Gaussian noise added around each baseline.
+
+        Returns:
+            AttributionOutput: A single-entry pixel heatmap mapping image regions to their importance scores.
+        """
+        wrapper = self.wrapper
+        image = input_data if isinstance(input_data, Image.Image) else decode_base64_image(input_data)
+        pixel_values = wrapper.preprocess(image)
+
+        def model_forward(pixels):
+            return wrapper.model(pixel_values=pixels).logits
+
+        gradient_shap = GradientShap(model_forward)
+
+        if target_output is None:
+            with torch.no_grad():
+                logits = wrapper.model(pixel_values=pixel_values).logits
+            target_output = torch.argmax(logits, dim=1).item()
+
+        baselines = torch.zeros_like(pixel_values).repeat(2, 1, 1, 1)
+
+        attributions = gradient_shap.attribute(
+            inputs=pixel_values,
+            baselines=baselines,
+            n_samples=n_samples,
+            stdevs=stdevs,
+            target=target_output,
+        )
+
+        return self._package_image_output(attributions, image, target_output)
 
     # =========================================================
     # 1. CLASSIFICATION (GradientSHAP)
@@ -193,3 +239,14 @@ class CaptumGradientShapAttributor(BaseAttributor):
         if norm > 0:
             token_scores = token_scores / norm
         return token_scores.detach().cpu().numpy().tolist()
+
+    def _package_image_output(self, attributions: torch.Tensor, image: Image.Image, target: int) -> AttributionOutput:
+        """Helper to convert raw pixel attributions into the standardized image format."""
+        heatmap_payload = render_image_heatmap(attributions, image)
+        feature = InputFeature(index=0, content="image", modality="image")
+        return AttributionOutput(
+            heatmap=[heatmap_payload],
+            target=target,
+            input_features=[feature],
+            metadata={"input_image": image_to_base64(image)},
+        )

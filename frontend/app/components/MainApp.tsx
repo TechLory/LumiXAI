@@ -64,6 +64,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
 
   const {
     inputText, setInputText,
+    inputImageBase64, setInputImageBase64,
     seed, setSeed,
     maxNewTokens, setMaxNewTokens,
     inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob
@@ -567,6 +568,8 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   <InputPanel
                     inputText={inputText}
                     setInputText={setInputText}
+                    inputImageBase64={inputImageBase64}
+                    setInputImageBase64={setInputImageBase64}
                     seed={seed}
                     setSeed={setSeed}
                     maxNewTokens={maxNewTokens}

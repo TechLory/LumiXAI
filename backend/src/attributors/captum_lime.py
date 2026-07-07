@@ -1,17 +1,29 @@
 import torch
 from typing import Optional, List, Dict, Any
+from PIL import Image
 from captum.attr import Lime
 from captum._utils.models.linear_model import SGDLinearRegression
 
 from ..abstract import BaseAttributor
 from ..schema import AttributionOutput, InputFeature
 from ..wrappers.hf_text_generation import HFTextGenerationWrapper
+from ..wrappers.hf_image_classification import HFImageClassificationWrapper
+from ..utils.image_attribution import (
+    render_image_heatmap,
+    image_to_base64,
+    decode_base64_image,
+    build_patch_feature_mask,
+)
 
 # LIME's cost is dominated by `n_samples` (one forward pass per sample), not input size,
 # so this is the main lever for keeping it usable on lightweight machines. Generation uses
 # a lower default since the cost multiplies by the number of generated tokens.
 DEFAULT_N_SAMPLES_CLASSIFICATION = 25
 DEFAULT_N_SAMPLES_GENERATION = 15
+DEFAULT_N_SAMPLES_IMAGE = 25
+# Side length (pixels) of the square "superpixel" patches LIME perturbs as a single unit,
+# analogous to how text LIME perturbs one token at a time.
+DEFAULT_IMAGE_PATCH_SIZE = 16
 
 
 class _DeviceAwareSGDLinearRegression(SGDLinearRegression):
@@ -64,9 +76,55 @@ class CaptumLimeAttributor(BaseAttributor):
             disable_thinking = bool(kwargs.get("disable_thinking", False))
             max_new_tokens = kwargs.get("max_new_tokens", None)
             return self._attribute_generative(input_data, n_samples, disable_thinking, max_new_tokens)
+        elif isinstance(self.wrapper, HFImageClassificationWrapper):
+            n_samples = kwargs.get("n_samples", DEFAULT_N_SAMPLES_IMAGE) or DEFAULT_N_SAMPLES_IMAGE
+            patch_size = kwargs.get("patch_size", DEFAULT_IMAGE_PATCH_SIZE) or DEFAULT_IMAGE_PATCH_SIZE
+            return self._attribute_image_classification(input_data, target_output, n_samples, patch_size)
         else:
             n_samples = kwargs.get("n_samples", DEFAULT_N_SAMPLES_CLASSIFICATION) or DEFAULT_N_SAMPLES_CLASSIFICATION
             return self._attribute_classification(input_data, target_output, n_samples)
+
+    # =========================================================
+    # 0. IMAGE CLASSIFICATION (Patch-space LIME)
+    # =========================================================
+    def _attribute_image_classification(self, input_data: Any, target_output: Optional[int], n_samples: int, patch_size: int) -> AttributionOutput:
+        """Performs LIME attribution over square pixel patches ("superpixels").
+
+        Args:
+            input_data (Any): A PIL Image or a base64-encoded image string.
+            target_output (Optional[int]): The specific class to attribute towards. If None, the predicted class is used.
+            n_samples (int): Number of perturbed samples used to fit the local surrogate model.
+            patch_size (int): Side length (in pixels) of each square patch treated as one LIME feature.
+
+        Returns:
+            AttributionOutput: A single-entry pixel heatmap mapping image regions to their importance scores.
+        """
+        wrapper = self.wrapper
+        image = input_data if isinstance(input_data, Image.Image) else decode_base64_image(input_data)
+        pixel_values = wrapper.preprocess(image)
+
+        def forward_func(pixels):
+            return wrapper.model(pixel_values=pixels).logits
+
+        lime = Lime(forward_func, interpretable_model=_DeviceAwareSGDLinearRegression(wrapper.device))
+
+        if target_output is None:
+            with torch.no_grad():
+                logits = wrapper.model(pixel_values=pixel_values).logits
+            target_output = torch.argmax(logits, dim=1).item()
+
+        height, width = pixel_values.shape[-2], pixel_values.shape[-1]
+        feature_mask = build_patch_feature_mask(height, width, patch_size, wrapper.device)
+
+        attributions = lime.attribute(
+            inputs=pixel_values,
+            baselines=torch.zeros_like(pixel_values),
+            target=target_output,
+            feature_mask=feature_mask,
+            n_samples=n_samples,
+        )
+
+        return self._package_image_output(attributions, image, target_output)
 
     def _get_baseline_token_id(self) -> int:
         """Picks a reasonable "absent" token id to substitute for occluded features."""
@@ -236,3 +294,14 @@ class CaptumLimeAttributor(BaseAttributor):
         if norm > 0:
             token_scores = token_scores / norm
         return token_scores.detach().cpu().numpy().tolist()
+
+    def _package_image_output(self, attributions: torch.Tensor, image: Image.Image, target: int) -> AttributionOutput:
+        """Helper to convert raw pixel attributions into the standardized image format."""
+        heatmap_payload = render_image_heatmap(attributions, image)
+        feature = InputFeature(index=0, content="image", modality="image")
+        return AttributionOutput(
+            heatmap=[heatmap_payload],
+            target=target,
+            input_features=[feature],
+            metadata={"input_image": image_to_base64(image)},
+        )

@@ -17,6 +17,7 @@ const TASK_TO_WRAPPER: Record<string, string> = {
   "translation": "hf_text_generation",
   "summarization": "hf_text_generation",
   "text-to-image": "hf_image",
+  "image-classification": "hf_image_classification",
 };
 
 export function guessWrapperFromTask(task?: string | null): string | null {

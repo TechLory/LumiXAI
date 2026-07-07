@@ -2,6 +2,7 @@ import { useState } from "react";
 import TokenExplained from "../layout/TokenExplained";
 import TextGenView from "../layout/TextGenView";
 import ImageGenView from "../layout/ImageGenView";
+import ImageClassificationView from "../layout/ImageClassificationView";
 import type { TutorialOutputInteraction } from "../../types";
 
 export interface OutputResult {
@@ -10,6 +11,10 @@ export interface OutputResult {
   tokens?: string[];
   scores?: any; // array / matrix
   generated_image?: string;
+  // Original uploaded image (base64), set only by image classification attributors;
+  // distinguishes this modality from text classification (which shares the same
+  // `target_id`/`predicted_token`/`scores` shape).
+  input_image?: string;
   // Tokenizer metadata (attribution values untouched) used to optionally hide
   // structural tokens from the visualization so heatmaps don't sink into them.
   special_tokens_mask?: boolean[];      // classification: aligned with `tokens`
@@ -42,10 +47,12 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
   let taskTitle = "Text Classification";
   if (outputResult.generated_image) taskTitle = "Image Generation";
   if (outputResult.target_id === "text_generation") taskTitle = "Text Generation";
+  if (outputResult.input_image) taskTitle = "Image Classification";
 
   const isImage = !!outputResult.generated_image;
   const isTextGeneration = !isImage && outputResult.target_id === "text_generation";
-  const isClassification = !isImage && !isTextGeneration;
+  const isImageClassification = !isImage && !isTextGeneration && !!outputResult.input_image;
+  const isClassification = !isImage && !isTextGeneration && !isImageClassification;
 
   // Special-token filtering is only meaningful for the text views. DAAM (image) already
   // filters special tokens during generation, so the toggle is hidden there.
@@ -160,7 +167,16 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
             />
           )}
 
-          {/* --- CASE 3: TEXT CLASSIFICATION --- */}
+          {/* --- CASE 3: IMAGE CLASSIFICATION --- */}
+          {isImageClassification && Array.isArray(outputResult.scores) && outputResult.scores[0] && (
+            <ImageClassificationView
+              baseImage={outputResult.input_image!}
+              heatmap={outputResult.scores[0]}
+              predictedLabel={displayClassLabel}
+            />
+          )}
+
+          {/* --- CASE 4: TEXT CLASSIFICATION --- */}
           {isClassification && (
             <div className="flex flex-col gap-6">
 

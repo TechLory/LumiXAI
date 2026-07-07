@@ -4,7 +4,7 @@ The `attributors` module contains the concrete implementations of Explainable AI
 
 ## Captum Integrated Gradients
 
-Captum is used for text-based modalities. This attributor dynamically switches between a standard sequence classification pipeline and a complex, step-by-step autoregressive generation pipeline based on the model loaded.
+Captum's Integrated Gradients, DeepLift, Saliency, Input x Gradient, GradientSHAP, Occlusion, and LIME implementations in this module are all "universal" attributors: they dynamically switch between a standard sequence classification pipeline, a step-by-step autoregressive generation pipeline, and a pixel-space image classification pipeline, based on the type of `BaseWrapper` injected. For text, they attribute to token embeddings; for image classification (`HFImageClassificationWrapper`), they attribute directly to the normalized pixel tensor, since pixel values are already continuous and need no embedding indirection.
 
 ::: src.attributors.captum_grad.CaptumGradientsAttributor
     options:

@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 interface InputPanelProps {
   inputText: string;
   setInputText: (text: string) => void;
+  inputImageBase64: string | null;
+  setInputImageBase64: (image: string | null) => void;
   seed: string;
   setSeed: (seed: string) => void;
   maxNewTokens: string;
@@ -22,8 +24,29 @@ export default function InputPanel(props: InputPanelProps) {
   const [isSpecialTokensDisabled, setIsSpecialTokensDisabled] = useState(true);
   const [isThinkingDisabled, setIsThinkingDisabled] = useState(false);
   const showDisableThinkingToggle = props.activeWrapperName === "hf_text_generation";
+  const isImageClassification = props.activeWrapperName === "hf_image_classification";
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isButtonDisabled = !props.isConfigReady || isRunning || wordCount === 0;
+  const isButtonDisabled = !props.isConfigReady || isRunning || (isImageClassification ? !props.inputImageBase64 : wordCount === 0);
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the "data:image/...;base64," prefix; the backend expects raw base64.
+      const base64 = result.split(",")[1] ?? result;
+      props.setInputImageBase64(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearImage = () => {
+    props.setInputImageBase64(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleSeedChange = (value: string) => {
     // Keep only digits so the value is always a valid non-negative integer (or empty).
@@ -43,21 +66,64 @@ export default function InputPanel(props: InputPanelProps) {
 
       <div className="flex flex-col gap-2">
 
-        {/* TEXT AREA (disabled only during inference) */}
-        <textarea
-          className="bg-fill w-full min-h-48 p-4 text-fg font-mono text-sm outline-none disabled:opacity-50 resize-y"
-          name="inputText"
-          id="inputText"
-          value={props.inputText}
-          onChange={(e) => props.setInputText(e.target.value)}
-          disabled={isRunning}
-          placeholder="Type your prompt here..."
-        ></textarea>
+        {isImageClassification ? (
+          <>
+            {/* IMAGE UPLOAD */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageFileChange}
+              disabled={isRunning}
+              className="hidden"
+              id="inputImageFile"
+            />
 
-        {/* WORD COUNTER */}
-        <div className="text-fg-faint font-mono font-medium text-sm text-center mt-1">
-          Total words: {wordCount}
-        </div>
+            {props.inputImageBase64 ? (
+              <div className="flex flex-col items-center gap-3 bg-fill p-4">
+                <img
+                  src={`data:image/png;base64,${props.inputImageBase64}`}
+                  alt="Selected input"
+                  className="max-h-64 w-auto object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  disabled={isRunning}
+                  className="text-xs font-mono uppercase underline underline-offset-4 text-fg-subtle hover:text-fg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Remove image
+                </button>
+              </div>
+            ) : (
+              <label
+                htmlFor="inputImageFile"
+                className={`bg-fill w-full min-h-48 flex flex-col items-center justify-center gap-2 text-fg-subtle font-mono text-sm border-2 border-dashed border-border transition-colors ${isRunning ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-border-strong hover:text-fg"}`}
+              >
+                <i className='bx bx-image-add text-3xl'></i>
+                Click to upload an image
+              </label>
+            )}
+          </>
+        ) : (
+          <>
+            {/* TEXT AREA (disabled only during inference) */}
+            <textarea
+              className="bg-fill w-full min-h-48 p-4 text-fg font-mono text-sm outline-none disabled:opacity-50 resize-y"
+              name="inputText"
+              id="inputText"
+              value={props.inputText}
+              onChange={(e) => props.setInputText(e.target.value)}
+              disabled={isRunning}
+              placeholder="Type your prompt here..."
+            ></textarea>
+
+            {/* WORD COUNTER */}
+            <div className="text-fg-faint font-mono font-medium text-sm text-center mt-1">
+              Total words: {wordCount}
+            </div>
+          </>
+        )}
 
         {/* SPECIAL TOKENS TOGGLE */}
         {props.activeAttributorId === "daam" && (

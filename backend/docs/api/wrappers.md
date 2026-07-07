@@ -18,6 +18,14 @@ Wrapper for Sequence Classification Models (e.g., BERT, DistilBERT). Automates t
       show_root_heading: false
       show_root_toc_entry: false
 
+## Hugging Face: Image Classification
+Wrapper for Image Classification models (e.g., ViT, ResNet, ConvNeXt). Uses the model's own `AutoImageProcessor` for preprocessing. Unlike the text wrappers, attribution methods operate directly on the normalized pixel tensor rather than an embedding layer, since pixel values are already continuous and differentiable.
+
+::: src.wrappers.hf_image_classification.HFImageClassificationWrapper
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+
 ## Hugging Face: Image Generation
 Wrapper for Stable Diffusion and SDXL Diffusers. Manages automatic device offloading, precision casting (fp16 vs fp32), and dynamic architecture detection.
 

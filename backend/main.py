@@ -32,6 +32,8 @@ from src.utils.hf_auth import hf_auth_kwargs
 from src.wrappers.hf_text_classification import HFTextClassificationWrapper
 from src.wrappers.hf_text_generation import HFTextGenerationWrapper
 from src.wrappers.hf_image import HFImageWrapper
+from src.wrappers.hf_image_classification import HFImageClassificationWrapper
+from src.utils.image_attribution import decode_base64_image
 from src.attributors.captum_grad import CaptumGradientsAttributor
 from src.attributors.captum_deeplift import CaptumDeepLiftAttributor
 from src.attributors.captum_saliency import CaptumSaliencyAttributor
@@ -175,6 +177,7 @@ AVAILABLE_WRAPPERS = {
     "hf_text_classification": HFTextClassificationWrapper,
     "hf_text_generation": HFTextGenerationWrapper,
     "hf_image": HFImageWrapper,
+    "hf_image_classification": HFImageClassificationWrapper,
 }
 
 AVAILABLE_SOURCES = [
@@ -185,42 +188,47 @@ AVAILABLE_SOURCES = [
 # the task-detection `match` in /api/load. Used both to validate /api/set_attributor
 # requests server-side and to let the frontend gray out incompatible options.
 TEXT_WRAPPERS = ["hf_text_classification", "hf_text_generation"]
+IMAGE_CLASSIFICATION_WRAPPERS = ["hf_image_classification"]
+# The 7 Captum attributors operate on continuous tensors (token embeddings for text,
+# pixel values for images) and dispatch internally on wrapper type, so they're
+# compatible with both modalities. DAAM is diffusion-specific and stays image-generation only.
+CAPTUM_COMPATIBLE_WRAPPERS = TEXT_WRAPPERS + IMAGE_CLASSIFICATION_WRAPPERS
 
 AVAILABLE_ATTRIBUTORS = {
     "captum_ig": {
         "name": "Integrated Gradients (Captum)",
         "class": CaptumGradientsAttributor,
-        "compatible_wrappers": TEXT_WRAPPERS,
+        "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
     },
     "captum_deeplift": {
         "name": "DeepLift (Captum)",
         "class": CaptumDeepLiftAttributor,
-        "compatible_wrappers": TEXT_WRAPPERS,
+        "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
     },
     "captum_saliency": {
         "name": "Saliency (Captum)",
         "class": CaptumSaliencyAttributor,
-        "compatible_wrappers": TEXT_WRAPPERS,
+        "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
     },
     "captum_inputxgrad": {
         "name": "Input x Gradient (Captum)",
         "class": CaptumInputXGradientAttributor,
-        "compatible_wrappers": TEXT_WRAPPERS,
+        "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
     },
     "captum_gradientshap": {
         "name": "GradientSHAP (Captum)",
         "class": CaptumGradientShapAttributor,
-        "compatible_wrappers": TEXT_WRAPPERS,
+        "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
     },
     "captum_occlusion": {
         "name": "Occlusion (Captum)",
         "class": CaptumOcclusionAttributor,
-        "compatible_wrappers": TEXT_WRAPPERS,
+        "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
     },
     "captum_lime": {
         "name": "LIME (Captum)",
         "class": CaptumLimeAttributor,
-        "compatible_wrappers": TEXT_WRAPPERS,
+        "compatible_wrappers": CAPTUM_COMPATIBLE_WRAPPERS,
     },
     "daam": {
         "name": "DAAM (Diffusion Attentive Attribution Maps)",
@@ -286,7 +294,9 @@ class AttributorRequest(BaseModel):
     params: Optional[Dict[str, Any]] = {}
 
 class ExplainRequest(BaseModel):
-    text: str
+    text: Optional[str] = None
+    # Base64-encoded input image, used instead of `text` for image classification models.
+    image_base64: Optional[str] = None
     target_class: Optional[int] = None
     ignore_special_tokens: bool = True
     seed: Optional[int] = None
@@ -315,7 +325,7 @@ app.add_middleware(
 )
 
 # --- 5. BACKGROUND ---
-def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True, seed: Optional[int] = None, guidance_scale: Optional[float] = None, negative_prompt: Optional[str] = None, disable_thinking: bool = False, max_new_tokens: Optional[int] = None):
+def run_explanation_task(job_id: str, text: Optional[str], target_class: Optional[int], ignore_special_tokens: bool = True, seed: Optional[int] = None, guidance_scale: Optional[float] = None, negative_prompt: Optional[str] = None, disable_thinking: bool = False, max_new_tokens: Optional[int] = None, image_base64: Optional[str] = None):
     """Executes the XAI attribution logic asynchronously.
 
     This function runs in a separate thread. It acquires the global `gpu_lock` to ensure
@@ -347,8 +357,10 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
             if not attributor or not wrapper:
                 raise ValueError("Modello o Attributor disconnessi durante l'esecuzione")
 
+            input_data = decode_base64_image(image_base64) if image_base64 else text
+
             output = attributor.attribute(
-                input_data=text,
+                input_data=input_data,
                 target_output=target_class,
                 ignore_special_tokens=ignore_special_tokens,
                 seed=seed,
@@ -394,6 +406,9 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
                     # Tokenizer metadata (attribution values untouched); None for image tasks,
                     # where DAAM already filters special tokens during generation.
                     "special_tokens_mask": output.metadata.get("special_tokens_mask"),
+                    # Original uploaded image (base64), set only by image classification
+                    # attributors; lets the frontend distinguish this from text classification.
+                    "input_image": output.metadata.get("input_image"),
             }
 
             end_time = time.time()
@@ -486,11 +501,14 @@ def load_model(req: LoadRequest):
                     wrapper_instance = HFTextClassificationWrapper(req.model_name, real_device)
                     wrapper_name = "hf_text_classification"
                 case "text-generation" | "text2text-generation" | "translation" | "summarization":
-                    wrapper_instance = HFTextGenerationWrapper(req.model_name, real_device) 
+                    wrapper_instance = HFTextGenerationWrapper(req.model_name, real_device)
                     wrapper_name = "hf_text_generation"
                 case "text-to-image":
                     wrapper_instance = HFImageWrapper(req.model_name, real_device)
                     wrapper_name = "hf_image"
+                case "image-classification":
+                    wrapper_instance = HFImageClassificationWrapper(req.model_name, real_device)
+                    wrapper_name = "hf_image_classification"
                 case _:
                     wrapper_instance = HFTextClassificationWrapper(req.model_name, real_device)
                     wrapper_name = "hf_text_classification (fallback)"
@@ -593,10 +611,14 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
     if req.max_new_tokens is not None and req.max_new_tokens <= 0:
         raise HTTPException(400, "max_new_tokens must be a positive integer.")
 
-    job_id = create_job(req.text, source_name, model_name, attributor_name)
-    
-    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed, req.guidance_scale, req.negative_prompt, req.disable_thinking, req.max_new_tokens)
-    
+    if not req.text and not req.image_base64:
+        raise HTTPException(400, "Either 'text' or 'image_base64' must be provided.")
+
+    job_prompt = req.text if req.text else "[Uploaded Image]"
+    job_id = create_job(job_prompt, source_name, model_name, attributor_name)
+
+    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed, req.guidance_scale, req.negative_prompt, req.disable_thinking, req.max_new_tokens, req.image_base64)
+
     return {"job_id": job_id, "status": "running"}
 
 @app.get("/api/jobs")
