@@ -20,10 +20,17 @@ from ..utils.image_attribution import (
 # a lower default since the cost multiplies by the number of generated tokens.
 DEFAULT_N_SAMPLES_CLASSIFICATION = 25
 DEFAULT_N_SAMPLES_GENERATION = 15
-DEFAULT_N_SAMPLES_IMAGE = 25
 # Side length (pixels) of the square "superpixel" patches LIME perturbs as a single unit,
-# analogous to how text LIME perturbs one token at a time.
-DEFAULT_IMAGE_PATCH_SIZE = 16
+# analogous to how text LIME perturbs one token at a time. At the default 224x224 input
+# resolution this yields 7x7 = 49 patches/features for the surrogate regression.
+DEFAULT_IMAGE_PATCH_SIZE = 32
+# LIME's linear surrogate needs enough perturbed samples relative to the number of
+# patches (features) or the regression is underdetermined and produces an essentially
+# arbitrary, noisy result uncorrelated with the actual image content. 25 (the text
+# default) is drastically too few for ~49+ image patches; ~3x the patch count at the
+# default patch size gives a clean, well-localized result on real models (verified on
+# a ResNet-18 goldfish classification example).
+DEFAULT_N_SAMPLES_IMAGE = 150
 
 
 class _DeviceAwareSGDLinearRegression(SGDLinearRegression):
