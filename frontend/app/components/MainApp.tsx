@@ -17,7 +17,7 @@ import { getTutorialExampleForKind, loadTutorialExamplePayload } from "../lib/tu
 import { getTutorialSteps } from "../lib/tutorialGuide";
 import { guessWrapperFromTask } from "../lib/taskToWrapper";
 import type { OutputResult } from "./panels/OutputPanel";
-import type { TutorialKind } from "../types";
+import type { ResultMetadata, TutorialKind } from "../types";
 
 type MainAppProps = {
   activeTutorial?: TutorialKind | null;
@@ -66,7 +66,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     inputText, setInputText,
     seed, setSeed,
     maxNewTokens, setMaxNewTokens,
-    inferenceState, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob
+    inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob
   } = useInference();
 
   const { jobs, deletingJobIds, fetchJobPayload, deleteJob, togglePinJob } = useJobsHistory();
@@ -131,7 +131,12 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     }
 
     if (phase === "result") {
-      if (tutorialPayload) loadPastJob(tutorialPayload, tutorialExample.prompt);
+      if (tutorialPayload) {
+        loadPastJob(tutorialPayload, tutorialExample.prompt, {
+          modelName: tutorialConfig.modelName,
+          attributorName: tutorialConfig.attributorName,
+        });
+      }
       return;
     }
 
@@ -143,7 +148,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const [configOpen, setConfigOpen] = useState(true);
   // Set while reviewing a past job (no live config is loaded in that case, so
   // hasActiveConfiguration can't drive the collapse). Holds the reviewed model.
-  const [reviewedJob, setReviewedJob] = useState<{ modelName: string } | null>(null);
+  const [reviewedJob, setReviewedJob] = useState<ResultMetadata | null>(null);
 
   // System Logs: expanded while booting or on error, auto-collapse once ready.
   // Effect only fires on status transitions, so manual toggles afterward stick.
@@ -172,8 +177,19 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
           : { dot: 'bg-fg-faint', text: 'System status unknown', cls: 'text-fg-subtle' };
 
   // Summary chip shown in the collapsed Configuration header.
-  const activeAttributorName =
-    effectiveSystemState.data?.attributors?.find(a => a.id === selectedAttributor)?.name ?? selectedAttributor;
+  const getAttributorName = (attributorId?: string | null) =>
+    attributorId
+      ? effectiveSystemState.data?.attributors?.find(a => a.id === attributorId)?.name ?? attributorId
+      : "";
+  const activeAttributorName = getAttributorName(selectedAttributor);
+  const getLoadedResultMetadata = (): ResultMetadata | null => {
+    if (!lastLoadedConfiguration) return null;
+
+    return {
+      modelName: lastLoadedConfiguration.modelName,
+      attributorName: getAttributorName(lastLoadedConfiguration.attributor),
+    };
+  };
   const shortModelName = modelName?.split('/').pop();
   const inputWrapperName = hasActiveConfiguration
     ? guessWrapperFromTask(lastLoadedConfiguration?.detectedTask)
@@ -183,18 +199,22 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const configCollapsible = configReady && (hasActiveConfiguration || isReviewingPastJob);
   const showConfigBody = !configCollapsible || configOpen;
 
-  const handleHistoryClick = async (jobId: string, status: string, prompt: string, modelName: string) => {
+  const handleHistoryClick = async (jobId: string, status: string, prompt: string, modelName: string, attributorName: string) => {
     if (status !== 'completed') return; // Ignora se fallito o in corso
 
     const fullJob = await fetchJobPayload(jobId);
     if (fullJob && fullJob.payload) {
+      const reviewedMetadata = {
+        modelName: fullJob.model_name ?? modelName,
+        attributorName: fullJob.attributor_name ?? attributorName,
+      };
       if (isTutorialActive) {
         setTutorialStepIndex(0);
         onCloseTutorial?.();
       }
-      loadPastJob(fullJob.payload, prompt);
+      loadPastJob(fullJob.payload, prompt, reviewedMetadata);
       // Reviewing a past result: fold the setup away and show the reviewed model.
-      setReviewedJob({ modelName });
+      setReviewedJob(reviewedMetadata);
       setConfigOpen(false);
     }
   };
@@ -261,6 +281,10 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     setTutorialStepIndex(currentIndex => Math.max(currentIndex, 6));
   };
 
+  const handleLiveExplain = (ignoreSpecialTokens: boolean, disableThinking: boolean) => {
+    handleExplain(ignoreSpecialTokens, disableThinking, getLoadedResultMetadata());
+  };
+
   const getTutorialTargetClass = (target: string) => (
     currentTutorialStep?.target === target ? " tutorial-highlight" : ""
   );
@@ -291,7 +315,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
             {jobs.map(job => (
               <div
                 key={job.id}
-                onClick={() => handleHistoryClick(job.id, job.status, job.prompt, job.model_name)}
+                onClick={() => handleHistoryClick(job.id, job.status, job.prompt, job.model_name, job.attributor_name)}
                 className={`bg-fill p-1.5
                 ${job.status === 'running' ? 'border-info-line border-2 cursor-wait' :
                     job.status === 'failed' ? 'border-danger-line border-2' :
@@ -547,7 +571,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                     setSeed={setSeed}
                     maxNewTokens={maxNewTokens}
                     setMaxNewTokens={setMaxNewTokens}
-                    onExplainClick={isTutorialActive ? handleTutorialExplain : handleExplain}
+                    onExplainClick={isTutorialActive ? handleTutorialExplain : handleLiveExplain}
                     inferenceStatus={inferenceState.status}
                     isConfigReady={hasActiveConfiguration}
                     activeAttributorId={activeAttributorId}
@@ -560,6 +584,18 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
             {/* OUTPUT */}
             <div className={`bg-surface p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2${getTutorialTargetClass("output")}`}>
               <div className="font-mono font-medium uppercase">Output</div>
+              {inferenceState.status === 'success' && resultMetadata && (
+                <div className="mt-3 grid gap-2 text-xs font-mono sm:grid-cols-2">
+                  <div className="bg-fill px-3 py-2 text-fg-subtle min-w-0">
+                    <span className="font-bold text-fg-muted uppercase mr-2">// Model:</span>
+                    <span className="normal-case text-fg break-all">{resultMetadata.modelName}</span>
+                  </div>
+                  <div className="bg-fill px-3 py-2 text-fg-subtle min-w-0">
+                    <span className="font-bold text-fg-muted uppercase mr-2">// Attributor:</span>
+                    <span className="normal-case text-fg break-words">{resultMetadata.attributorName}</span>
+                  </div>
+                </div>
+              )}
               {effectiveSystemState.status === 'running' ? (
                 <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
                   <i className='bx bx-loader animate-spin text-2xl text-fg-faint'></i>

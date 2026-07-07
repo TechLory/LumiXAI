@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { buildApiUrl } from "../lib/api";
-import { AsyncState } from "../types";
+import { AsyncState, ResultMetadata } from "../types";
 
 export function useInference() {
   const [inputText, setInputText] = useState("Astronauts riding horses on Mars.");
@@ -9,11 +9,13 @@ export function useInference() {
   const [seed, setSeed] = useState<string>("");
   const [maxNewTokens, setMaxNewTokens] = useState<string>("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [resultMetadata, setResultMetadata] = useState<ResultMetadata | null>(null);
   const [inferenceState, setInferenceState] = useState<AsyncState>({
     status: 'idle', data: null, error: null
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingResultMetadataRef = useRef<ResultMetadata | null>(null);
 
   const stopPolling = () => {
     if (pollingIntervalRef.current) {
@@ -28,6 +30,8 @@ export function useInference() {
       if (res.status === 404) {
         stopPolling();
         setActiveJobId(null);
+        setResultMetadata(null);
+        pendingResultMetadataRef.current = null;
         setInferenceState({ status: 'idle', data: null, error: null });
         return;
       }
@@ -38,27 +42,39 @@ export function useInference() {
       if (job.status === "completed") {
         stopPolling();
         setActiveJobId(null);
+        setResultMetadata(pendingResultMetadataRef.current);
+        pendingResultMetadataRef.current = null;
         setInferenceState({ status: 'success', data: job.payload, error: null });
       } else if (job.status === "failed") {
         stopPolling();
         setActiveJobId(null);
+        setResultMetadata(null);
+        pendingResultMetadataRef.current = null;
         setInferenceState({ status: 'error', data: null, error: job.error_message || "Job failed during execution." });
       }
       // If still running, do nothing and wait for the next poll
     } catch (e: any) {
       stopPolling();
       setActiveJobId(null);
+      setResultMetadata(null);
+      pendingResultMetadataRef.current = null;
       setInferenceState({ status: 'error', data: null, error: e.message });
     }
   };
 
-  const handleExplain = async (ignoreSpecialTokens: boolean = true, disableThinking: boolean = false) => {
+  const handleExplain = async (
+    ignoreSpecialTokens: boolean = true,
+    disableThinking: boolean = false,
+    nextResultMetadata: ResultMetadata | null = null
+  ) => {
     if (!inputText.trim()) return;
 
     // Spinner
+    setResultMetadata(null);
     setInferenceState({ status: 'running', data: null, error: null });
     stopPolling();
     setActiveJobId(null);
+    pendingResultMetadataRef.current = nextResultMetadata;
 
     try {
       // Parse the optional seed: empty/invalid => null (random generation).
@@ -93,6 +109,8 @@ export function useInference() {
 
     } catch (e: any) {
       setActiveJobId(null);
+      setResultMetadata(null);
+      pendingResultMetadataRef.current = null;
       setInferenceState({ status: 'error', data: null, error: e.message });
     }
   };
@@ -100,14 +118,18 @@ export function useInference() {
   const resetInferenceState = (nextInputText: string = "") => {
     stopPolling();
     setActiveJobId(null);
+    setResultMetadata(null);
+    pendingResultMetadataRef.current = null;
     setInputText(nextInputText);
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
   // Reload past job
-  const loadPastJob = (payload: any, prompt: string) => {
+  const loadPastJob = (payload: any, prompt: string, nextResultMetadata: ResultMetadata | null = null) => {
     stopPolling();
     setActiveJobId(null);
+    setResultMetadata(nextResultMetadata);
+    pendingResultMetadataRef.current = null;
     setInputText(prompt);
     setInferenceState({ status: 'success', data: payload, error: null });
   };
@@ -119,8 +141,10 @@ export function useInference() {
 
     stopPolling();
     setActiveJobId(null);
+    setResultMetadata(null);
+    pendingResultMetadataRef.current = null;
     setInferenceState({ status: 'idle', data: null, error: null });
   };
 
-  return { inputText, setInputText, seed, setSeed, maxNewTokens, setMaxNewTokens, inferenceState, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob };
+  return { inputText, setInputText, seed, setSeed, maxNewTokens, setMaxNewTokens, inferenceState, resultMetadata, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob };
 }

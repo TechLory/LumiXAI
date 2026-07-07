@@ -21,6 +21,11 @@ export interface AsyncState<T = any> {
   error: string | null;
 }
 
+export interface ResultMetadata {
+  modelName: string;
+  attributorName: string;
+}
+
 export type TutorialKind = 'text-classification' | 'text-generation' | 'txt2img-generation';
 
 export interface JobHistoryItem {
