@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import type { TutorialFocusTarget } from "../../lib/tutorialGuide";
 
 interface InputPanelProps {
   inputText: string;
@@ -14,6 +15,7 @@ interface InputPanelProps {
   isConfigReady: boolean;
   activeAttributorId: string | null;
   activeWrapperName: string | null;
+  tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 export default function InputPanel(props: InputPanelProps) {
@@ -28,6 +30,10 @@ export default function InputPanel(props: InputPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isButtonDisabled = !props.isConfigReady || isRunning || (isImageClassification ? !props.inputImageBase64 : wordCount === 0);
+
+  const getTutorialFocusClass = (target: TutorialFocusTarget) => (
+    props.tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
+  );
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,7 +86,7 @@ export default function InputPanel(props: InputPanelProps) {
             />
 
             {props.inputImageBase64 ? (
-              <div className="flex flex-col items-center gap-3 bg-fill p-4">
+              <div className={`flex flex-col items-center gap-3 bg-fill p-4${getTutorialFocusClass("input-editor")}`}>
                 <img
                   src={`data:image/png;base64,${props.inputImageBase64}`}
                   alt="Selected input"
@@ -98,7 +104,7 @@ export default function InputPanel(props: InputPanelProps) {
             ) : (
               <label
                 htmlFor="inputImageFile"
-                className={`bg-fill w-full min-h-48 flex flex-col items-center justify-center gap-2 text-fg-subtle font-mono text-sm border-2 border-dashed border-border transition-colors ${isRunning ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-border-strong hover:text-fg"}`}
+                className={`bg-fill w-full min-h-48 flex flex-col items-center justify-center gap-2 text-fg-subtle font-mono text-sm border-2 border-dashed border-border transition-colors ${isRunning ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-border-strong hover:text-fg"}${getTutorialFocusClass("input-editor")}`}
               >
                 <i className='bx bx-image-add text-3xl'></i>
                 Click to upload an image
@@ -109,7 +115,7 @@ export default function InputPanel(props: InputPanelProps) {
           <>
             {/* TEXT AREA (disabled only during inference) */}
             <textarea
-              className="bg-fill w-full min-h-48 p-4 text-fg font-mono text-sm outline-none disabled:opacity-50 resize-y"
+              className={`bg-fill w-full min-h-48 p-4 text-fg font-mono text-sm outline-none disabled:opacity-50 resize-y${getTutorialFocusClass("input-editor")}`}
               name="inputText"
               id="inputText"
               value={props.inputText}
@@ -225,7 +231,7 @@ export default function InputPanel(props: InputPanelProps) {
         {/* RUN BUTTON */}
         <div className="mt-0">
           <button
-            className="bg-info-soft hover:bg-info-hover border border-info-line text-info w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+            className={`bg-info-soft hover:bg-info-hover border border-info-line text-info w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2${getTutorialFocusClass("input-action")}`}
             onClick={() => props.onExplainClick(isSpecialTokensDisabled, showDisableThinkingToggle && isThinkingDisabled)}
             disabled={isButtonDisabled}
           >

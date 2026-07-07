@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRef } from "react";
 
 import { useDocsUrl } from "../../lib/api";
 import type { TutorialKind } from "../../types";
@@ -50,6 +51,14 @@ function LogoMark() {
 
 export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectTutorial }: NavbarProps) {
   const docsUrl = useDocsUrl();
+  const tutorialsRef = useRef<HTMLDetailsElement>(null);
+
+  const handleSelectTutorial = (tutorial: TutorialKind) => {
+    onSelectTutorial?.(tutorial);
+    if (tutorialsRef.current) {
+      tutorialsRef.current.open = false;
+    }
+  };
 
   return (
     <nav className="w-full bg-surface text-fg border-b border-border px-4 sm:px-10 py-3 mb-2 flex justify-between items-center font-mono font-semibold">
@@ -70,7 +79,7 @@ export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectT
 
       <div className="flex gap-4 sm:gap-10 items-center text-sm sm:text-base">
         {onSelectTutorial && (
-          <details className="navbar-tutorials relative">
+          <details ref={tutorialsRef} className="navbar-tutorials relative">
             <summary className="flex cursor-pointer items-center gap-1 hover:underline underline-offset-4 decoration-2">
               Tutorials
               <i className="bx bx-chevron-down text-lg" aria-hidden="true"></i>
@@ -83,7 +92,7 @@ export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectT
                   <button
                     key={item.kind}
                     type="button"
-                    onClick={() => onSelectTutorial(item.kind)}
+                    onClick={() => handleSelectTutorial(item.kind)}
                     className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm uppercase transition-colors hover:bg-fill ${isActive ? "bg-info-soft text-info" : "text-fg-muted"}`}
                   >
                     <i className={`bx ${item.icon} text-lg`} aria-hidden="true"></i>

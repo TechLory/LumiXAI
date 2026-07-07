@@ -1,5 +1,6 @@
 import ModelSelector from "../layout/ModelSelector";
 import { ConfigurationState } from "../../hooks/useModelManager";
+import type { TutorialFocusTarget } from "../../lib/tutorialGuide";
 
 interface ConfigurationPanelProps {
   manifest: {
@@ -24,6 +25,7 @@ interface ConfigurationPanelProps {
   onLoadConfiguration: () => void;
   onResetConfiguration: () => void;
   onUnloadConfiguration: () => void;
+  tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 export default function ConfigurationPanel(props: ConfigurationPanelProps) {
@@ -33,11 +35,22 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
   const isUnloadRunning = isRunning && step === 'unloading_model';
   const isLoadRunning = isRunning && step !== 'unloading_model';
 
+  const getTutorialFocusClass = (target: TutorialFocusTarget) => (
+    props.tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
+  );
+
   const getRowClasses = (fieldId: 'source' | 'model' | 'attributor') => {
+    const focusTargetByField: Record<'source' | 'model' | 'attributor', TutorialFocusTarget> = {
+      source: "configuration-source",
+      model: "configuration-model",
+      attributor: "configuration-attributor",
+    };
+    const focusClass = getTutorialFocusClass(focusTargetByField[fieldId]);
+
     if (errorField === fieldId) {
-      return "bg-danger-soft flex items-center";
+      return `bg-danger-soft flex items-center${focusClass}`;
     }
-    return "bg-fill flex items-center";
+    return `bg-fill flex items-center${focusClass}`;
   };
 
   const getLabelText = (fieldId: 'source' | 'model' | 'attributor', defaultText: string) => {
@@ -133,7 +146,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
         </div>
 
         {/* LOAD CONFIGURATION BUTTON */}
-        <div className="mt-5">
+        <div className={`mt-5${getTutorialFocusClass("configuration-action")}`}>
           {isLoadRunning ? (
             <button
               className="bg-ok-soft border border-ok-line text-ok w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"

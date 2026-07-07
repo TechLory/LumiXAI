@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import type { TutorialFocusTarget } from "../../lib/tutorialGuide";
 
 // --- HELPERS ---
 
@@ -40,12 +41,13 @@ interface ImageGenViewProps {
   tokens: string[];
   heatmaps: HeatmapData[];
   tutorialSelection?: ImageGenerationTutorialSelection;
+  tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 const GRID = 64;
 const OVERLAY_ALPHA = 0.6;
 
-export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSelection }: ImageGenViewProps) {
+export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSelection, tutorialFocusTarget }: ImageGenViewProps) {
   // Token selection (multiple tokens => aggregated heatmap)
   const [selectedTokens, setSelectedTokens] = useState<number[]>([]);
   // Pixel hover
@@ -57,6 +59,10 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
   const selectedTokensForRender = tutorialSelection?.selectedTokenIndices ?? selectedTokens;
   const hoveredCellForRender = tutorialSelection?.hoveredCell ?? hoveredCell;
   const hasSelection = selectedTokensForRender.length > 0;
+
+  const getTutorialFocusClass = (target: TutorialFocusTarget) => (
+    tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
+  );
 
   // Render the (aggregated) heatmap onto the overlay canvas. Recomputes only when
   // the selection or the heatmaps change -- not on hover.
@@ -150,7 +156,7 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
     <div className="flex flex-col gap-8 w-full select-none">
 
       {/* INTERACTIVE IMAGE */}
-      <div className="flex flex-col items-center bg-sunken p-4 rounded-lg border border-border">
+      <div className={`flex flex-col items-center bg-sunken p-4 rounded-lg border border-border${getTutorialFocusClass("output-image")}`}>
         <div className="flex justify-between w-full max-w-lg mb-4">
           <h3 className="text-fg-subtle text-sm uppercase font-bold">
             Generated Image
@@ -196,7 +202,7 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
       </div>
 
       {/* TOKEN INPUT */}
-      <div className="bg-sunken p-6 rounded-lg border border-border">
+      <div className={`bg-sunken p-6 rounded-lg border border-border${getTutorialFocusClass("output-image-prompt")}`}>
         <div className="flex justify-between items-center mb-4">
             <h3 className="text-fg-subtle text-sm uppercase font-bold">
             Input Prompt

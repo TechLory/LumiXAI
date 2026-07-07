@@ -4,6 +4,7 @@ import TextGenView from "../layout/TextGenView";
 import ImageGenView from "../layout/ImageGenView";
 import ImageClassificationView from "../layout/ImageClassificationView";
 import type { TutorialOutputInteraction } from "../../types";
+import type { TutorialFocusTarget } from "../../lib/tutorialGuide";
 
 export interface OutputResult {
   target_id?: string | number;
@@ -26,9 +27,10 @@ export interface OutputResult {
 interface OutputPanelProps {
   outputResult: OutputResult | null;
   tutorialInteraction?: TutorialOutputInteraction;
+  tutorialFocusTarget?: TutorialFocusTarget;
 }
 
-export default function OutputPanel({ outputResult, tutorialInteraction }: OutputPanelProps) {
+export default function OutputPanel({ outputResult, tutorialInteraction, tutorialFocusTarget }: OutputPanelProps) {
   // Pure display preferences: hiding tokens does NOT re-run the job, it only filters
   // the already-computed attribution for the visualization.
   const [hideSpecialTokens, setHideSpecialTokens] = useState(true);
@@ -42,6 +44,10 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
   const [colorScaleMode, setColorScaleMode] = useState<"relative" | "absolute">("relative");
 
   if (!outputResult) return null; // todo: placeholder when no output is available
+
+  const getTutorialFocusClass = (target: TutorialFocusTarget) => (
+    tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
+  );
 
   // Dynamic Title
   let taskTitle = "Text Classification";
@@ -145,7 +151,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
           </div>
         </div>
 
-        <div className="bg-fill p-3">
+        <div className={`bg-fill p-3${getTutorialFocusClass("output-result")}`}>
 
           {/* --- CASE 1: IMAGE GENERATION --- */}
           {isImage && (
@@ -154,6 +160,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
               tokens={outputResult.tokens || []}
               heatmaps={Array.isArray(outputResult.scores) ? outputResult.scores : [outputResult.scores]}
               tutorialSelection={tutorialInteraction?.imageSelection}
+              tutorialFocusTarget={tutorialFocusTarget}
             />
           )}
 
@@ -168,6 +175,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
               hideTemplateTokens={hideTemplateTokens}
               colorScaleMode={colorScaleMode}
               tutorialSelection={tutorialInteraction?.textGenerationSelection}
+              tutorialFocusTarget={tutorialFocusTarget}
             />
           )}
 
@@ -185,7 +193,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
             <div className="flex flex-col gap-6">
 
               {/* Token Box */}
-              <div className="flex gap-2 flex-wrap p-5 bg-sunken rounded-lg border border-border">
+              <div className={`flex gap-2 flex-wrap p-5 bg-sunken rounded-lg border border-border${getTutorialFocusClass("output-classification-tokens")}`}>
                 {visibleClassTokens.map((entry, index) => {
                   const isTutorialToken = tutorialInteraction?.classificationTokenIndex === entry.rawIndex;
 
@@ -205,7 +213,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
               </div>
 
               {/* Label Box */}
-              <div className="font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border">
+              <div className={`font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border${getTutorialFocusClass("output-classification-label")}`}>
                 <div className="uppercase text-fg-faint text-sm tracking-wider">Predicted Class: </div>
 
                 <div className={predictedClassBadgeClass}>

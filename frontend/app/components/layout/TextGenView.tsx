@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { TutorialFocusTarget } from "../../lib/tutorialGuide";
 
 // --- HELPERS ---
 
@@ -59,6 +60,7 @@ interface TextGenViewProps {
   hideTemplateTokens?: boolean;
   colorScaleMode?: "relative" | "absolute";
   tutorialSelection?: TextGenerationTutorialSelection;
+  tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 export default function TextGenView({
@@ -70,6 +72,7 @@ export default function TextGenView({
   hideTemplateTokens = false,
   colorScaleMode = "relative",
   tutorialSelection,
+  tutorialFocusTarget,
 }: TextGenViewProps) {
   // Special and template categories overlap: a chat template's control tokens (e.g.
   // <|im_start|>) are flagged by BOTH masks. To give each toggle an independent, visible
@@ -91,6 +94,10 @@ export default function TextGenView({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const activeSelectedType = tutorialSelection?.selectedType ?? selectedType;
   const activeSelectedIndex = tutorialSelection?.selectedIndex ?? selectedIndex;
+
+  const getTutorialFocusClass = (target: TutorialFocusTarget) => (
+    tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
+  );
 
   // --- LOGIC: GET SCORES FOR DISPLAY ---
 
@@ -211,7 +218,7 @@ export default function TextGenView({
     <div className="flex flex-col w-full gap-4 select-none">
 
       {/* SECTION: INPUTS */}
-      <div>
+      <div className={getTutorialFocusClass("output-generation-input")}>
         <h4 className="text-fg-subtle text-xs font-bold uppercase mb-2">Input</h4>
         <div className="flex flex-wrap">
           {inputTokens.map((token, idx) => {
@@ -233,7 +240,7 @@ export default function TextGenView({
       <div className="border-t border-border w-full my-2"></div>
 
       {/* SECTION: OUTPUTS */}
-      <div>
+      <div className={getTutorialFocusClass("output-generation-output")}>
         <h4 className="text-fg-subtle text-xs font-bold uppercase mb-2">Output</h4>
         <div className="flex flex-wrap">
           {outputTokens.map((token, idx) => {

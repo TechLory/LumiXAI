@@ -290,7 +290,9 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     currentTutorialStep?.target === target ? " tutorial-highlight" : ""
   );
 
-
+  const getTutorialFocusClass = (focusTarget: string) => (
+    currentTutorialStep?.focusTarget === focusTarget ? " tutorial-inner-highlight" : ""
+  );
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-page text-fg">
@@ -322,6 +324,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                     job.status === 'failed' ? 'border-danger-line border-2' :
                       'border-ok-line hover:border-ok border-2 cursor-pointer'
                   }
+                  ${job.tutorial_kind === activeTutorial ? getTutorialFocusClass("history-item") : ""}
                 `}>
                 <div className={`p-2 text-xs font-mono flex justify-between ${job.status === 'running'
                   ? 'bg-info-soft text-info animate-pulse'
@@ -543,6 +546,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   onLoadConfiguration={isTutorialActive ? handleTutorialLoadConfiguration : handleLoadConfiguration}
                   onResetConfiguration={handleResetConfiguration}
                   onUnloadConfiguration={handleUnloadConfiguration}
+                  tutorialFocusTarget={currentTutorialStep?.focusTarget}
                 />
               </div>
             ) : null}
@@ -579,6 +583,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                     isConfigReady={hasActiveConfiguration}
                     activeAttributorId={activeAttributorId}
                     activeWrapperName={inputWrapperName}
+                    tutorialFocusTarget={currentTutorialStep?.focusTarget}
                   />
                 </div>
               ) : null}
@@ -609,7 +614,11 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                 </div>
               ) : effectiveSystemState.status === 'success' && effectiveSystemState.data ? (
                 <div>
-                  <OutputPanel outputResult={inferenceState.data} tutorialInteraction={currentTutorialStep?.outputInteraction} />
+                  <OutputPanel
+                    outputResult={inferenceState.data}
+                    tutorialInteraction={currentTutorialStep?.outputInteraction}
+                    tutorialFocusTarget={currentTutorialStep?.focusTarget}
+                  />
                 </div>
               ) : null}
             </div>
