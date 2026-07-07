@@ -23,6 +23,7 @@ Moving beyond static heatmaps, this framework provides a **highly interactive, b
 ### Key Features
 * **Bidirectional Text Generation Analysis:** Click on any generated output token to see which input tokens influenced it, or click an input token to see its causal effect on future generated text.
 * **Interactive Pixel-Level Attribution:** Hover over high-resolution generated images to instantly inspect the textual attention (DAAM) driving specific spatial regions, directly mapping pixels back to prompt tokens.
+* **9 Attribution Methods:** Integrated Gradients, DeepLift, Saliency, Input x Gradient, GradientSHAP, Occlusion, and LIME (SLIC superpixels) run universally across text and image classification models; SmoothGrad and Grad-CAM are image-classification-only, plus DAAM for diffusion image generation.
 * **Plug-and-Play Architecture:** Built with a Registry Pattern, allowing researchers to seamlessly add new models or attribution algorithms.
 * **Hardware Auto-Detection:** Smart fallback routing across CUDA (NVIDIA), MPS (Apple Silicon), and CPU.
 
@@ -31,7 +32,8 @@ LumiXAI is designed with a dynamic routing heuristic that provides out-of-the-bo
 
 * **Standard Image Generation:** Stable Diffusion 1.5, 2.1, and SDXL 1.0 (defaults to 30 inference steps with CFG enabled).
 * **Fast/Distilled Image Generation:** SD-Turbo (1-step) and SDXL-Turbo (4-steps) with dynamic CFG disabling to prevent inference crashes.
-* **Text Classification:** BERT, DistilBERT, RoBERTa, and compatible transformer architectures.
+* **Image Classification:** ViT, ResNet, ConvNeXt, and compatible architectures, with attribution rendered against the model's own preprocessed (de-normalized) pixel tensor for pixel-perfect overlays.
+* **Text Classification:** BERT, DistilBERT, RoBERTa, and compatible transformer architectures, with normalized percentage confidence scores per token.
 * **Text Generation:** GPT-2 family and compatible autoregressive models.
 
 *(Note: Models requiring highly specific generative hyperparameters, such as LCMs or Stable Diffusion 3, are not officially supported out-of-the-box but can be easily integrated by extending the wrapper logic in `src/attributors/daam.py`).*
@@ -164,6 +166,18 @@ More demos coming soon...
 </details> -->
 
 
+
+---
+
+## Guided Tutorials
+From the welcome screen, LumiXAI offers four self-contained, interactive walkthroughs — no model loading or backend inference required, since each one replays a real, pre-computed result:
+
+* **Text Classification:** See which words drove a real sentiment prediction (CardiffNLP Twitter RoBERTa).
+* **Text Generation:** Trace a real reply back to the prompt that shaped it (Qwen3-0.6B).
+* **Text to Image:** Map prompt words onto the pixels they generated (SDXL).
+* **Image Classification:** See which pixels drove a real MNIST digit prediction (ViT), via a Grad-CAM overlay.
+
+Each tutorial walks step-by-step through the full workflow — choosing a source, model, and attributor, loading the configuration, providing input, and running attribution — then lets you interact with the resulting heatmap: click input tokens to see their forward influence, click output tokens/regions to trace them back, and find the run pinned in Job History.
 
 ---
 

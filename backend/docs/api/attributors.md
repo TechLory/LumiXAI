@@ -11,6 +11,24 @@ Captum's Integrated Gradients, DeepLift, Saliency, Input x Gradient, GradientSHA
       show_root_heading: false
       show_root_toc_entry: false
 
+## SmoothGrad
+
+SmoothGrad averages Saliency over multiple noisy copies of an input image (via Captum's `NoiseTunnel`), cleaning up the salt-and-pepper look of raw single-pass pixel gradients. It is image-classification-only and does not carry the universal text dispatch of the attributors above.
+
+::: src.attributors.captum_smoothgrad.CaptumSmoothGradAttributor
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+
+## Grad-CAM
+
+Grad-CAM (via Captum's `LayerGradCam`) attributes at a deep spatial feature map rather than raw pixel space, producing smoother, object-following heatmaps. The target layer is resolved generically at runtime, so it works for both CNNs and ViTs without per-model configuration. Like SmoothGrad, it is image-classification-only.
+
+::: src.attributors.captum_gradcam.CaptumGradCamAttributor
+    options:
+      show_root_heading: false
+      show_root_toc_entry: false
+
 ## Diffusion Attentive Attribution Maps (DAAM)
 
 DAAM is specialized for Text-to-Image diffusion models. It intercepts cross-attention maps during the denoising process, allowing the framework to attribute specific pixel regions to exact prompt tokens.
