@@ -13,6 +13,28 @@ from ..wrappers.hf_text_generation import HFTextGenerationWrapper
 DEFAULT_N_SAMPLES_CLASSIFICATION = 25
 DEFAULT_N_SAMPLES_GENERATION = 15
 
+
+class _DeviceAwareSGDLinearRegression(SGDLinearRegression):
+    """Captum's `Lime.attribute()` never forwards a `device` kwarg to the
+    surrogate's `.fit()` call, so `SGDLinearRegression`'s underlying
+    `nn.Linear` is always lazily built on the CPU (see
+    `LinearModel._construct_model_params`), regardless of where the
+    perturbation samples it's trained on live. On a GPU-hosted model those
+    samples are on `cuda`, so the first forward pass through the freshly
+    built CPU layer crashes with a device mismatch. Moving the module to the
+    target device right after it's constructed fixes this without needing to
+    fork Captum's training loop.
+    """
+
+    def __init__(self, device: str, **kwargs):
+        super().__init__(**kwargs)
+        self._target_device = device
+
+    def _construct_model_params(self, *args, **kwargs):
+        super()._construct_model_params(*args, **kwargs)
+        self.to(self._target_device)
+
+
 class CaptumLimeAttributor(BaseAttributor):
     """Universal Attributor utilizing Captum LIME.
 
@@ -82,7 +104,7 @@ class CaptumLimeAttributor(BaseAttributor):
 
         # Use captum's pure-PyTorch SGD linear surrogate instead of the sklearn-backed
         # default, avoiding a new heavyweight dependency for this one method.
-        lime = Lime(forward_func, interpretable_model=SGDLinearRegression())
+        lime = Lime(forward_func, interpretable_model=_DeviceAwareSGDLinearRegression(wrapper.device))
 
         if target_output is None:
             logits = wrapper.model(**inputs).logits
@@ -135,7 +157,7 @@ class CaptumLimeAttributor(BaseAttributor):
             outputs = wrapper.model(inputs_embeds=embeddings, position_ids=position_ids)
             return outputs.logits[:, -1, :]
 
-        lime = Lime(forward_func_adapter, interpretable_model=SGDLinearRegression())
+        lime = Lime(forward_func_adapter, interpretable_model=_DeviceAwareSGDLinearRegression(wrapper.device))
 
         for i, token_str in enumerate(gen_token_strs):
             target_token_id = gen_token_ids[i]
