@@ -1,49 +1,53 @@
 
 interface TokenExplainedProps {
   token: string;
+  // Drives the bar color/intensity (scaled for contrast).
   score: number;
+  // Share of total attribution, shown as the number in the bar (signed proportion).
+  percentage: number;
 }
 
-export default function TokenExplained({ token, score }: TokenExplainedProps) {
+/**
+ * Background color for a score bar: green for positive, red for negative,
+ * with opacity scaled by magnitude. Mirrors the text-generation view so both
+ * tasks read the same way.
+ */
+function getScoreColor(score: number) {
+  if (Math.abs(score) < 0.001) return "transparent";
+
+  const intensity = Math.min(Math.abs(score) * 2.5, 1);
+
+  if (score >= 0) {
+    return `rgba(34, 197, 94, ${intensity})`; // Green-500
+  } else {
+    return `rgba(239, 68, 68, ${intensity})`; // Red-500
+  }
+}
+
+function formatPercent(val: number) {
+  if (val === undefined || val === null) return "-%";
+  return (val * 100).toFixed(0) + "%";
+}
+
+export default function TokenExplained({ token, score, percentage }: TokenExplainedProps) {
 
   const parsed_token = token.replace('Ġ', ' ').replace('##', '');
 
-  const getColorClass = (s: number) => {
-    if (s > 0) {
-      if (s >= 0.9) return 'bg-green-950 text-white';
-      if (s >= 0.8) return 'bg-green-800 text-white';
-      if (s >= 0.7) return 'bg-green-700 text-white';
-      if (s >= 0.6) return 'bg-green-600 text-white';
-      if (s >= 0.5) return 'bg-green-500 text-white';
-      if (s >= 0.4) return 'bg-green-400 text-black';
-      if (s >= 0.3) return 'bg-green-300 text-black';
-      if (s >= 0.2) return 'bg-green-200 text-black';
-      if (s >= 0.1) return 'bg-green-100 text-black';
-      return 'bg-green-50 text-black';               
-    }
-    else if (s < 0) {
-      if (s <= -0.9) return 'bg-red-950 text-white';
-      if (s <= -0.8) return 'bg-red-800 text-white';
-      if (s <= -0.7) return 'bg-red-700 text-white';
-      if (s <= -0.6) return 'bg-red-600 text-white';
-      if (s <= -0.5) return 'bg-red-500 text-white';
-      if (s <= -0.4) return 'bg-red-400 text-black';
-      if (s <= -0.3) return 'bg-red-300 text-black';
-      if (s <= -0.2) return 'bg-red-200 text-black';
-      if (s <= -0.1) return 'bg-red-100 text-black';
-      return 'bg-red-50 text-black';                
-    }
-    return 'bg-white text-neutral-500';
-  };
-
-  const colorClass = getColorClass(score);
-
   return (
     <div
-      className={`inline-block p-1 px-2 rounded text-sm font-mono transition-colors ${colorClass}`}
-      title={`Score: ${score.toFixed(5)}`}
+      className="flex flex-col items-center justify-between min-w-12.5 min-h-12.5 border border-border bg-sunken rounded overflow-hidden"
+      title={`Importance: ${formatPercent(percentage)} of total`}
     >
-      {parsed_token}
+      <span className="text-sm font-mono font-bold text-fg px-2 py-1">
+        {parsed_token}
+      </span>
+
+      <div
+        className="w-full text-[10px] font-bold text-fg text-center py-0.5 border-t border-border transition-colors duration-300"
+        style={{ backgroundColor: getScoreColor(score) }}
+      >
+        {formatPercent(percentage)}
+      </div>
     </div>
   );
 }

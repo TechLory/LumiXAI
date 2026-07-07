@@ -79,6 +79,10 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
   // washed-out "everything sinks to [CLS]/[SEP]" look) when in relative mode.
   const classMaxAbs = visibleClassTokens.reduce((max, entry) => Math.max(max, Math.abs(entry.score)), 0);
   const classScale = colorScaleMode === "relative" && classMaxAbs > 0 ? 1 / classMaxAbs : 1;
+  // Displayed percentage is each token's share of the total attribution (|score| summed
+  // over visible tokens), so the numbers are a real proportion that sums to 100% and is
+  // independent of the color-scale toggle.
+  const classSumAbs = visibleClassTokens.reduce((sum, entry) => sum + Math.abs(entry.score), 0);
   const rawPredictedClassLabel =
     typeof outputResult.predicted_token === "string" ? outputResult.predicted_token.trim() : "";
   const fallbackClassLabel =
@@ -193,6 +197,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
                       <TokenExplained
                         token={entry.token}
                         score={entry.score * classScale}
+                        percentage={classSumAbs > 0 ? entry.score / classSumAbs : 0}
                       />
                     </div>
                   );
