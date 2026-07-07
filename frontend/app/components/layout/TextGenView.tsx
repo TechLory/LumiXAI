@@ -18,6 +18,16 @@ function getScoreColor(score: number) {
   }
 }
 
+// In "relative" mode, rescales `score` so the strongest value in `referenceScores`
+// reaches full color intensity -- different attributors normalize to the same unit
+// L2 norm but spread that norm very differently, so raw peaks aren't comparable
+// across methods. "absolute" mode passes the score through untouched.
+function scaleScore(score: number, referenceScores: number[], mode: "relative" | "absolute") {
+  if (mode === "absolute") return score;
+  const maxAbs = referenceScores.reduce((max, s) => Math.max(max, Math.abs(s)), 0);
+  return maxAbs > 0 ? score / maxAbs : score;
+}
+
 function formatPercent(val: number) {
   if (val === undefined || val === null) return "-%";
   return (val * 100).toFixed(0) + "%";
@@ -47,6 +57,7 @@ interface TextGenViewProps {
   inputTemplateMask?: boolean[];
   hideSpecialTokens?: boolean;
   hideTemplateTokens?: boolean;
+  colorScaleMode?: "relative" | "absolute";
   tutorialSelection?: TextGenerationTutorialSelection;
 }
 
@@ -57,6 +68,7 @@ export default function TextGenView({
   inputTemplateMask,
   hideSpecialTokens = false,
   hideTemplateTokens = false,
+  colorScaleMode = "relative",
   tutorialSelection,
 }: TextGenViewProps) {
   // Special and template categories overlap: a chat template's control tokens (e.g.
@@ -102,7 +114,8 @@ export default function TextGenView({
         const targetStep = trace[activeSelectedIndex];
         const ctxIdx = inputTokens.length + outIdx;
         const attrScore = targetStep.attribution_scores[ctxIdx] || 0;
-        return { score: attrScore, color: getScoreColor(attrScore), label: "ATTR" };
+        const scaled = scaleScore(attrScore, targetStep.attribution_scores, colorScaleMode);
+        return { score: attrScore, color: getScoreColor(scaled), label: "ATTR" };
       }
       // This output is in the future of the selected output (ignore)
       return { score: 0, color: "transparent", label: "-" };
@@ -111,7 +124,9 @@ export default function TextGenView({
     // Case C: Input is selected -> Show how much it influenced this output
     if (activeSelectedType === "input" && activeSelectedIndex !== null) {
       const attrScore = step.attribution_scores[activeSelectedIndex] || 0;
-      return { score: attrScore, color: getScoreColor(attrScore), label: "INFL" };
+      const columnScores = trace.map((s) => s.attribution_scores[activeSelectedIndex] || 0);
+      const scaled = scaleScore(attrScore, columnScores, colorScaleMode);
+      return { score: attrScore, color: getScoreColor(scaled), label: "INFL" };
     }
 
     // Default: No selection -> Show model confidence with low opacity
@@ -130,7 +145,8 @@ export default function TextGenView({
     if (activeSelectedType === "output" && activeSelectedIndex !== null) {
       const targetStep = trace[activeSelectedIndex];
       const attrScore = targetStep.attribution_scores[inIdx] || 0;
-      return { score: attrScore, color: getScoreColor(attrScore), label: "ATTR" };
+      const scaled = scaleScore(attrScore, targetStep.attribution_scores, colorScaleMode);
+      return { score: attrScore, color: getScoreColor(scaled), label: "ATTR" };
     }
     return { score: 0, color: "transparent", label: "-" };
   };

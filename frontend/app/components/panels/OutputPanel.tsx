@@ -25,9 +25,16 @@ interface OutputPanelProps {
 
 export default function OutputPanel({ outputResult, tutorialInteraction }: OutputPanelProps) {
   // Pure display preferences: hiding tokens does NOT re-run the job, it only filters
-  // (and rescales) the already-computed attribution for the visualization.
+  // the already-computed attribution for the visualization.
   const [hideSpecialTokens, setHideSpecialTokens] = useState(true);
   const [hideTemplateTokens, setHideTemplateTokens] = useState(true);
+  // Different attributors normalize to the same unit L2 norm but spread that "energy"
+  // very differently (a peaked LIME vector vs. a diffuse DeepLift one), so their peak
+  // values aren't comparable. "relative" rescales so the strongest visible token always
+  // reaches full color intensity (comparable within a run, not across runs); "absolute"
+  // renders the normalized score as-is (comparable across runs of the same attributor,
+  // but can look washed out for methods that spread attribution across many tokens).
+  const [colorScaleMode, setColorScaleMode] = useState<"relative" | "absolute">("relative");
 
   if (!outputResult) return null; // todo: placeholder when no output is available
 
@@ -62,9 +69,9 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
     .filter((entry) => !(hideSpecialTokens && entry.isSpecial));
 
   // Rescale so the strongest visible token reaches full color intensity (prevents the
-  // washed-out "everything sinks to [CLS]/[SEP]" look). Only applied while hiding.
+  // washed-out "everything sinks to [CLS]/[SEP]" look) when in relative mode.
   const classMaxAbs = visibleClassTokens.reduce((max, entry) => Math.max(max, Math.abs(entry.score)), 0);
-  const classScale = hideSpecialTokens && classMaxAbs > 0 ? 1 / classMaxAbs : 1;
+  const classScale = colorScaleMode === "relative" && classMaxAbs > 0 ? 1 / classMaxAbs : 1;
   const rawPredictedClassLabel =
     typeof outputResult.predicted_token === "string" ? outputResult.predicted_token.trim() : "";
   const fallbackClassLabel =
@@ -113,6 +120,17 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
                 {hideTemplateTokens ? "Template tokens hidden" : "Template tokens shown"}
               </button>
             )}
+            {(isClassification || isTextGeneration) && (
+              <button
+                type="button"
+                onClick={() => setColorScaleMode((prev) => (prev === "relative" ? "absolute" : "relative"))}
+                title="Relative: strongest token always shows full color intensity (comparable within this run). Absolute: raw normalized score (comparable across attributors/runs, may look faint)."
+                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <i className={`bx ${colorScaleMode === "relative" ? "bx-trending-up" : "bx-line-chart"} text-base`}></i>
+                {colorScaleMode === "relative" ? "Color scale: relative" : "Color scale: absolute"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -137,6 +155,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction }: Outpu
               inputTemplateMask={outputResult.input_template_mask}
               hideSpecialTokens={hideSpecialTokens}
               hideTemplateTokens={hideTemplateTokens}
+              colorScaleMode={colorScaleMode}
               tutorialSelection={tutorialInteraction?.textGenerationSelection}
             />
           )}
