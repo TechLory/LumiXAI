@@ -290,6 +290,7 @@ class ExplainRequest(BaseModel):
     target_class: Optional[int] = None
     ignore_special_tokens: bool = True
     seed: Optional[int] = None
+    max_new_tokens: Optional[int] = None
     disable_thinking: bool = False
     # DAAM image-generation overrides. When None the attributor keeps its own
     # defaults. negative_prompt == "" explicitly disables the negative prompt.
@@ -314,7 +315,7 @@ app.add_middleware(
 )
 
 # --- 5. BACKGROUND ---
-def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True, seed: Optional[int] = None, guidance_scale: Optional[float] = None, negative_prompt: Optional[str] = None, disable_thinking: bool = False):
+def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ignore_special_tokens: bool = True, seed: Optional[int] = None, guidance_scale: Optional[float] = None, negative_prompt: Optional[str] = None, disable_thinking: bool = False, max_new_tokens: Optional[int] = None):
     """Executes the XAI attribution logic asynchronously.
 
     This function runs in a separate thread. It acquires the global `gpu_lock` to ensure
@@ -331,6 +332,8 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
             attributors that involve stochastic generation (e.g. DAAM). Ignored otherwise.
         disable_thinking (bool, optional): Requests non-thinking mode for supported
             text-generation chat templates. Ignored by non-text-generation tasks.
+        max_new_tokens (Optional[int], optional): Text-generation token budget. If None,
+            the wrapper uses the configured backend default.
     """
     with gpu_lock:
         # Start the clock only after acquiring the GPU lock, so execution_time_sec
@@ -351,7 +354,8 @@ def run_explanation_task(job_id: str, text: str, target_class: Optional[int], ig
                 seed=seed,
                 guidance_scale=guidance_scale,
                 negative_prompt=negative_prompt,
-                disable_thinking=disable_thinking
+                disable_thinking=disable_thinking,
+                max_new_tokens=max_new_tokens
             )
             predicted_word = None
 
@@ -586,9 +590,12 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
     active_attributor_id = app_state.get("active_attributor_id")
     attributor_name = AVAILABLE_ATTRIBUTORS.get(active_attributor_id, {}).get("name", "Unknown")
 
+    if req.max_new_tokens is not None and req.max_new_tokens <= 0:
+        raise HTTPException(400, "max_new_tokens must be a positive integer.")
+
     job_id = create_job(req.text, source_name, model_name, attributor_name)
     
-    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed, req.guidance_scale, req.negative_prompt, req.disable_thinking)
+    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed, req.guidance_scale, req.negative_prompt, req.disable_thinking, req.max_new_tokens)
     
     return {"job_id": job_id, "status": "running"}
 

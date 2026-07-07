@@ -30,7 +30,8 @@ class CaptumInputXGradientAttributor(BaseAttributor):
         """
         if isinstance(self.wrapper, HFTextGenerationWrapper):
             disable_thinking = bool(kwargs.get("disable_thinking", False))
-            return self._attribute_generative(input_data, disable_thinking)
+            max_new_tokens = kwargs.get("max_new_tokens", None)
+            return self._attribute_generative(input_data, disable_thinking, max_new_tokens)
         else:
             return self._attribute_classification(input_data, target_output)
 
@@ -73,7 +74,7 @@ class CaptumInputXGradientAttributor(BaseAttributor):
     # =========================================================
     # 2. GENERATION (Autoregressive Input x Gradient)
     # =========================================================
-    def _attribute_generative(self, prompt: str, disable_thinking: bool = False) -> AttributionOutput:
+    def _attribute_generative(self, prompt: str, disable_thinking: bool = False, max_new_tokens: Optional[int] = None) -> AttributionOutput:
         """Performs step-by-step Input x Gradient for autoregressive text generation.
 
         Args:
@@ -85,7 +86,7 @@ class CaptumInputXGradientAttributor(BaseAttributor):
         wrapper = self.wrapper
         print(f"Captum InputXGradient: Analyzing '{prompt}' on {wrapper.device}")
 
-        full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt, disable_thinking=disable_thinking) # pyright: ignore[reportAttributeAccessIssue]
+        full_text, gen_token_ids, gen_token_strs, gen_probs = wrapper.generate_text(prompt, max_new_tokens=max_new_tokens, disable_thinking=disable_thinking) # pyright: ignore[reportAttributeAccessIssue]
 
         inputs = wrapper.tokenize_generation_prompt(prompt, disable_thinking=disable_thinking) # pyright: ignore[reportAttributeAccessIssue]
         current_input_ids = inputs["input_ids"]

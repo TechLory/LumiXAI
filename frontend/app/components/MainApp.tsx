@@ -65,6 +65,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const {
     inputText, setInputText,
     seed, setSeed,
+    maxNewTokens, setMaxNewTokens,
     inferenceState, handleExplain, loadPastJob, resetInferenceState, handleDeletedJob
   } = useInference();
 
@@ -544,6 +545,8 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                     setInputText={setInputText}
                     seed={seed}
                     setSeed={setSeed}
+                    maxNewTokens={maxNewTokens}
+                    setMaxNewTokens={setMaxNewTokens}
                     onExplainClick={isTutorialActive ? handleTutorialExplain : handleExplain}
                     inferenceStatus={inferenceState.status}
                     isConfigReady={hasActiveConfiguration}

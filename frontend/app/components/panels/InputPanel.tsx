@@ -5,6 +5,8 @@ interface InputPanelProps {
   setInputText: (text: string) => void;
   seed: string;
   setSeed: (seed: string) => void;
+  maxNewTokens: string;
+  setMaxNewTokens: (maxNewTokens: string) => void;
   onExplainClick: (ignoreSpecialTokens: boolean, disableThinking: boolean) => void;
   inferenceStatus?: 'idle' | 'running' | 'success' | 'error' | string;
   isConfigReady: boolean;
@@ -30,6 +32,10 @@ export default function InputPanel(props: InputPanelProps) {
 
   const randomizeSeed = () => {
     props.setSeed(String(Math.floor(Math.random() * 2 ** 31)));
+  };
+
+  const handleMaxNewTokensChange = (value: string) => {
+    props.setMaxNewTokens(value.replace(/[^0-9]/g, "").replace(/^0+/, ""));
   };
 
   return (
@@ -79,6 +85,33 @@ export default function InputPanel(props: InputPanelProps) {
             >
               {isThinkingDisabled ? "Enable" : "Disable"} Thinking
             </button>
+          </div>
+        )}
+
+        {/* MAX NEW TOKENS (only meaningful for text generation) */}
+        {showDisableThinkingToggle && (
+          <div className="mt-2 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>{"// Max new tokens "}<span className="text-warn">{props.maxNewTokens.trim() === "" ? "(default)" : props.maxNewTokens}</span></div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={props.maxNewTokens}
+                onChange={(e) => handleMaxNewTokensChange(e.target.value)}
+                disabled={isRunning}
+                placeholder="default"
+                className="w-28 bg-sunken text-fg text-right px-2 py-1 outline-none border border-border focus:border-border-strong disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => props.setMaxNewTokens("")}
+                disabled={isRunning || props.maxNewTokens.trim() === ""}
+                title="Use backend default"
+                className="underline underline-offset-4 cursor-pointer hover:text-fg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         )}
 
