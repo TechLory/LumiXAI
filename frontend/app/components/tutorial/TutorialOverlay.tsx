@@ -27,12 +27,15 @@ export default function TutorialOverlay({
   onClose,
 }: TutorialOverlayProps) {
   const isLastStep = stepIndex === stepCount - 1;
+  // The output panel sits in the right half of the main content area, so the
+  // card would otherwise sit on top of it during "output" steps.
+  const placementClass = step.target === "output" ? "bottom-5 left-5" : "bottom-5 right-5";
 
   return (
     <>
       <div className="tutorial-scrim" aria-hidden="true" />
       <section
-        className="tutorial-card fixed bottom-5 right-5 z-[70] w-[min(430px,calc(100vw-2.5rem))] border-2 border-info-line bg-surface p-4 font-mono text-fg shadow-[8px_8px_0_var(--border-strong)]"
+        className={`tutorial-card fixed ${placementClass} z-[70] w-[min(430px,calc(100vw-2.5rem))] border-2 border-info-line bg-surface p-4 font-mono text-fg shadow-[8px_8px_0_var(--border-strong)]`}
         aria-live="polite"
       >
         <div className="mb-3 flex items-start justify-between gap-4">
