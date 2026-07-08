@@ -16,7 +16,7 @@ import { useJobsHistory } from "../hooks/useJobsHistory";
 import { getTutorialExampleForKind, loadTutorialExamplePayload } from "../lib/tutorialExamples";
 import { getTutorialSteps } from "../lib/tutorialGuide";
 import { guessWrapperFromTask } from "../lib/taskToWrapper";
-import type { OutputResult, ResultExportContext } from "./panels/OutputPanel";
+import type { OutputResult } from "./panels/OutputPanel";
 import type { ResultMetadata, TutorialKind } from "../types";
 
 type MainAppProps = {
@@ -204,24 +204,6 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   const inputWrapperName = hasActiveConfiguration
     ? guessWrapperFromTask(lastLoadedConfiguration?.detectedTask)
     : detectedWrapperName;
-  const exportSourceId = lastLoadedConfiguration?.source ?? selectedSource;
-  const exportSourceName = exportSourceId
-    ? effectiveSystemState.data?.sources.find(source => source.id === exportSourceId)?.name ?? exportSourceId
-    : null;
-  const exportAttributorId = lastLoadedConfiguration?.attributor ?? selectedAttributor;
-  const exportContext: ResultExportContext = {
-    inputText,
-    inputImageBase64,
-    inputImageFileName: inputImageFileName ?? (inferenceState.data?.input_image ? inputText : null),
-    sourceName: exportSourceName,
-    sourceId: exportSourceId,
-    modelName: resultMetadata?.modelName ?? reviewedJob?.modelName ?? lastLoadedConfiguration?.modelName ?? modelName,
-    attributorName: resultMetadata?.attributorName ?? reviewedJob?.attributorName ?? getAttributorName(exportAttributorId),
-    detectedTask: lastLoadedConfiguration?.detectedTask ?? detectedTask,
-    wrapperName: inputWrapperName,
-    seed,
-    maxNewTokens,
-  };
   const configReady = effectiveSystemState.status === 'success';
   const isReviewingPastJob = !hasActiveConfiguration && !!reviewedJob;
   const configCollapsible = configReady && (hasActiveConfiguration || isReviewingPastJob);
@@ -645,7 +627,6 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                 <div className="min-w-0">
                   <OutputPanel
                     outputResult={inferenceState.data}
-                    exportContext={exportContext}
                     tutorialInteraction={currentTutorialStep?.outputInteraction}
                     tutorialFocusTarget={currentTutorialStep?.focusTarget}
                   />
