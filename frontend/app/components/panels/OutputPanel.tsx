@@ -417,30 +417,24 @@ function escapeXml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-function getCssVarValue(style: CSSStyleDeclaration, name: string, fallback: string) {
-  return style.getPropertyValue(name).trim() || fallback;
-}
-
 function getExportColors(): ExportColors {
-  const style = getComputedStyle(document.documentElement);
-
   return {
-    surface: getCssVarValue(style, "--surface", "#ffffff"),
-    fill: getCssVarValue(style, "--fill", "#f1f2f4"),
-    sunken: getCssVarValue(style, "--sunken", "#f5f5f5"),
-    border: getCssVarValue(style, "--border", "#e5e5e5"),
-    borderStrong: getCssVarValue(style, "--border-strong", "#d4d4d4"),
-    fg: getCssVarValue(style, "--fg", "#171717"),
-    fgMuted: getCssVarValue(style, "--fg-muted", "#404040"),
-    fgSubtle: getCssVarValue(style, "--fg-subtle", "#525252"),
-    fgFaint: getCssVarValue(style, "--fg-faint", "#a3a3a3"),
-    info: getCssVarValue(style, "--info", "#2563eb"),
-    infoSoft: getCssVarValue(style, "--info-soft", "rgba(59, 130, 246, 0.1)"),
-    ok: getCssVarValue(style, "--ok", "#059669"),
-    okSoft: getCssVarValue(style, "--ok-soft", "rgba(16, 185, 129, 0.12)"),
-    danger: getCssVarValue(style, "--danger", "#dc2626"),
-    dangerSoft: getCssVarValue(style, "--danger-soft", "rgba(239, 68, 68, 0.1)"),
-    accent: getCssVarValue(style, "--accent", "#9333ea"),
+    surface: "#ffffff",
+    fill: "#ffffff",
+    sunken: "#f8fafc",
+    border: "#cbd5e1",
+    borderStrong: "#64748b",
+    fg: "#111827",
+    fgMuted: "#374151",
+    fgSubtle: "#4b5563",
+    fgFaint: "#6b7280",
+    info: "#1d4ed8",
+    infoSoft: "#dbeafe",
+    ok: "#047857",
+    okSoft: "#d1fae5",
+    danger: "#b91c1c",
+    dangerSoft: "#fee2e2",
+    accent: "#7e22ce",
   };
 }
 
@@ -713,48 +707,14 @@ async function loadExportResources(outputResult: OutputResult, exportContext?: R
   return { inputImage, generatedImage, classificationImage };
 }
 
-function measureConfigHeight(ctx: CanvasRenderingContext2D, rows: Array<[string, string]>, width: number) {
-  if (rows.length === 0) return 0;
-  const columns = width >= 760 ? 2 : 1;
-  const columnWidth = (width - 32 - (columns - 1) * 16) / columns;
-  const rowsPerColumn = Math.ceil(rows.length / columns);
-  let maxHeight = 0;
-
-  for (let column = 0; column < columns; column += 1) {
-    let columnHeight = 0;
-    rows.slice(column * rowsPerColumn, (column + 1) * rowsPerColumn).forEach(([label, value]) => {
-      const labelWidth = Math.min(160, Math.max(72, label.length * 8 + 36));
-      const lines = wrapText(ctx, value, Math.max(120, columnWidth - labelWidth), 12, 400, "mono");
-      columnHeight += Math.max(24, lines.length * 18) + 4;
-    });
-    maxHeight = Math.max(maxHeight, columnHeight);
-  }
-
-  return maxHeight + 24;
+function buildFigureCaption(rows: Array<[string, string]>) {
+  return rows.map(([label, value]) => `${label}: ${value}`).join("; ");
 }
 
-function drawConfigRows(parts: SvgParts, ctx: CanvasRenderingContext2D, rows: Array<[string, string]>, x: number, y: number, width: number, colors: ExportColors) {
-  if (rows.length === 0) return 0;
-  const height = measureConfigHeight(ctx, rows, width);
-  const columns = width >= 760 ? 2 : 1;
-  const columnWidth = (width - 32 - (columns - 1) * 16) / columns;
-  const rowsPerColumn = Math.ceil(rows.length / columns);
-
-  svgRect(parts, x, y, width, height, colors.fill, colors.border);
-
-  for (let column = 0; column < columns; column += 1) {
-    const columnX = x + 16 + column * (columnWidth + 16);
-    let rowY = y + 12;
-
-    rows.slice(column * rowsPerColumn, (column + 1) * rowsPerColumn).forEach(([label, value]) => {
-      const labelWidth = Math.min(160, Math.max(72, label.length * 8 + 36));
-      svgText(parts, `// ${label}:`, columnX, rowY, colors.fgSubtle, 12, 700, "mono");
-      const valueHeight = drawWrappedText(parts, ctx, value, columnX + labelWidth, rowY, Math.max(120, columnWidth - labelWidth), colors.fg, 12, 400, "mono");
-      rowY += Math.max(24, valueHeight) + 4;
-    });
-  }
-
-  return height;
+function drawFigureCaption(parts: SvgParts, ctx: CanvasRenderingContext2D, caption: string, x: number, y: number, width: number, colors: ExportColors) {
+  if (!caption) return 0;
+  svgLine(parts, x, y, x + width, y, colors.border);
+  return drawWrappedText(parts, ctx, caption, x, y + 12, width, colors.fgMuted, 12, 400, "sans") + 16;
 }
 
 function measureInputSection(ctx: CanvasRenderingContext2D, width: number, resources: ExportResources, outputResult: OutputResult, exportContext?: ResultExportContext) {
@@ -771,7 +731,7 @@ function measureInputSection(ctx: CanvasRenderingContext2D, width: number, resou
 
 function drawInputSection(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, resources: ExportResources, outputResult: OutputResult, exportContext: ResultExportContext | undefined, colors: ExportColors) {
   svgRect(parts, x, y, width, height, colors.fill, colors.border);
-  svgText(parts, "Input", x + 16, y + 16, colors.fgSubtle, 14, 700, "mono");
+  svgText(parts, "(a) Input", x + 16, y + 16, colors.fg, 16, 700, "sans");
 
   const contentX = x + 16;
   const contentY = y + 52;
@@ -1052,14 +1012,14 @@ function measureOutputSection(ctx: CanvasRenderingContext2D, width: number, outp
 
 function drawOutputSection(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, outputResult: OutputResult, resources: ExportResources, taskTitle: string, hideSpecialTokens: boolean, hideTemplateTokens: boolean, colorScaleMode: ColorScaleMode, textSelection: TextGenerationSelection, imageSelection: ImageGenerationSelection, imageClassificationOverlayVisible: boolean, colors: ExportColors, tutorialInteraction?: TutorialOutputInteraction) {
   svgRect(parts, x, y, width, height, colors.fill, colors.border);
-  svgText(parts, "Output", x + 16, y + 16, colors.fgSubtle, 14, 700, "mono");
-  svgRect(parts, x + 16, y + 52, width - 32, 32, colors.sunken);
-  svgText(parts, `// Task: ${taskTitle}`, x + 28, y + 60, colors.fgSubtle, 12, 700, "mono");
+  svgText(parts, "(b) Attribution output", x + 16, y + 16, colors.fg, 16, 700, "sans");
+  svgLine(parts, x + 16, y + 56, x + width - 16, y + 56, colors.border);
+  svgText(parts, `Task: ${taskTitle}`, x + 16, y + 66, colors.fgSubtle, 12, 400, "sans");
   drawOutputVisualization(
     parts,
     ctx,
     x + 16,
-    y + 104,
+    y + 106,
     width - 32,
     outputResult,
     resources,
@@ -1104,9 +1064,9 @@ async function buildNativeExportSvg({
   const ctx = getMeasureContext();
   const colors = getExportColors();
   const resources = await loadExportResources(outputResult, exportContext);
-  const width = layout === "side-by-side" ? 1440 : 920;
-  const margin = 32;
-  const gap = 24;
+  const width = layout === "side-by-side" ? 1200 : 860;
+  const margin = 44;
+  const gap = 32;
   const contentWidth = width - margin * 2;
   const parts: SvgParts = [];
   let y = margin;
@@ -1118,13 +1078,6 @@ async function buildNativeExportSvg({
       hoveredCell: tutorialInteraction.imageSelection.hoveredCell ?? null,
     }
     : imageGenerationSelection;
-
-  svgRect(parts, 0, 0, width, 1, colors.surface);
-  svgText(parts, "// LumiXAI Export", margin, y, colors.fgFaint, 12, 700, "mono");
-  svgText(parts, "Input and Output Result", margin, y + 24, colors.fg, 22, 700, "sans");
-  svgText(parts, new Date().toLocaleString(), width - margin, y + 4, colors.fgFaint, 12, 700, "mono", "end");
-  y += 74;
-  svgLine(parts, margin, y - 16, width - margin, y - 16, colors.border);
 
   const configRows = includeConfig
     ? buildConfigRows(
@@ -1139,9 +1092,12 @@ async function buildNativeExportSvg({
       imageClassificationOverlayVisible
     )
     : [];
-  if (configRows.length > 0) {
-    y += drawConfigRows(parts, ctx, configRows, margin, y, contentWidth, colors) + gap;
-  }
+  const caption = buildFigureCaption(configRows);
+
+  svgRect(parts, 0, 0, width, 1, colors.surface);
+  svgText(parts, `${taskTitle} attribution`, width / 2, y, colors.fg, 22, 700, "sans", "middle");
+  y += 48;
+  svgLine(parts, margin, y - 10, width - margin, y - 10, colors.border);
 
   if (layout === "side-by-side") {
     const columnWidth = (contentWidth - gap) / 2;
@@ -1168,7 +1124,7 @@ async function buildNativeExportSvg({
       colors,
       tutorialInteraction
     );
-    y += sectionHeight + margin;
+    y += sectionHeight + 28;
   } else {
     const inputHeight = measureInputSection(ctx, contentWidth, resources, outputResult, exportContext);
     drawInputSection(parts, ctx, margin, y, contentWidth, inputHeight, resources, outputResult, exportContext, colors);
@@ -1193,8 +1149,14 @@ async function buildNativeExportSvg({
       colors,
       tutorialInteraction
     );
-    y += outputHeight + margin;
+    y += outputHeight + 28;
   }
+
+  if (caption) {
+    y += drawFigureCaption(parts, ctx, caption, margin, y, contentWidth, colors);
+  }
+
+  y += margin;
 
   const height = Math.ceil(y);
   const svgTextValue = [
