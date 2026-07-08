@@ -193,7 +193,7 @@ export default function TextGenView({
     <button
       onClick={onClick}
       className={`
-        flex flex-col items-center justify-between
+        flex max-w-full flex-col items-center justify-between overflow-hidden
         min-w-12.5 min-h-12.5 m-1
         border rounded transition-all duration-200
         ${isSelected
@@ -201,7 +201,7 @@ export default function TextGenView({
           : "border-border bg-sunken hover:border-border-strong"}
       `}
     >
-      <span className="text-sm font-mono font-bold text-fg px-2 py-1">
+      <span className="max-w-72 break-all px-2 py-1 text-center text-sm font-mono font-bold leading-snug text-fg">
         {word.replace("Ġ", "")}
       </span>
 
@@ -215,12 +215,12 @@ export default function TextGenView({
   );
 
   return (
-    <div className="flex flex-col w-full gap-4 select-none">
+    <div className="flex min-w-0 flex-col w-full gap-4 select-none">
 
       {/* SECTION: INPUTS */}
-      <div className={getTutorialFocusClass("output-generation-input")}>
+      <div className={`min-w-0${getTutorialFocusClass("output-generation-input")}`}>
         <h4 className="text-fg-subtle text-xs font-bold uppercase mb-2">Input</h4>
-        <div className="flex flex-wrap">
+        <div className="flex min-w-0 max-w-full flex-wrap">
           {inputTokens.map((token, idx) => {
             if (isInputHidden(idx)) return null;
             return (
@@ -240,9 +240,9 @@ export default function TextGenView({
       <div className="border-t border-border w-full my-2"></div>
 
       {/* SECTION: OUTPUTS */}
-      <div className={getTutorialFocusClass("output-generation-output")}>
+      <div className={`min-w-0${getTutorialFocusClass("output-generation-output")}`}>
         <h4 className="text-fg-subtle text-xs font-bold uppercase mb-2">Output</h4>
-        <div className="flex flex-wrap">
+        <div className="flex min-w-0 max-w-full flex-wrap">
           {outputTokens.map((token, idx) => {
             if (hideSpecialTokens && outputSpecialMask?.[idx]) return null;
             return (

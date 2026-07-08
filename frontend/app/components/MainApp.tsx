@@ -312,10 +312,10 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
         onSelectTutorial={onSelectTutorial}
       />
 
-      <div className="flex flex-1 overflow-hidden gap-2 min-h-0 w-full xl:w-10/12 m-auto"> {/* FIX WIDTH */}
+      <div className="flex flex-1 flex-col overflow-hidden gap-2 min-h-0 w-full max-w-[1800px] mx-auto px-2 lg:flex-row xl:px-4">
 
         {/* SIDE BAR */}
-        <aside className={`bg-surface p-6 w-[25%] shrink-0 overflow-y-auto${getTutorialTargetClass("history")}`}>
+        <aside className={`bg-surface p-4 w-full max-h-48 shrink-0 overflow-y-auto sm:p-6 lg:w-72 lg:max-h-none xl:w-[25%] xl:max-w-sm${getTutorialTargetClass("history")}`}>
           <div className="font-mono font-medium uppercase">Job History</div>
           <div className="mt-2 flex flex-col gap-2">
 
@@ -433,7 +433,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
         </aside>
 
         {/* RIGHT COLUMN */}
-        <main className="flex-1 overflow-y-auto flex flex-col gap-2">
+        <main className="flex-1 min-w-0 overflow-y-auto flex flex-col gap-2">
 
           {/* BLOCK 1: SYSTEM LOGS (collapses to a status badge once ready) */}
           <div className={`bg-surface p-6 font-mono font-medium shrink-0${getTutorialTargetClass("system")}`}>
@@ -562,11 +562,11 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
           </div>
 
 
-          {/* WORKSPACE: INPUT + OUTPUT side by side on wide screens, stacked below 2xl */}
-          <div className="flex flex-col 2xl:flex-row gap-2 2xl:items-start">
+          {/* WORKSPACE: INPUT + OUTPUT side by side only when there is enough room. */}
+          <div className="flex flex-col min-w-0 gap-2 min-[1800px]:flex-row min-[1800px]:items-start">
 
             {/* INPUT */}
-            <div className={`bg-surface p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2${getTutorialTargetClass("input")}`}>
+            <div className={`bg-surface p-4 min-h-60 relative flex-1 min-w-0 sm:p-6 min-[1800px]:basis-1/2${getTutorialTargetClass("input")}`}>
               <div className="font-mono font-medium uppercase">Input</div>
               {effectiveSystemState.status === 'running' ? (
                 <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
@@ -577,7 +577,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   FAILED
                 </div>
               ) : effectiveSystemState.status === 'success' && effectiveSystemState.data ? (
-                <div>
+                <div className="min-w-0">
                   <InputPanel
                     inputText={inputText}
                     setInputText={setInputText}
@@ -601,7 +601,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
             </div>
 
             {/* OUTPUT */}
-            <div className={`bg-surface p-6 min-h-60 relative flex-1 min-w-0 2xl:basis-1/2${getTutorialTargetClass("output")}`}>
+            <div className={`bg-surface p-4 min-h-60 relative flex-1 min-w-0 sm:p-6 min-[1800px]:basis-1/2${getTutorialTargetClass("output")}`}>
               <div className="font-mono font-medium uppercase">Output</div>
               {inferenceState.status === 'success' && resultMetadata && (
                 <div className="mt-3 grid gap-2 text-xs font-mono sm:grid-cols-2">
@@ -624,7 +624,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   FAILED
                 </div>
               ) : effectiveSystemState.status === 'success' && effectiveSystemState.data ? (
-                <div>
+                <div className="min-w-0">
                   <OutputPanel
                     outputResult={inferenceState.data}
                     tutorialInteraction={currentTutorialStep?.outputInteraction}

@@ -35,10 +35,10 @@ export default function TokenExplained({ token, score, percentage }: TokenExplai
 
   return (
     <div
-      className="flex flex-col items-center justify-between min-w-12.5 min-h-12.5 border border-border bg-sunken rounded overflow-hidden"
+      className="flex max-w-full flex-col items-center justify-between min-w-12.5 min-h-12.5 overflow-hidden border border-border bg-sunken rounded"
       title={`Importance: ${formatPercent(percentage)} of total`}
     >
-      <span className="text-sm font-mono font-bold text-fg px-2 py-1">
+      <span className="max-w-72 break-all px-2 py-1 text-center text-sm font-mono font-bold leading-snug text-fg">
         {parsed_token}
       </span>
 

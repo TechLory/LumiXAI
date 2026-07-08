@@ -62,7 +62,7 @@ export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectT
   };
 
   return (
-    <nav className="w-full bg-surface text-fg border-b border-border px-4 sm:px-10 py-3 mb-2 flex justify-between items-center font-mono font-semibold">
+    <nav className="w-full bg-surface text-fg border-b border-border px-4 sm:px-10 py-3 mb-2 flex flex-wrap justify-between items-center gap-3 font-mono font-semibold">
       {onOpenWelcome ? (
         <button
           type="button"
@@ -78,7 +78,7 @@ export default function Navbar({ activeTutorial = null, onOpenWelcome, onSelectT
         </Link>
       )}
 
-      <div className="flex gap-4 sm:gap-10 items-center text-sm sm:text-base">
+      <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 sm:gap-x-10 items-center text-sm sm:text-base">
         {onSelectTutorial && (
           <details ref={tutorialsRef} className="navbar-tutorials relative">
             <summary className="flex cursor-pointer items-center gap-1 hover:underline underline-offset-4 decoration-2">

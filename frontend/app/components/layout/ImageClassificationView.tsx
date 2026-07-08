@@ -65,9 +65,9 @@ export default function ImageClassificationView({ baseImage, heatmap, predictedL
   }, [heatmap]);
 
   return (
-    <div className="flex flex-col gap-6 w-full select-none">
+    <div className="flex min-w-0 flex-col gap-6 w-full select-none">
       <div className={`flex flex-col items-center bg-sunken p-4 rounded-lg border border-border${getTutorialFocusClass("output-image")}`}>
-        <div className="flex justify-between w-full max-w-lg mb-4">
+        <div className="flex w-full max-w-lg flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-fg-subtle text-sm uppercase font-bold">Input Image</h3>
           <button
             type="button"
@@ -95,7 +95,7 @@ export default function ImageClassificationView({ baseImage, heatmap, predictedL
       </div>
 
       {/* Label Box */}
-      <div className={`font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border${getTutorialFocusClass("output-classification-label")}`}>
+      <div className={`font-mono text-lg flex flex-col gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border text-center sm:flex-row${getTutorialFocusClass("output-classification-label")}`}>
         <div className="uppercase text-fg-faint text-sm tracking-wider">Predicted Class: </div>
         <div className="font-bold text-info bg-info-soft px-3 py-1 rounded">
           {predictedLabel.toUpperCase()}

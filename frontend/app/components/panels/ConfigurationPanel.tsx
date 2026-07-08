@@ -48,9 +48,9 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
     const focusClass = getTutorialFocusClass(focusTargetByField[fieldId]);
 
     if (errorField === fieldId) {
-      return `bg-danger-soft flex items-center${focusClass}`;
+      return `bg-danger-soft flex flex-col items-stretch sm:flex-row sm:items-center${focusClass}`;
     }
-    return `bg-fill flex items-center${focusClass}`;
+    return `bg-fill flex flex-col items-stretch sm:flex-row sm:items-center${focusClass}`;
   };
 
   const getLabelText = (fieldId: 'source' | 'model' | 'attributor', defaultText: string) => {
@@ -61,17 +61,17 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
   };
 
   return (
-    <div className="mt-5">
-      <div className="flex flex-col gap-1.5">
+    <div className="mt-5 min-w-0">
+      <div className="flex min-w-0 flex-col gap-1.5">
 
         {/* 1: MODEL SOURCE */}
         <div className={getRowClasses('source')}>
           {/* SX Label */}
-          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'source' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
+          <div className={`flex-1 min-w-0 p-2 text-xs my-2 font-mono font-medium ${errorField === 'source' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
             {getLabelText('source', 'select a source')}
           </div>
           {/* DX Input */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <select
               className="w-full text-sm font-mono font-medium bg-transparent text-fg outline-none p-2 disabled:opacity-50"
               value={props.selectedSource}
@@ -89,11 +89,11 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
         {/* 2: MODEL NAME */}
         <div className={getRowClasses('model')}>
           {/* SX Label */}
-          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'model' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
+          <div className={`flex-1 min-w-0 p-2 text-xs my-2 font-mono font-medium ${errorField === 'model' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
             {getLabelText('model', 'select a model')}
           </div>
           {/* DX Input */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <ModelSelector
               currentSource={props.selectedSource}
               currentModel={props.modelName}
@@ -113,11 +113,11 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
         {/* 3: ATTRIBUTOR */}
         <div className={getRowClasses('attributor')}>
           {/* SX Label */}
-          <div className={`flex-1 p-2 text-xs my-2 font-mono font-medium ${errorField === 'attributor' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
+          <div className={`flex-1 min-w-0 p-2 text-xs my-2 font-mono font-medium ${errorField === 'attributor' ? 'text-danger' : 'text-fg-subtle uppercase'}`}>
             {getLabelText('attributor', 'select an attributor')}
           </div>
           {/* DX Input */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <select
               className="w-full text-sm font-mono font-medium bg-transparent text-fg outline-none p-2 disabled:opacity-50"
               value={props.selectedAttributor}
@@ -170,7 +170,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
               <><i className='bx bx-power-off text-lg'></i> Unload Configuration</>
             </button>
           ) : props.isDirty && props.hasResetTarget ? (
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 className="bg-ok-soft hover:bg-ok-hover border border-ok-line text-ok flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                 onClick={props.onLoadConfiguration}

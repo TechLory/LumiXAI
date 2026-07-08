@@ -72,9 +72,9 @@ export default function InputPanel(props: InputPanelProps) {
   };
 
   return (
-    <div className="mt-5">
+    <div className="mt-5 min-w-0">
 
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2">
 
         {isImageClassification ? (
           <>
@@ -140,10 +140,10 @@ export default function InputPanel(props: InputPanelProps) {
 
         {/* SPECIAL TOKENS TOGGLE */}
         {props.activeAttributorId === "daam" && (
-          <div className="mt-6 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex justify-between p-4 ">
-            <div>{"// DAAM will "}<span className="text-warn">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
+          <div className="mt-6 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 break-words">{"// DAAM will "}<span className="text-warn">{isSpecialTokensDisabled ? "ignore" : "consider"}</span> special tokens.</div>
             <button
-              className="underline underline-offset-4 cursor-pointer hover:text-fg transition-colors"
+              className="self-start underline underline-offset-4 cursor-pointer hover:text-fg transition-colors sm:self-auto"
               onClick={() => setIsSpecialTokensDisabled(!isSpecialTokensDisabled)}
             >
               {isSpecialTokensDisabled ? "Consider" : "Ignore"} Special Tokens
@@ -171,7 +171,7 @@ export default function InputPanel(props: InputPanelProps) {
         {showDisableThinkingToggle && (
           <div className="mt-2 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>{"// Max new tokens "}<span className="text-warn">{props.maxNewTokens.trim() === "" ? "(default)" : props.maxNewTokens}</span></div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 type="text"
                 inputMode="numeric"
@@ -196,14 +196,14 @@ export default function InputPanel(props: InputPanelProps) {
 
         {/* SEED PICKER (only meaningful for image generation) */}
         {props.activeAttributorId === "daam" && (
-          <div className="mt-2 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex items-center justify-between gap-3 p-4">
-            <div className="whitespace-nowrap">
+          <div className="mt-2 bg-fill text-fg-subtle font-mono text-xs font-medium uppercase flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 break-words">
               {"// Seed "}
               <span className="text-warn">
                 {props.seed.trim() === "" ? "(random)" : "(fixed)"}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 type="text"
                 inputMode="numeric"

@@ -87,9 +87,9 @@ export default function ModelSelector(props: ModelSelectorProps) {
   }, []);
 
   return (
-    <div className="relative w-full" ref={wrapperRef}>
+    <div className="relative w-full min-w-0" ref={wrapperRef}>
       
-      <div className="relative flex items-center">
+      <div className="relative flex min-w-0 items-center">
         <input
           disabled={props.currentSource === "" || props.disabled}
           type="text"
@@ -113,7 +113,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
               className="p-3 hover:bg-fill cursor-pointer border-b border-border last:border-b-0 transition-colors flex flex-col gap-1"
             >
               <div className="font-medium text-fg truncate">{model.id}</div>
-              <div className="flex justify-between text-xs text-fg-subtle">
+              <div className="flex flex-wrap justify-between gap-2 text-xs text-fg-subtle">
                 <span className="bg-fill px-2 py-0.5 text-fg-muted">
                   {model.task}
                 </span>

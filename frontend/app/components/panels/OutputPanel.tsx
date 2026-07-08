@@ -107,20 +107,20 @@ export default function OutputPanel({ outputResult, tutorialInteraction, tutoria
       : "font-bold text-info bg-info-soft px-3 py-1 rounded";
 
   return (
-    <div className="mt-5 mb-10">
-      <div className="flex flex-col gap-0">
+    <div className="mt-5 mb-10 min-w-0">
+      <div className="flex min-w-0 flex-col gap-0">
 
-        <div className="uppercase p-2 text-sm bg-fill text-fg-muted font-mono mb-2 flex justify-between items-center gap-4">
-          <div><span className="font-bold mr-5">// TASK:</span>{taskTitle}</div>
+        <div className="uppercase p-2 text-sm bg-fill text-fg-muted font-mono mb-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 break-words"><span className="font-bold mr-5">// TASK:</span>{taskTitle}</div>
 
           {/* DISPLAY TOGGLES (instant, no re-run) */}
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
             {showSpecialTokenToggle && (
               <button
                 type="button"
                 onClick={() => setHideSpecialTokens((prev) => !prev)}
                 title="Special tokens (e.g. [CLS], [SEP], BOS/EOS) are shown or hidden in the visualization only. This does not re-run the job."
-                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2"
+                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2 text-left"
               >
                 <i className={`bx ${hideSpecialTokens ? "bx-hide" : "bx-show"} text-base`}></i>
                 {hideSpecialTokens ? "Special tokens hidden" : "Special tokens shown"}
@@ -131,7 +131,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction, tutoria
                 type="button"
                 onClick={() => setHideTemplateTokens((prev) => !prev)}
                 title="Chat-template scaffolding (role markers, control tokens, formatting) is shown or hidden in the visualization only. This does not re-run the job."
-                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2"
+                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2 text-left"
               >
                 <i className={`bx ${hideTemplateTokens ? "bx-hide" : "bx-show"} text-base`}></i>
                 {hideTemplateTokens ? "Template tokens hidden" : "Template tokens shown"}
@@ -142,7 +142,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction, tutoria
                 type="button"
                 onClick={() => setColorScaleMode((prev) => (prev === "relative" ? "absolute" : "relative"))}
                 title="Relative: strongest token always shows full color intensity (comparable within this run). Absolute: raw normalized score (comparable across attributors/runs, may look faint)."
-                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2"
+                className="normal-case text-xs text-fg-subtle hover:text-fg transition-colors cursor-pointer flex items-center gap-2 text-left"
               >
                 <i className={`bx ${colorScaleMode === "relative" ? "bx-trending-up" : "bx-line-chart"} text-base`}></i>
                 {colorScaleMode === "relative" ? "Color scale: relative" : "Color scale: absolute"}
@@ -151,7 +151,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction, tutoria
           </div>
         </div>
 
-        <div className={`bg-fill p-3${getTutorialFocusClass("output-result")}`}>
+        <div className={`bg-fill p-3 min-w-0 overflow-x-auto${getTutorialFocusClass("output-result")}`}>
 
           {/* --- CASE 1: IMAGE GENERATION --- */}
           {isImage && (
@@ -214,7 +214,7 @@ export default function OutputPanel({ outputResult, tutorialInteraction, tutoria
               </div>
 
               {/* Label Box */}
-              <div className={`font-mono text-lg flex gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border${getTutorialFocusClass("output-classification-label")}`}>
+              <div className={`font-mono text-lg flex flex-col gap-3 items-center justify-center p-4 bg-sunken rounded-lg border border-border text-center sm:flex-row${getTutorialFocusClass("output-classification-label")}`}>
                 <div className="uppercase text-fg-faint text-sm tracking-wider">Predicted Class: </div>
 
                 <div className={predictedClassBadgeClass}>

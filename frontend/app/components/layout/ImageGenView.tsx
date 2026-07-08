@@ -153,15 +153,15 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
   const selectedLabel = selectedTokensForRender.map((i) => tokens[i]).filter(Boolean).join(" + ");
 
   return (
-    <div className="flex flex-col gap-8 w-full select-none">
+    <div className="flex min-w-0 flex-col gap-8 w-full select-none">
 
       {/* INTERACTIVE IMAGE */}
       <div className={`flex flex-col items-center bg-sunken p-4 rounded-lg border border-border${getTutorialFocusClass("output-image")}`}>
-        <div className="flex justify-between w-full max-w-lg mb-4">
+        <div className="flex w-full max-w-lg flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-fg-subtle text-sm uppercase font-bold">
             Generated Image
           </h3>
-          <span className="text-xs text-fg-faint italic">
+          <span className="text-xs text-fg-faint italic sm:text-right">
             {hasSelection
               ? `Heatmap: ${selectedLabel}${selectedTokensForRender.length > 1 ? " (aggregated)" : ""}`
               : hoveredCellForRender
@@ -203,16 +203,16 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
 
       {/* TOKEN INPUT */}
       <div className={`bg-sunken p-6 rounded-lg border border-border${getTutorialFocusClass("output-image-prompt")}`}>
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-fg-subtle text-sm uppercase font-bold">
             Input Prompt
             </h3>
-            <span className="text-xs text-fg-faint italic">
+            <span className="text-xs text-fg-faint italic sm:text-right">
             Click a token &middot; Shift / Ctrl / Cmd-click to aggregate multiple
             </span>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           {tokens.map((token, idx) => {
             let score = 0;
             let color = "transparent";
@@ -229,7 +229,7 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
                 key={idx}
                 onClick={(e) => handleTokenClick(e, idx)}
                 className={`
-                  flex flex-col items-center justify-between
+                  flex max-w-full flex-col items-center justify-between overflow-hidden
                   min-w-15 min-h-12.5
                   border rounded transition-all duration-150 cursor-pointer
                   ${isSelected
@@ -237,7 +237,7 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
                     : "border-border bg-sunken hover:border-border-strong"}
                 `}
               >
-                <span className="text-sm font-mono font-bold text-fg px-2 py-2">
+                <span className="max-w-72 break-all px-2 py-2 text-center text-sm font-mono font-bold leading-snug text-fg">
                   {token}
                 </span>
                 <div
