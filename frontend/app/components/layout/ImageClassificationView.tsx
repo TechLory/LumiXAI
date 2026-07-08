@@ -21,16 +21,27 @@ interface ImageClassificationViewProps {
   baseImage: string;
   heatmap: HeatmapData;
   predictedLabel: string;
+  showOverlay?: boolean;
+  onShowOverlayChange?: (showOverlay: boolean) => void;
   tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 const GRID = 64;
 
-export default function ImageClassificationView({ baseImage, heatmap, predictedLabel, tutorialFocusTarget }: ImageClassificationViewProps) {
+export default function ImageClassificationView({
+  baseImage,
+  heatmap,
+  predictedLabel,
+  showOverlay,
+  onShowOverlayChange,
+  tutorialFocusTarget
+}: ImageClassificationViewProps) {
   const getTutorialFocusClass = (target: TutorialFocusTarget) => (
     tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
   );
-  const [showOverlay, setShowOverlay] = useState(true);
+  const [internalShowOverlay, setInternalShowOverlay] = useState(true);
+  const isControlled = showOverlay !== undefined;
+  const activeShowOverlay = isControlled ? showOverlay : internalShowOverlay;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -71,10 +82,17 @@ export default function ImageClassificationView({ baseImage, heatmap, predictedL
           <h3 className="text-fg-subtle text-sm uppercase font-bold">Input Image</h3>
           <button
             type="button"
-            onClick={() => setShowOverlay((prev) => !prev)}
+            onClick={() => {
+              if (isControlled) {
+                onShowOverlayChange?.(!activeShowOverlay);
+                return;
+              }
+              setInternalShowOverlay((prev) => !prev);
+            }}
+            disabled={isControlled && !onShowOverlayChange}
             className="text-xs text-fg-faint italic underline underline-offset-4 hover:text-fg transition-colors cursor-pointer"
           >
-            {showOverlay ? "Hide" : "Show"} attribution overlay
+            {activeShowOverlay ? "Hide" : "Show"} attribution overlay
           </button>
         </div>
 
@@ -89,7 +107,7 @@ export default function ImageClassificationView({ baseImage, heatmap, predictedL
             width={GRID}
             height={GRID}
             className="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-200"
-            style={{ opacity: showOverlay ? 1 : 0 }}
+            style={{ opacity: activeShowOverlay ? 1 : 0 }}
           />
         </div>
       </div>

@@ -33,31 +33,45 @@ interface HeatmapData {
 
 export type ImageGenerationTutorialSelection = {
   selectedTokenIndices?: number[];
-  hoveredCell?: { x: number; y: number };
+  hoveredCell?: { x: number; y: number } | null;
+};
+
+export type ImageGenerationSelection = {
+  selectedTokenIndices: number[];
+  hoveredCell: { x: number; y: number } | null;
 };
 
 interface ImageGenViewProps {
   baseImage: string;
   tokens: string[];
   heatmaps: HeatmapData[];
-  tutorialSelection?: ImageGenerationTutorialSelection;
+  selection?: ImageGenerationSelection | ImageGenerationTutorialSelection | null;
+  onSelectionChange?: (selection: ImageGenerationSelection) => void;
   tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 const GRID = 64;
 const OVERLAY_ALPHA = 0.6;
 
-export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSelection, tutorialFocusTarget }: ImageGenViewProps) {
+export default function ImageGenView({ baseImage, tokens, heatmaps, selection, onSelectionChange, tutorialFocusTarget }: ImageGenViewProps) {
   // Token selection (multiple tokens => aggregated heatmap)
-  const [selectedTokens, setSelectedTokens] = useState<number[]>([]);
-  // Pixel hover
-  const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
+  const [internalSelection, setInternalSelection] = useState<ImageGenerationSelection>({
+    selectedTokenIndices: [],
+    hoveredCell: null,
+  });
 
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const selectedTokensForRender = tutorialSelection?.selectedTokenIndices ?? selectedTokens;
-  const hoveredCellForRender = tutorialSelection?.hoveredCell ?? hoveredCell;
+  const isControlled = selection !== undefined;
+  const activeSelection = isControlled
+    ? {
+      selectedTokenIndices: selection?.selectedTokenIndices ?? [],
+      hoveredCell: selection?.hoveredCell ?? null,
+    }
+    : internalSelection;
+  const selectedTokensForRender = activeSelection.selectedTokenIndices;
+  const hoveredCellForRender = activeSelection.hoveredCell;
   const hasSelection = selectedTokensForRender.length > 0;
 
   const getTutorialFocusClass = (target: TutorialFocusTarget) => (
@@ -108,13 +122,22 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
   }, [selectedTokensForRender, heatmaps]);
 
   // --- SELECTION ---
+  const updateSelection = (nextSelection: ImageGenerationSelection) => {
+    if (isControlled) {
+      onSelectionChange?.(nextSelection);
+      return;
+    }
+    setInternalSelection(nextSelection);
+  };
+
   const handleTokenClick = (e: React.MouseEvent, idx: number) => {
     // Ctrl/Cmd (and Shift, as a fallback since some Linux WMs grab the Super key)
     // add the token to the aggregate instead of replacing the selection.
     const additive = e.metaKey || e.ctrlKey || e.shiftKey;
-    if (tutorialSelection) return;
+    if (isControlled && !onSelectionChange) return;
 
-    setSelectedTokens((prev) => {
+    const nextSelectedTokens = (() => {
+      const prev = selectedTokensForRender;
       if (additive) {
         // Ctrl/Cmd-click toggles this token in/out of the aggregate.
         return prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx];
@@ -122,6 +145,11 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
       // Plain click selects only this token (or clears if it was the only one).
       if (prev.length === 1 && prev[0] === idx) return [];
       return [idx];
+    })();
+
+    updateSelection({
+      selectedTokenIndices: nextSelectedTokens,
+      hoveredCell: hoveredCellForRender,
     });
   };
 
@@ -139,15 +167,21 @@ export default function ImageGenView({ baseImage, tokens, heatmaps, tutorialSele
     const gridX = Math.floor(normX * GRID);
     const gridY = Math.floor(normY * GRID);
 
-    if (!tutorialSelection) {
-      setHoveredCell({ x: Math.min(gridX, GRID - 1), y: Math.min(gridY, GRID - 1) });
-    }
+    if (isControlled && !onSelectionChange) return;
+
+    updateSelection({
+      selectedTokenIndices: selectedTokensForRender,
+      hoveredCell: { x: Math.min(gridX, GRID - 1), y: Math.min(gridY, GRID - 1) },
+    });
   };
 
   const handleMouseLeaveImage = () => {
-    if (!tutorialSelection) {
-      setHoveredCell(null);
-    }
+    if (isControlled && !onSelectionChange) return;
+
+    updateSelection({
+      selectedTokenIndices: selectedTokensForRender,
+      hoveredCell: null,
+    });
   };
 
   const selectedLabel = selectedTokensForRender.map((i) => tokens[i]).filter(Boolean).join(" + ");

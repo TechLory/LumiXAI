@@ -48,6 +48,8 @@ export type TextGenerationTutorialSelection = {
   selectedIndex: number;
 };
 
+export type TextGenerationSelection = TextGenerationTutorialSelection | null;
+
 interface TextGenViewProps {
   trace: StepData[];
   // Optional tokenizer metadata (attribution values untouched). When `hideSpecialTokens`
@@ -59,7 +61,8 @@ interface TextGenViewProps {
   hideSpecialTokens?: boolean;
   hideTemplateTokens?: boolean;
   colorScaleMode?: "relative" | "absolute";
-  tutorialSelection?: TextGenerationTutorialSelection;
+  selection?: TextGenerationSelection;
+  onSelectionChange?: (selection: TextGenerationSelection) => void;
   tutorialFocusTarget?: TutorialFocusTarget;
 }
 
@@ -71,7 +74,8 @@ export default function TextGenView({
   hideSpecialTokens = false,
   hideTemplateTokens = false,
   colorScaleMode = "relative",
-  tutorialSelection,
+  selection,
+  onSelectionChange,
   tutorialFocusTarget,
 }: TextGenViewProps) {
   // Special and template categories overlap: a chat template's control tokens (e.g.
@@ -90,10 +94,11 @@ export default function TextGenView({
   const outputTokens = trace.map(t => t.generated_token);
 
   // --- STATE ---
-  const [selectedType, setSelectedType] = useState<"input" | "output" | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const activeSelectedType = tutorialSelection?.selectedType ?? selectedType;
-  const activeSelectedIndex = tutorialSelection?.selectedIndex ?? selectedIndex;
+  const [internalSelection, setInternalSelection] = useState<TextGenerationSelection>(null);
+  const isControlled = selection !== undefined;
+  const activeSelection = isControlled ? selection : internalSelection;
+  const activeSelectedType = activeSelection?.selectedType ?? null;
+  const activeSelectedIndex = activeSelection?.selectedIndex ?? null;
 
   const getTutorialFocusClass = (target: TutorialFocusTarget) => (
     tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
@@ -159,22 +164,30 @@ export default function TextGenView({
   };
 
   // --- 4. HANDLERS ---
-  const handleInputClick = (idx: number) => {
-    if (tutorialSelection) return;
+  const updateSelection = (nextSelection: TextGenerationSelection) => {
+    if (isControlled) {
+      onSelectionChange?.(nextSelection);
+      return;
+    }
+    setInternalSelection(nextSelection);
+  };
 
-    if (selectedType === "input" && selectedIndex === idx) {
-      setSelectedType(null); setSelectedIndex(null);
+  const handleInputClick = (idx: number) => {
+    if (isControlled && !onSelectionChange) return;
+
+    if (activeSelectedType === "input" && activeSelectedIndex === idx) {
+      updateSelection(null);
     } else {
-      setSelectedType("input"); setSelectedIndex(idx);
+      updateSelection({ selectedType: "input", selectedIndex: idx });
     }
   };
   const handleOutputClick = (idx: number) => {
-    if (tutorialSelection) return;
+    if (isControlled && !onSelectionChange) return;
 
-    if (selectedType === "output" && selectedIndex === idx) {
-      setSelectedType(null); setSelectedIndex(null);
+    if (activeSelectedType === "output" && activeSelectedIndex === idx) {
+      updateSelection(null);
     } else {
-      setSelectedType("output"); setSelectedIndex(idx);
+      updateSelection({ selectedType: "output", selectedIndex: idx });
     }
   };
 
