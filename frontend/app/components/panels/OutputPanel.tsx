@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import TokenExplained from "../layout/TokenExplained";
 import TextGenView, { type TextGenerationSelection } from "../layout/TextGenView";
 import ImageGenView, { type ImageGenerationSelection } from "../layout/ImageGenView";
@@ -115,17 +115,6 @@ function waitForNextFrame() {
   });
 }
 
-function waitForImages(node: HTMLElement) {
-  const images = Array.from(node.querySelectorAll("img"));
-  return Promise.all(images.map((image) => {
-    if (image.complete) return Promise.resolve();
-    return new Promise<void>((resolve) => {
-      image.onload = () => resolve();
-      image.onerror = () => resolve();
-    });
-  })).then(() => undefined);
-}
-
 function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
@@ -133,71 +122,6 @@ function loadImage(src: string) {
     image.onerror = () => reject(new Error("Failed to load export image."));
     image.src = src;
   });
-}
-
-function copyComputedStyles(source: Element, target: Element) {
-  const sourceStyle = window.getComputedStyle(source);
-  const targetElement = target as HTMLElement;
-
-  for (const property of sourceStyle) {
-    targetElement.style.setProperty(
-      property,
-      sourceStyle.getPropertyValue(property),
-      sourceStyle.getPropertyPriority(property)
-    );
-  }
-
-  const sourceChildren = Array.from(source.children);
-  const targetChildren = Array.from(target.children);
-
-  sourceChildren.forEach((sourceChild, index) => {
-    const targetChild = targetChildren[index];
-    if (targetChild) copyComputedStyles(sourceChild, targetChild);
-  });
-}
-
-function embedCanvasContents(source: HTMLElement, clone: HTMLElement) {
-  const sourceCanvases = Array.from(source.querySelectorAll("canvas"));
-  const cloneCanvases = Array.from(clone.querySelectorAll("canvas"));
-
-  sourceCanvases.forEach((sourceCanvas, index) => {
-    const cloneCanvas = cloneCanvases[index];
-    if (!cloneCanvas || !cloneCanvas.parentNode) return;
-
-    const image = document.createElement("img");
-    image.src = sourceCanvas.toDataURL("image/png");
-    image.alt = "";
-    image.style.cssText = cloneCanvas.style.cssText;
-    image.setAttribute("width", String(sourceCanvas.width));
-    image.setAttribute("height", String(sourceCanvas.height));
-
-    cloneCanvas.parentNode.replaceChild(image, cloneCanvas);
-  });
-}
-
-function buildExportSvg(node: HTMLElement, pixelRatio: number = 1) {
-  const width = Math.max(1, Math.ceil(node.scrollWidth || node.getBoundingClientRect().width));
-  const height = Math.max(1, Math.ceil(node.scrollHeight || node.getBoundingClientRect().height));
-  const clone = node.cloneNode(true) as HTMLElement;
-
-  copyComputedStyles(node, clone);
-  embedCanvasContents(node, clone);
-
-  clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-  clone.style.width = `${width}px`;
-  clone.style.minWidth = `${width}px`;
-  clone.style.maxWidth = `${width}px`;
-
-  const serialized = new XMLSerializer().serializeToString(clone);
-  const svgText = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}">`,
-    `<foreignObject width="${width}" height="${height}">`,
-    serialized,
-    "</foreignObject>",
-    "</svg>",
-  ].join("");
-
-  return { svgText, width, height };
 }
 
 async function exportSvgToDataUrl(
@@ -446,6 +370,843 @@ function buildConfigRows(
   return rows.filter(([, value]) => typeof value === "string" && value.trim().length > 0) as Array<[string, string]>;
 }
 
+interface ExportColors {
+  surface: string;
+  fill: string;
+  sunken: string;
+  border: string;
+  borderStrong: string;
+  fg: string;
+  fgMuted: string;
+  fgSubtle: string;
+  fgFaint: string;
+  info: string;
+  infoSoft: string;
+  ok: string;
+  okSoft: string;
+  danger: string;
+  dangerSoft: string;
+  accent: string;
+}
+
+interface LoadedExportImage {
+  src: string;
+  width: number;
+  height: number;
+}
+
+interface ExportResources {
+  inputImage: LoadedExportImage | null;
+  generatedImage: LoadedExportImage | null;
+  classificationImage: LoadedExportImage | null;
+}
+
+interface SvgLayout {
+  svgText: string;
+  width: number;
+  height: number;
+}
+
+type SvgParts = string[];
+
+function escapeXml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function getCssVarValue(style: CSSStyleDeclaration, name: string, fallback: string) {
+  return style.getPropertyValue(name).trim() || fallback;
+}
+
+function getExportColors(): ExportColors {
+  const style = getComputedStyle(document.documentElement);
+
+  return {
+    surface: getCssVarValue(style, "--surface", "#ffffff"),
+    fill: getCssVarValue(style, "--fill", "#f1f2f4"),
+    sunken: getCssVarValue(style, "--sunken", "#f5f5f5"),
+    border: getCssVarValue(style, "--border", "#e5e5e5"),
+    borderStrong: getCssVarValue(style, "--border-strong", "#d4d4d4"),
+    fg: getCssVarValue(style, "--fg", "#171717"),
+    fgMuted: getCssVarValue(style, "--fg-muted", "#404040"),
+    fgSubtle: getCssVarValue(style, "--fg-subtle", "#525252"),
+    fgFaint: getCssVarValue(style, "--fg-faint", "#a3a3a3"),
+    info: getCssVarValue(style, "--info", "#2563eb"),
+    infoSoft: getCssVarValue(style, "--info-soft", "rgba(59, 130, 246, 0.1)"),
+    ok: getCssVarValue(style, "--ok", "#059669"),
+    okSoft: getCssVarValue(style, "--ok-soft", "rgba(16, 185, 129, 0.12)"),
+    danger: getCssVarValue(style, "--danger", "#dc2626"),
+    dangerSoft: getCssVarValue(style, "--danger-soft", "rgba(239, 68, 68, 0.1)"),
+    accent: getCssVarValue(style, "--accent", "#9333ea"),
+  };
+}
+
+function svgRect(parts: SvgParts, x: number, y: number, width: number, height: number, fill: string, stroke?: string, strokeWidth: number = 1, radius: number = 0) {
+  parts.push(
+    `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="${escapeXml(fill)}"${stroke ? ` stroke="${escapeXml(stroke)}" stroke-width="${strokeWidth}"` : ""}/>`
+  );
+}
+
+function svgLine(parts: SvgParts, x1: number, y1: number, x2: number, y2: number, stroke: string) {
+  parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${escapeXml(stroke)}" stroke-width="1"/>`);
+}
+
+function svgImage(parts: SvgParts, href: string, x: number, y: number, width: number, height: number, opacity?: number) {
+  parts.push(
+    `<image href="${escapeXml(href)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none"${opacity !== undefined ? ` opacity="${opacity}"` : ""}/>`
+  );
+}
+
+function svgText(
+  parts: SvgParts,
+  text: string,
+  x: number,
+  y: number,
+  color: string,
+  size: number = 14,
+  weight: number | string = 400,
+  family: "mono" | "sans" = "mono",
+  anchor: "start" | "middle" | "end" = "start"
+) {
+  const fontFamily = family === "mono" ? "Courier New, monospace" : "Arial, Helvetica, sans-serif";
+  parts.push(
+    `<text x="${x}" y="${y + size}" fill="${escapeXml(color)}" font-family="${fontFamily}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}">${escapeXml(text)}</text>`
+  );
+}
+
+function getMeasureContext() {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create an export measurement canvas.");
+  return context;
+}
+
+function setFont(ctx: CanvasRenderingContext2D, size: number, weight: number | string = 400, family: "mono" | "sans" = "mono") {
+  const fontFamily = family === "mono" ? "Courier New, monospace" : "Arial, Helvetica, sans-serif";
+  ctx.font = `${weight} ${size}px ${fontFamily}`;
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, size: number = 14, weight: number | string = 400, family: "mono" | "sans" = "mono") {
+  setFont(ctx, size, weight, family);
+  const paragraphs = text.split(/\n/);
+  const lines: string[] = [];
+
+  paragraphs.forEach((paragraph) => {
+    const words = paragraph.trim() ? paragraph.split(/\s+/) : [""];
+    let line = "";
+
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width <= maxWidth) {
+        line = candidate;
+        return;
+      }
+
+      if (line) lines.push(line);
+      line = word;
+
+      while (ctx.measureText(line).width > maxWidth && line.length > 1) {
+        let cut = line.length - 1;
+        while (cut > 1 && ctx.measureText(line.slice(0, cut)).width > maxWidth) cut -= 1;
+        lines.push(line.slice(0, cut));
+        line = line.slice(cut);
+      }
+    });
+
+    lines.push(line);
+  });
+
+  return lines;
+}
+
+function drawWrappedText(parts: SvgParts, ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, color: string, size: number = 14, weight: number | string = 400, family: "mono" | "sans" = "mono") {
+  const lines = wrapText(ctx, text, maxWidth, size, weight, family);
+  const lineHeight = Math.ceil(size * 1.45);
+
+  lines.forEach((line, index) => {
+    svgText(parts, line, x, y + index * lineHeight, color, size, weight, family);
+  });
+
+  return lines.length * lineHeight;
+}
+
+function containSize(sourceWidth: number, sourceHeight: number, maxWidth: number, maxHeight: number) {
+  if (sourceWidth <= 0 || sourceHeight <= 0) return { width: maxWidth, height: maxHeight };
+  const scale = Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight, 1);
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
+  };
+}
+
+function getScoreColor(score: number) {
+  if (Math.abs(score) < 0.001) return "transparent";
+  const intensity = Math.min(Math.abs(score) * 2.5, 1);
+  return score >= 0
+    ? `rgba(34, 197, 94, ${intensity})`
+    : `rgba(239, 68, 68, ${intensity})`;
+}
+
+function getImageScoreColor(score: number) {
+  if (score < 0.01) return "transparent";
+  const intensity = Math.min(score * 2.5, 1);
+  return `rgba(34, 197, 94, ${intensity})`;
+}
+
+function formatPercent(val: number) {
+  if (val === undefined || val === null) return "-";
+  return `${(val * 100).toFixed(0)}%`;
+}
+
+function scaleScore(score: number, referenceScores: number[], mode: ColorScaleMode) {
+  if (mode === "absolute") return score;
+  const maxAbs = referenceScores.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
+  return maxAbs > 0 ? score / maxAbs : score;
+}
+
+function jet(t: number): [number, number, number] {
+  const clamp = (x: number) => Math.max(0, Math.min(1, x));
+  const r = clamp(1.5 - Math.abs(4 * t - 3));
+  const g = clamp(1.5 - Math.abs(4 * t - 2));
+  const b = clamp(1.5 - Math.abs(4 * t - 1));
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function createHeatmapDataUrl(matrix: number[][], alpha: number = 0.6) {
+  const height = matrix.length;
+  const width = matrix[0]?.length ?? 0;
+  if (!width || !height) return "";
+
+  const flat = matrix.flat();
+  const sorted = [...flat].sort((a, b) => a - b);
+  const pct = (q: number) =>
+    sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(q * (sorted.length - 1))))];
+  const vmin = pct(0.01);
+  const vmax = pct(0.99);
+  const denom = vmax - vmin || 1e-8;
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return "";
+
+  canvas.width = width;
+  canvas.height = height;
+  const image = context.createImageData(width, height);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      const value = Math.max(0, Math.min(1, (matrix[y][x] - vmin) / denom));
+      const [r, g, b] = jet(value);
+      image.data[index * 4] = r;
+      image.data[index * 4 + 1] = g;
+      image.data[index * 4 + 2] = b;
+      image.data[index * 4 + 3] = Math.round(alpha * 255);
+    }
+  }
+
+  context.putImageData(image, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+function aggregateHeatmaps(heatmaps: HeatmapData[], selectedTokenIndices: number[]) {
+  const valid = selectedTokenIndices
+    .map((index) => heatmaps[index]?.raw_matrix)
+    .filter((matrix): matrix is number[][] => Array.isArray(matrix));
+  if (valid.length === 0) return null;
+
+  const height = valid[0].length;
+  const width = valid[0][0]?.length ?? 0;
+  const aggregate = Array.from({ length: height }, () => new Array(width).fill(0));
+
+  valid.forEach((matrix) => {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        aggregate[y][x] += matrix[y]?.[x] ?? 0;
+      }
+    }
+  });
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      aggregate[y][x] /= valid.length;
+    }
+  }
+
+  return aggregate;
+}
+
+function tokenDisplayText(token: string) {
+  return token.replace("Ġ", " ").replace("##", "");
+}
+
+interface TokenBoxSpec {
+  text: string;
+  footer: string;
+  footerColor: string;
+  selected?: boolean;
+  selectedColor?: string;
+}
+
+function layoutTokenBoxes(ctx: CanvasRenderingContext2D, specs: TokenBoxSpec[], width: number) {
+  setFont(ctx, 14, 700, "mono");
+  const gap = 8;
+  const boxHeight = 52;
+  const boxes: Array<TokenBoxSpec & { x: number; y: number; width: number; height: number }> = [];
+  let x = 0;
+  let y = 0;
+  let rowHeight = boxHeight;
+
+  specs.forEach((spec) => {
+    const measuredWidth = Math.ceil(ctx.measureText(spec.text).width) + 20;
+    const boxWidth = Math.min(288, Math.max(52, measuredWidth));
+
+    if (x > 0 && x + boxWidth > width) {
+      x = 0;
+      y += rowHeight + gap;
+      rowHeight = boxHeight;
+    }
+
+    boxes.push({ ...spec, x, y, width: boxWidth, height: boxHeight });
+    x += boxWidth + gap;
+  });
+
+  return {
+    boxes,
+    height: boxes.length === 0 ? boxHeight : y + rowHeight,
+  };
+}
+
+function drawTokenBoxes(parts: SvgParts, boxes: Array<TokenBoxSpec & { x: number; y: number; width: number; height: number }>, baseX: number, baseY: number, colors: ExportColors) {
+  boxes.forEach((box) => {
+    const border = box.selected ? (box.selectedColor ?? colors.info) : colors.border;
+    svgRect(parts, baseX + box.x, baseY + box.y, box.width, box.height, colors.sunken, border, box.selected ? 2 : 1, 4);
+    svgText(parts, box.text, baseX + box.x + box.width / 2, baseY + box.y + 8, colors.fg, 13, 700, "mono", "middle");
+    svgRect(parts, baseX + box.x, baseY + box.y + box.height - 16, box.width, 16, box.footerColor, colors.border, 1, 0);
+    svgText(parts, box.footer, baseX + box.x + box.width / 2, baseY + box.y + box.height - 15, colors.fg, 10, 700, "mono", "middle");
+  });
+}
+
+async function loadExportImage(base64: string | null | undefined) {
+  if (!base64) return null;
+  const src = withImagePrefix(base64);
+  const image = await loadImage(src);
+  return {
+    src,
+    width: image.naturalWidth || image.width,
+    height: image.naturalHeight || image.height,
+  };
+}
+
+async function loadExportResources(outputResult: OutputResult, exportContext?: ResultExportContext): Promise<ExportResources> {
+  const inputImageBase64 = exportContext?.inputImageBase64 ?? outputResult.input_image ?? null;
+
+  const [inputImage, generatedImage, classificationImage] = await Promise.all([
+    loadExportImage(inputImageBase64).catch(() => null),
+    loadExportImage(outputResult.generated_image).catch(() => null),
+    loadExportImage(outputResult.input_image).catch(() => null),
+  ]);
+
+  return { inputImage, generatedImage, classificationImage };
+}
+
+function measureConfigHeight(ctx: CanvasRenderingContext2D, rows: Array<[string, string]>, width: number) {
+  if (rows.length === 0) return 0;
+  const columns = width >= 760 ? 2 : 1;
+  const columnWidth = (width - 32 - (columns - 1) * 16) / columns;
+  const rowsPerColumn = Math.ceil(rows.length / columns);
+  let maxHeight = 0;
+
+  for (let column = 0; column < columns; column += 1) {
+    let columnHeight = 0;
+    rows.slice(column * rowsPerColumn, (column + 1) * rowsPerColumn).forEach(([label, value]) => {
+      const labelWidth = Math.min(160, Math.max(72, label.length * 8 + 36));
+      const lines = wrapText(ctx, value, Math.max(120, columnWidth - labelWidth), 12, 400, "mono");
+      columnHeight += Math.max(24, lines.length * 18) + 4;
+    });
+    maxHeight = Math.max(maxHeight, columnHeight);
+  }
+
+  return maxHeight + 24;
+}
+
+function drawConfigRows(parts: SvgParts, ctx: CanvasRenderingContext2D, rows: Array<[string, string]>, x: number, y: number, width: number, colors: ExportColors) {
+  if (rows.length === 0) return 0;
+  const height = measureConfigHeight(ctx, rows, width);
+  const columns = width >= 760 ? 2 : 1;
+  const columnWidth = (width - 32 - (columns - 1) * 16) / columns;
+  const rowsPerColumn = Math.ceil(rows.length / columns);
+
+  svgRect(parts, x, y, width, height, colors.fill, colors.border);
+
+  for (let column = 0; column < columns; column += 1) {
+    const columnX = x + 16 + column * (columnWidth + 16);
+    let rowY = y + 12;
+
+    rows.slice(column * rowsPerColumn, (column + 1) * rowsPerColumn).forEach(([label, value]) => {
+      const labelWidth = Math.min(160, Math.max(72, label.length * 8 + 36));
+      svgText(parts, `// ${label}:`, columnX, rowY, colors.fgSubtle, 12, 700, "mono");
+      const valueHeight = drawWrappedText(parts, ctx, value, columnX + labelWidth, rowY, Math.max(120, columnWidth - labelWidth), colors.fg, 12, 400, "mono");
+      rowY += Math.max(24, valueHeight) + 4;
+    });
+  }
+
+  return height;
+}
+
+function measureInputSection(ctx: CanvasRenderingContext2D, width: number, resources: ExportResources, outputResult: OutputResult, exportContext?: ResultExportContext) {
+  const inputImage = resources.inputImage;
+  if (inputImage) {
+    const size = containSize(inputImage.width, inputImage.height, width - 64, 520);
+    return 74 + size.height + (exportContext?.inputImageFileName ? 24 : 0);
+  }
+
+  const text = exportContext?.inputText?.trim() || (outputResult.input_image ? "(image input)" : "(empty input)");
+  const lines = wrapText(ctx, text, width - 64, 14, 400, "mono");
+  return 76 + Math.max(192, lines.length * 21 + 32);
+}
+
+function drawInputSection(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, resources: ExportResources, outputResult: OutputResult, exportContext: ResultExportContext | undefined, colors: ExportColors) {
+  svgRect(parts, x, y, width, height, colors.fill, colors.border);
+  svgText(parts, "Input", x + 16, y + 16, colors.fgSubtle, 14, 700, "mono");
+
+  const contentX = x + 16;
+  const contentY = y + 52;
+  const contentWidth = width - 32;
+  const inputImage = resources.inputImage;
+
+  if (inputImage) {
+    const size = containSize(inputImage.width, inputImage.height, contentWidth - 32, 520);
+    const boxHeight = size.height + 32 + (exportContext?.inputImageFileName ? 24 : 0);
+    svgRect(parts, contentX, contentY, contentWidth, boxHeight, colors.sunken);
+    svgImage(parts, inputImage.src, contentX + (contentWidth - size.width) / 2, contentY + 16, size.width, size.height);
+    if (exportContext?.inputImageFileName) {
+      svgText(parts, exportContext.inputImageFileName, contentX + 16, contentY + size.height + 24, colors.fgSubtle, 12, 400, "mono");
+    }
+    return;
+  }
+
+  const text = exportContext?.inputText?.trim() || (outputResult.input_image ? "(image input)" : "(empty input)");
+  svgRect(parts, contentX, contentY, contentWidth, height - 68, colors.sunken);
+  drawWrappedText(parts, ctx, text, contentX + 16, contentY + 16, contentWidth - 32, colors.fg, 14, 400, "mono");
+}
+
+function measureTextClassification(ctx: CanvasRenderingContext2D, width: number, outputResult: OutputResult, hideSpecialTokens: boolean) {
+  const rawTokens = outputResult.tokens || [];
+  const rawScores: unknown[] = Array.isArray(outputResult.scores) ? outputResult.scores : [];
+  const visible = rawTokens
+    .map((token, index) => ({ token, score: typeof rawScores[index] === "number" ? rawScores[index] : 0, isSpecial: !!outputResult.special_tokens_mask?.[index] }))
+    .filter((entry) => !(hideSpecialTokens && entry.isSpecial));
+  const specs = visible.map((entry) => ({ text: tokenDisplayText(entry.token), footer: formatPercent(entry.score), footerColor: "transparent" }));
+  const layout = layoutTokenBoxes(ctx, specs, width - 40);
+  return layout.height + 130;
+}
+
+function drawTextClassification(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, outputResult: OutputResult, hideSpecialTokens: boolean, colorScaleMode: ColorScaleMode, colors: ExportColors, tutorialInteraction?: TutorialOutputInteraction) {
+  const rawTokens = outputResult.tokens || [];
+  const rawScores: unknown[] = Array.isArray(outputResult.scores) ? outputResult.scores : [];
+  const visible = rawTokens
+    .map((token, index) => ({ token, score: typeof rawScores[index] === "number" ? rawScores[index] : 0, isSpecial: !!outputResult.special_tokens_mask?.[index], rawIndex: index }))
+    .filter((entry) => !(hideSpecialTokens && entry.isSpecial));
+  const maxAbs = visible.reduce((max, entry) => Math.max(max, Math.abs(entry.score)), 0);
+  const scale = colorScaleMode === "relative" && maxAbs > 0 ? 1 / maxAbs : 1;
+  const sumAbs = visible.reduce((sum, entry) => sum + Math.abs(entry.score), 0);
+  const specs = visible.map((entry) => ({
+    text: tokenDisplayText(entry.token),
+    footer: formatPercent(sumAbs > 0 ? entry.score / sumAbs : 0),
+    footerColor: getScoreColor(entry.score * scale),
+    selected: tutorialInteraction?.classificationTokenIndex === entry.rawIndex,
+    selectedColor: colors.info,
+  }));
+  const layout = layoutTokenBoxes(ctx, specs, width - 40);
+
+  svgRect(parts, x, y, width, layout.height + 40, colors.sunken, colors.border, 1, 6);
+  drawTokenBoxes(parts, layout.boxes, x + 20, y + 20, colors);
+
+  const rawLabel = typeof outputResult.predicted_token === "string" ? outputResult.predicted_token.trim() : "";
+  const fallbackLabel = outputResult.target_id === 0 ? "NEGATIVE" : outputResult.target_id === 1 ? "POSITIVE" : "UNKNOWN";
+  const label = rawLabel && !rawLabel.startsWith("[") ? rawLabel : fallbackLabel;
+  const labelY = y + layout.height + 56;
+  svgRect(parts, x, labelY, width, 58, colors.sunken, colors.border, 1, 6);
+  svgText(parts, "Predicted Class:", x + width / 2 - 78, labelY + 18, colors.fgFaint, 14, 700, "mono", "end");
+  svgRect(parts, x + width / 2 - 62, labelY + 17, Math.min(220, Math.max(90, label.length * 10 + 28)), 26, colors.infoSoft, undefined, 1, 4);
+  svgText(parts, label.toUpperCase(), x + width / 2 - 48, labelY + 19, colors.info, 14, 700, "mono");
+}
+
+function measureTextGeneration(ctx: CanvasRenderingContext2D, width: number, outputResult: OutputResult, hideSpecialTokens: boolean, hideTemplateTokens: boolean) {
+  const steps = getTextGenerationSteps(outputResult.scores);
+  const inputTokens = steps[0]?.context_tokens ?? [];
+  const inputSpecs = inputTokens
+    .map((token, index) => ({ token, index }))
+    .filter(({ index }) => {
+      if (outputResult.input_special_mask?.[index]) return !hideSpecialTokens;
+      if (outputResult.input_template_mask?.[index]) return !hideTemplateTokens;
+      return true;
+    })
+    .map(({ token }) => ({ text: tokenDisplayText(token), footer: "-", footerColor: "transparent" }));
+  const outputSpecs = steps
+    .map((step, index) => ({ step, index }))
+    .filter(({ index }) => !(hideSpecialTokens && outputResult.output_special_mask?.[index]))
+    .map(({ step }) => ({ text: tokenDisplayText(step.generated_token), footer: formatPercent(step.probability), footerColor: "rgba(128, 128, 128, 0.15)" }));
+  const inputLayout = layoutTokenBoxes(ctx, inputSpecs, width);
+  const outputLayout = layoutTokenBoxes(ctx, outputSpecs, width);
+  return inputLayout.height + outputLayout.height + 92;
+}
+
+function drawTextGeneration(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, outputResult: OutputResult, hideSpecialTokens: boolean, hideTemplateTokens: boolean, colorScaleMode: ColorScaleMode, selection: TextGenerationSelection, colors: ExportColors) {
+  const steps = getTextGenerationSteps(outputResult.scores);
+  const inputTokens = steps[0]?.context_tokens ?? [];
+  const outputTokens = steps.map((step) => step.generated_token);
+
+  const isInputHidden = (index: number) => {
+    if (outputResult.input_special_mask?.[index]) return hideSpecialTokens;
+    if (outputResult.input_template_mask?.[index]) return hideTemplateTokens;
+    return false;
+  };
+  const getOutputData = (outIdx: number) => {
+    const step = steps[outIdx];
+    if (selection?.selectedType === "output" && selection.selectedIndex === outIdx) {
+      return { value: step.probability, color: "rgba(128, 128, 128, 0.28)", label: "CONF" };
+    }
+    if (selection?.selectedType === "output") {
+      if (outIdx < selection.selectedIndex) {
+        const targetStep = steps[selection.selectedIndex];
+        const score = targetStep.attribution_scores[inputTokens.length + outIdx] || 0;
+        return { value: score, color: getScoreColor(scaleScore(score, targetStep.attribution_scores, colorScaleMode)), label: "ATTR" };
+      }
+      return { value: 0, color: "transparent", label: "-" };
+    }
+    if (selection?.selectedType === "input") {
+      const score = step.attribution_scores[selection.selectedIndex] || 0;
+      const columnScores = steps.map((traceStep) => traceStep.attribution_scores[selection.selectedIndex] || 0);
+      return { value: score, color: getScoreColor(scaleScore(score, columnScores, colorScaleMode)), label: "INFL" };
+    }
+    return { value: step.probability, color: "rgba(128, 128, 128, 0.15)", label: "PROB" };
+  };
+  const getInputData = (inIdx: number) => {
+    if (selection?.selectedType === "input" && selection.selectedIndex === inIdx) {
+      return { value: 1, color: "rgba(59, 130, 246, 0.5)", label: "SEL" };
+    }
+    if (selection?.selectedType === "output") {
+      const targetStep = steps[selection.selectedIndex];
+      const score = targetStep.attribution_scores[inIdx] || 0;
+      return { value: score, color: getScoreColor(scaleScore(score, targetStep.attribution_scores, colorScaleMode)), label: "ATTR" };
+    }
+    return { value: 0, color: "transparent", label: "-" };
+  };
+
+  svgText(parts, "Input", x, y, colors.fgSubtle, 12, 700, "mono");
+  const inputSpecs = inputTokens
+    .map((token, index) => ({ token, index }))
+    .filter(({ index }) => !isInputHidden(index))
+    .map(({ token, index }) => {
+      const data = getInputData(index);
+      return {
+        text: tokenDisplayText(token),
+        footer: data.label === "-" ? "-" : formatPercent(data.value),
+        footerColor: data.color,
+        selected: selection?.selectedType === "input" && selection.selectedIndex === index,
+        selectedColor: colors.info,
+      };
+    });
+  const inputLayout = layoutTokenBoxes(ctx, inputSpecs, width);
+  drawTokenBoxes(parts, inputLayout.boxes, x, y + 28, colors);
+
+  const dividerY = y + inputLayout.height + 48;
+  svgLine(parts, x, dividerY, x + width, dividerY, colors.border);
+  svgText(parts, "Output", x, dividerY + 18, colors.fgSubtle, 12, 700, "mono");
+
+  const outputSpecs = outputTokens
+    .map((token, index) => ({ token, index }))
+    .filter(({ index }) => !(hideSpecialTokens && outputResult.output_special_mask?.[index]))
+    .map(({ token, index }) => {
+      const data = getOutputData(index);
+      return {
+        text: tokenDisplayText(token),
+        footer: data.label === "-" ? "-" : formatPercent(data.value),
+        footerColor: data.color,
+        selected: selection?.selectedType === "output" && selection.selectedIndex === index,
+        selectedColor: colors.info,
+      };
+    });
+  const outputLayout = layoutTokenBoxes(ctx, outputSpecs, width);
+  drawTokenBoxes(parts, outputLayout.boxes, x, dividerY + 46, colors);
+}
+
+function measureImageGeneration(ctx: CanvasRenderingContext2D, width: number, outputResult: OutputResult, resources: ExportResources) {
+  const image = resources.generatedImage;
+  const imageSize = image ? containSize(image.width, image.height, Math.min(width - 32, 512), 512) : { width: Math.min(width - 32, 512), height: 320 };
+  const tokenSpecs = (outputResult.tokens || []).map((token) => ({ text: tokenDisplayText(token), footer: "-", footerColor: "transparent" }));
+  const tokenLayout = layoutTokenBoxes(ctx, tokenSpecs, width - 40);
+  return imageSize.height + tokenLayout.height + 154;
+}
+
+function drawImageGeneration(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, outputResult: OutputResult, resources: ExportResources, selection: ImageGenerationSelection, colors: ExportColors) {
+  const image = resources.generatedImage;
+  const heatmaps = getHeatmaps(outputResult.scores);
+  const imageSize = image ? containSize(image.width, image.height, Math.min(width - 32, 512), 512) : { width: Math.min(width - 32, 512), height: 320 };
+  const panelHeight = imageSize.height + 66;
+
+  svgRect(parts, x, y, width, panelHeight, colors.sunken, colors.border, 1, 6);
+  svgText(parts, "Generated Image", x + 16, y + 16, colors.fgSubtle, 13, 700, "mono");
+  const imageX = x + (width - imageSize.width) / 2;
+  const imageY = y + 50;
+  if (image) svgImage(parts, image.src, imageX, imageY, imageSize.width, imageSize.height);
+  const aggregate = aggregateHeatmaps(heatmaps, selection.selectedTokenIndices);
+  const heatmapUrl = aggregate ? createHeatmapDataUrl(aggregate) : "";
+  if (heatmapUrl) svgImage(parts, heatmapUrl, imageX, imageY, imageSize.width, imageSize.height);
+  if (!heatmapUrl && selection.hoveredCell) {
+    const grid = 64;
+    svgRect(
+      parts,
+      imageX + (selection.hoveredCell.x / grid) * imageSize.width,
+      imageY + (selection.hoveredCell.y / grid) * imageSize.height,
+      imageSize.width / grid,
+      imageSize.height / grid,
+      "rgba(255, 255, 255, 0.2)",
+      "rgba(255, 255, 255, 0.6)"
+    );
+  }
+
+  const promptY = y + panelHeight + 24;
+  const tokenSpecs = (outputResult.tokens || []).map((token, index) => {
+    const score = selection.hoveredCell && heatmaps[index]?.raw_matrix
+      ? heatmaps[index].raw_matrix[selection.hoveredCell.y]?.[selection.hoveredCell.x] ?? 0
+      : 0;
+    return {
+      text: tokenDisplayText(token),
+      footer: selection.hoveredCell ? formatPercent(score) : "-",
+      footerColor: selection.hoveredCell ? getImageScoreColor(score) : "transparent",
+      selected: selection.selectedTokenIndices.includes(index),
+      selectedColor: colors.accent,
+    };
+  });
+  const tokenLayout = layoutTokenBoxes(ctx, tokenSpecs, width - 40);
+  svgRect(parts, x, promptY, width, tokenLayout.height + 40, colors.sunken, colors.border, 1, 6);
+  svgText(parts, "Input Prompt", x + 16, promptY + 14, colors.fgSubtle, 13, 700, "mono");
+  drawTokenBoxes(parts, tokenLayout.boxes, x + 20, promptY + 42, colors);
+}
+
+function measureImageClassification(width: number, resources: ExportResources) {
+  const image = resources.classificationImage;
+  const imageSize = image ? containSize(image.width, image.height, Math.min(width - 32, 512), 512) : { width: Math.min(width - 32, 512), height: 320 };
+  return imageSize.height + 148;
+}
+
+function drawImageClassification(parts: SvgParts, x: number, y: number, width: number, outputResult: OutputResult, resources: ExportResources, showOverlay: boolean, colors: ExportColors) {
+  const image = resources.classificationImage;
+  const heatmaps = getHeatmaps(outputResult.scores);
+  const imageSize = image ? containSize(image.width, image.height, Math.min(width - 32, 512), 512) : { width: Math.min(width - 32, 512), height: 320 };
+
+  svgRect(parts, x, y, width, imageSize.height + 66, colors.sunken, colors.border, 1, 6);
+  svgText(parts, "Input Image", x + 16, y + 16, colors.fgSubtle, 13, 700, "mono");
+  const imageX = x + (width - imageSize.width) / 2;
+  const imageY = y + 50;
+  if (image) svgImage(parts, image.src, imageX, imageY, imageSize.width, imageSize.height);
+  if (showOverlay && heatmaps[0]?.raw_matrix) {
+    const heatmapUrl = createHeatmapDataUrl(heatmaps[0].raw_matrix);
+    if (heatmapUrl) svgImage(parts, heatmapUrl, imageX, imageY, imageSize.width, imageSize.height);
+  }
+
+  const rawLabel = typeof outputResult.predicted_token === "string" ? outputResult.predicted_token.trim() : "";
+  const fallbackLabel = outputResult.target_id === 0 ? "NEGATIVE" : outputResult.target_id === 1 ? "POSITIVE" : "UNKNOWN";
+  const label = rawLabel && !rawLabel.startsWith("[") ? rawLabel : fallbackLabel;
+  const labelY = y + imageSize.height + 90;
+  svgRect(parts, x, labelY, width, 58, colors.sunken, colors.border, 1, 6);
+  svgText(parts, "Predicted Class:", x + width / 2 - 78, labelY + 18, colors.fgFaint, 14, 700, "mono", "end");
+  svgRect(parts, x + width / 2 - 62, labelY + 17, Math.min(220, Math.max(90, label.length * 10 + 28)), 26, colors.infoSoft, undefined, 1, 4);
+  svgText(parts, label.toUpperCase(), x + width / 2 - 48, labelY + 19, colors.info, 14, 700, "mono");
+}
+
+function measureOutputVisualization(ctx: CanvasRenderingContext2D, width: number, outputResult: OutputResult, resources: ExportResources, hideSpecialTokens: boolean, hideTemplateTokens: boolean) {
+  const { isImage, isTextGeneration, isImageClassification } = getResultKind(outputResult);
+  if (isImage) return measureImageGeneration(ctx, width, outputResult, resources);
+  if (isTextGeneration) return measureTextGeneration(ctx, width, outputResult, hideSpecialTokens, hideTemplateTokens);
+  if (isImageClassification) return measureImageClassification(width, resources);
+  return measureTextClassification(ctx, width, outputResult, hideSpecialTokens);
+}
+
+function drawOutputVisualization(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, outputResult: OutputResult, resources: ExportResources, hideSpecialTokens: boolean, hideTemplateTokens: boolean, colorScaleMode: ColorScaleMode, textSelection: TextGenerationSelection, imageSelection: ImageGenerationSelection, imageClassificationOverlayVisible: boolean, colors: ExportColors, tutorialInteraction?: TutorialOutputInteraction) {
+  const { isImage, isTextGeneration, isImageClassification } = getResultKind(outputResult);
+  if (isImage) {
+    drawImageGeneration(parts, ctx, x, y, width, outputResult, resources, imageSelection, colors);
+    return;
+  }
+  if (isTextGeneration) {
+    drawTextGeneration(parts, ctx, x, y, width, outputResult, hideSpecialTokens, hideTemplateTokens, colorScaleMode, textSelection, colors);
+    return;
+  }
+  if (isImageClassification) {
+    drawImageClassification(parts, x, y, width, outputResult, resources, imageClassificationOverlayVisible, colors);
+    return;
+  }
+  drawTextClassification(parts, ctx, x, y, width, outputResult, hideSpecialTokens, colorScaleMode, colors, tutorialInteraction);
+}
+
+function measureOutputSection(ctx: CanvasRenderingContext2D, width: number, outputResult: OutputResult, resources: ExportResources, hideSpecialTokens: boolean, hideTemplateTokens: boolean) {
+  return 122 + measureOutputVisualization(ctx, width - 32, outputResult, resources, hideSpecialTokens, hideTemplateTokens);
+}
+
+function drawOutputSection(parts: SvgParts, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, outputResult: OutputResult, resources: ExportResources, taskTitle: string, hideSpecialTokens: boolean, hideTemplateTokens: boolean, colorScaleMode: ColorScaleMode, textSelection: TextGenerationSelection, imageSelection: ImageGenerationSelection, imageClassificationOverlayVisible: boolean, colors: ExportColors, tutorialInteraction?: TutorialOutputInteraction) {
+  svgRect(parts, x, y, width, height, colors.fill, colors.border);
+  svgText(parts, "Output", x + 16, y + 16, colors.fgSubtle, 14, 700, "mono");
+  svgRect(parts, x + 16, y + 52, width - 32, 32, colors.sunken);
+  svgText(parts, `// Task: ${taskTitle}`, x + 28, y + 60, colors.fgSubtle, 12, 700, "mono");
+  drawOutputVisualization(
+    parts,
+    ctx,
+    x + 16,
+    y + 104,
+    width - 32,
+    outputResult,
+    resources,
+    hideSpecialTokens,
+    hideTemplateTokens,
+    colorScaleMode,
+    textSelection,
+    imageSelection,
+    imageClassificationOverlayVisible,
+    colors,
+    tutorialInteraction
+  );
+}
+
+async function buildNativeExportSvg({
+  outputResult,
+  exportContext,
+  taskTitle,
+  layout,
+  includeConfig,
+  hideSpecialTokens,
+  hideTemplateTokens,
+  colorScaleMode,
+  textGenerationSelection,
+  imageGenerationSelection,
+  imageClassificationOverlayVisible,
+  tutorialInteraction,
+}: {
+  outputResult: OutputResult;
+  exportContext?: ResultExportContext;
+  taskTitle: string;
+  layout: ExportLayout;
+  includeConfig: boolean;
+  hideSpecialTokens: boolean;
+  hideTemplateTokens: boolean;
+  colorScaleMode: ColorScaleMode;
+  textGenerationSelection: TextGenerationSelection;
+  imageGenerationSelection: ImageGenerationSelection;
+  imageClassificationOverlayVisible: boolean;
+  tutorialInteraction?: TutorialOutputInteraction;
+}): Promise<SvgLayout> {
+  const ctx = getMeasureContext();
+  const colors = getExportColors();
+  const resources = await loadExportResources(outputResult, exportContext);
+  const width = layout === "side-by-side" ? 1440 : 920;
+  const margin = 32;
+  const gap = 24;
+  const contentWidth = width - margin * 2;
+  const parts: SvgParts = [];
+  let y = margin;
+
+  const effectiveTextSelection = tutorialInteraction?.textGenerationSelection ?? textGenerationSelection;
+  const effectiveImageSelection = tutorialInteraction?.imageSelection
+    ? {
+      selectedTokenIndices: tutorialInteraction.imageSelection.selectedTokenIndices ?? [],
+      hoveredCell: tutorialInteraction.imageSelection.hoveredCell ?? null,
+    }
+    : imageGenerationSelection;
+
+  svgRect(parts, 0, 0, width, 1, colors.surface);
+  svgText(parts, "// LumiXAI Export", margin, y, colors.fgFaint, 12, 700, "mono");
+  svgText(parts, "Input and Output Result", margin, y + 24, colors.fg, 22, 700, "sans");
+  svgText(parts, new Date().toLocaleString(), width - margin, y + 4, colors.fgFaint, 12, 700, "mono", "end");
+  y += 74;
+  svgLine(parts, margin, y - 16, width - margin, y - 16, colors.border);
+
+  const configRows = includeConfig
+    ? buildConfigRows(
+      outputResult,
+      exportContext,
+      taskTitle,
+      hideSpecialTokens,
+      hideTemplateTokens,
+      colorScaleMode,
+      effectiveTextSelection,
+      effectiveImageSelection,
+      imageClassificationOverlayVisible
+    )
+    : [];
+  if (configRows.length > 0) {
+    y += drawConfigRows(parts, ctx, configRows, margin, y, contentWidth, colors) + gap;
+  }
+
+  if (layout === "side-by-side") {
+    const columnWidth = (contentWidth - gap) / 2;
+    const inputHeight = measureInputSection(ctx, columnWidth, resources, outputResult, exportContext);
+    const outputHeight = measureOutputSection(ctx, columnWidth, outputResult, resources, hideSpecialTokens, hideTemplateTokens);
+    const sectionHeight = Math.max(inputHeight, outputHeight);
+    drawInputSection(parts, ctx, margin, y, columnWidth, sectionHeight, resources, outputResult, exportContext, colors);
+    drawOutputSection(
+      parts,
+      ctx,
+      margin + columnWidth + gap,
+      y,
+      columnWidth,
+      sectionHeight,
+      outputResult,
+      resources,
+      taskTitle,
+      hideSpecialTokens,
+      hideTemplateTokens,
+      colorScaleMode,
+      effectiveTextSelection,
+      effectiveImageSelection,
+      imageClassificationOverlayVisible,
+      colors,
+      tutorialInteraction
+    );
+    y += sectionHeight + margin;
+  } else {
+    const inputHeight = measureInputSection(ctx, contentWidth, resources, outputResult, exportContext);
+    drawInputSection(parts, ctx, margin, y, contentWidth, inputHeight, resources, outputResult, exportContext, colors);
+    y += inputHeight + gap;
+    const outputHeight = measureOutputSection(ctx, contentWidth, outputResult, resources, hideSpecialTokens, hideTemplateTokens);
+    drawOutputSection(
+      parts,
+      ctx,
+      margin,
+      y,
+      contentWidth,
+      outputHeight,
+      outputResult,
+      resources,
+      taskTitle,
+      hideSpecialTokens,
+      hideTemplateTokens,
+      colorScaleMode,
+      effectiveTextSelection,
+      effectiveImageSelection,
+      imageClassificationOverlayVisible,
+      colors,
+      tutorialInteraction
+    );
+    y += outputHeight + margin;
+  }
+
+  const height = Math.ceil(y);
+  const svgTextValue = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+    `<rect x="0" y="0" width="${width}" height="${height}" fill="${escapeXml(colors.surface)}"/>`,
+    ...parts,
+    "</svg>",
+  ].join("");
+
+  return { svgText: svgTextValue, width, height };
+}
+
 async function savePdfFromPng(dataUrl: string, filename: string, layout: ExportLayout) {
   const image = await loadImage(dataUrl);
   const pageWidth = layout === "side-by-side" ? 841.89 : 595.28;
@@ -658,113 +1419,6 @@ function ResultVisualization({
   );
 }
 
-interface ResultExportSheetProps {
-  outputResult: OutputResult;
-  exportContext?: ResultExportContext;
-  taskTitle: string;
-  layout: ExportLayout;
-  includeConfig: boolean;
-  hideSpecialTokens: boolean;
-  hideTemplateTokens: boolean;
-  colorScaleMode: ColorScaleMode;
-  textGenerationSelection: TextGenerationSelection;
-  imageGenerationSelection: ImageGenerationSelection;
-  imageClassificationOverlayVisible: boolean;
-  tutorialInteraction?: TutorialOutputInteraction;
-}
-
-function ResultExportSheet({
-  outputResult,
-  exportContext,
-  taskTitle,
-  layout,
-  includeConfig,
-  hideSpecialTokens,
-  hideTemplateTokens,
-  colorScaleMode,
-  textGenerationSelection,
-  imageGenerationSelection,
-  imageClassificationOverlayVisible,
-  tutorialInteraction,
-}: ResultExportSheetProps) {
-  const inputImage = exportContext?.inputImageBase64 ?? outputResult.input_image ?? null;
-  const configRows = buildConfigRows(
-    outputResult,
-    exportContext,
-    taskTitle,
-    hideSpecialTokens,
-    hideTemplateTokens,
-    colorScaleMode,
-    textGenerationSelection,
-    imageGenerationSelection,
-    imageClassificationOverlayVisible
-  );
-
-  return (
-    <div className="bg-surface text-fg p-8 font-sans">
-      <div className="mb-6 flex items-start justify-between gap-6 border-b border-border pb-4 font-mono">
-        <div>
-          <div className="text-xs uppercase text-fg-faint">{"// LumiXAI Export"}</div>
-          <div className="mt-1 text-xl font-bold text-fg">Input and Output Result</div>
-        </div>
-        <div className="text-right text-xs uppercase text-fg-faint">{new Date().toLocaleString()}</div>
-      </div>
-
-      {includeConfig && configRows.length > 0 && (
-        <div className="mb-6 grid gap-2 border border-border bg-fill p-4 font-mono text-xs sm:grid-cols-2">
-          {configRows.map(([label, value]) => (
-            <div key={label} className="min-w-0">
-              <span className="font-bold uppercase text-fg-subtle">{"// "}{label}: </span>
-              <span className="break-words text-fg">{value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className={layout === "side-by-side" ? "grid grid-cols-2 gap-6" : "flex flex-col gap-6"}>
-        <section className="min-w-0 border border-border bg-fill p-4">
-          <h2 className="mb-3 font-mono text-sm font-bold uppercase text-fg-subtle">Input</h2>
-          {inputImage ? (
-            <div className="flex flex-col items-center gap-3 bg-sunken p-4">
-              <img
-                src={withImagePrefix(inputImage)}
-                alt="Exported input"
-                className="max-h-[520px] max-w-full object-contain"
-              />
-              {exportContext?.inputImageFileName && (
-                <div className="break-all font-mono text-xs text-fg-subtle">{exportContext.inputImageFileName}</div>
-              )}
-            </div>
-          ) : (
-            <div className="min-h-48 whitespace-pre-wrap break-words bg-sunken p-4 font-mono text-sm leading-relaxed text-fg">
-              {exportContext?.inputText?.trim() || "(empty input)"}
-            </div>
-          )}
-        </section>
-
-        <section className="min-w-0 border border-border bg-fill p-4">
-          <h2 className="mb-3 font-mono text-sm font-bold uppercase text-fg-subtle">Output</h2>
-          <div className="mb-3 bg-sunken px-3 py-2 font-mono text-xs uppercase text-fg-subtle">
-            <span className="font-bold">{"// Task: "}</span>{taskTitle}
-          </div>
-          <div className="min-w-0 overflow-hidden bg-fill p-3">
-            <ResultVisualization
-              outputResult={outputResult}
-              hideSpecialTokens={hideSpecialTokens}
-              hideTemplateTokens={hideTemplateTokens}
-              colorScaleMode={colorScaleMode}
-              textGenerationSelection={textGenerationSelection}
-              imageGenerationSelection={imageGenerationSelection}
-              imageClassificationOverlayVisible={imageClassificationOverlayVisible}
-              tutorialInteraction={tutorialInteraction}
-            />
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
-
 export default function OutputPanel({ outputResult, exportContext, tutorialInteraction, tutorialFocusTarget }: OutputPanelProps) {
   // Pure display preferences: hiding tokens does NOT re-run the job, it only filters
   // the already-computed attribution for the visualization.
@@ -785,7 +1439,6 @@ export default function OutputPanel({ outputResult, exportContext, tutorialInter
   const [includeExportConfig, setIncludeExportConfig] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTextGenerationSelection(null);
@@ -807,21 +1460,32 @@ export default function OutputPanel({ outputResult, exportContext, tutorialInter
   const hasTemplateTokens = isTextGeneration && !!outputResult.input_template_mask?.some(Boolean);
 
   const handleExport = async () => {
-    const node = exportRef.current;
-    if (!node || isExporting) return;
+    if (isExporting) return;
 
     setIsExporting(true);
     setExportError(null);
 
     try {
       await document.fonts?.ready;
-      await waitForImages(node);
       await waitForNextFrame();
 
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
       const stem = `lumixai-${sanitizeFilePart(taskTitle)}-${timestamp}`;
-      const backgroundColor = getComputedStyle(node).backgroundColor || "#ffffff";
-      const { svgText, width, height } = buildExportSvg(node);
+      const { svgText, width, height } = await buildNativeExportSvg({
+        outputResult,
+        exportContext,
+        taskTitle,
+        layout: exportLayout,
+        includeConfig: includeExportConfig,
+        hideSpecialTokens,
+        hideTemplateTokens,
+        colorScaleMode,
+        textGenerationSelection,
+        imageGenerationSelection,
+        imageClassificationOverlayVisible,
+        tutorialInteraction,
+      });
+      const backgroundColor = getExportColors().surface;
 
       if (exportFormat === "svg") {
         downloadBlob(new Blob([svgText], { type: "image/svg+xml;charset=utf-8" }), `${stem}.svg`);
@@ -958,31 +1622,6 @@ export default function OutputPanel({ outputResult, exportContext, tutorialInter
         )}
       </div>
 
-      <div className="pointer-events-none fixed top-0 -left-[20000px]" aria-hidden="true">
-        <div
-          ref={exportRef}
-          className="bg-surface text-fg"
-          style={{ width: exportLayout === "side-by-side" ? 1440 : 920 }}
-        >
-          <ResultExportSheet
-            outputResult={outputResult}
-            exportContext={exportContext}
-            taskTitle={taskTitle}
-            layout={exportLayout}
-            includeConfig={includeExportConfig}
-            hideSpecialTokens={hideSpecialTokens}
-            hideTemplateTokens={hideTemplateTokens}
-            colorScaleMode={colorScaleMode}
-            textGenerationSelection={tutorialInteraction?.textGenerationSelection ?? textGenerationSelection}
-            imageGenerationSelection={tutorialInteraction?.imageSelection ? {
-              selectedTokenIndices: tutorialInteraction.imageSelection.selectedTokenIndices ?? [],
-              hoveredCell: tutorialInteraction.imageSelection.hoveredCell ?? null,
-            } : imageGenerationSelection}
-            imageClassificationOverlayVisible={imageClassificationOverlayVisible}
-            tutorialInteraction={tutorialInteraction}
-          />
-        </div>
-      </div>
     </div>
   );
 }
