@@ -135,6 +135,102 @@ function loadImage(src: string) {
   });
 }
 
+function copyComputedStyles(source: Element, target: Element) {
+  const sourceStyle = window.getComputedStyle(source);
+  const targetElement = target as HTMLElement;
+
+  for (const property of sourceStyle) {
+    targetElement.style.setProperty(
+      property,
+      sourceStyle.getPropertyValue(property),
+      sourceStyle.getPropertyPriority(property)
+    );
+  }
+
+  const sourceChildren = Array.from(source.children);
+  const targetChildren = Array.from(target.children);
+
+  sourceChildren.forEach((sourceChild, index) => {
+    const targetChild = targetChildren[index];
+    if (targetChild) copyComputedStyles(sourceChild, targetChild);
+  });
+}
+
+function embedCanvasContents(source: HTMLElement, clone: HTMLElement) {
+  const sourceCanvases = Array.from(source.querySelectorAll("canvas"));
+  const cloneCanvases = Array.from(clone.querySelectorAll("canvas"));
+
+  sourceCanvases.forEach((sourceCanvas, index) => {
+    const cloneCanvas = cloneCanvases[index];
+    if (!cloneCanvas || !cloneCanvas.parentNode) return;
+
+    const image = document.createElement("img");
+    image.src = sourceCanvas.toDataURL("image/png");
+    image.alt = "";
+    image.style.cssText = cloneCanvas.style.cssText;
+    image.setAttribute("width", String(sourceCanvas.width));
+    image.setAttribute("height", String(sourceCanvas.height));
+
+    cloneCanvas.parentNode.replaceChild(image, cloneCanvas);
+  });
+}
+
+function buildExportSvg(node: HTMLElement, pixelRatio: number = 1) {
+  const width = Math.max(1, Math.ceil(node.scrollWidth || node.getBoundingClientRect().width));
+  const height = Math.max(1, Math.ceil(node.scrollHeight || node.getBoundingClientRect().height));
+  const clone = node.cloneNode(true) as HTMLElement;
+
+  copyComputedStyles(node, clone);
+  embedCanvasContents(node, clone);
+
+  clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  clone.style.width = `${width}px`;
+  clone.style.minWidth = `${width}px`;
+  clone.style.maxWidth = `${width}px`;
+
+  const serialized = new XMLSerializer().serializeToString(clone);
+  const svgText = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}">`,
+    `<foreignObject width="${width}" height="${height}">`,
+    serialized,
+    "</foreignObject>",
+    "</svg>",
+  ].join("");
+
+  return { svgText, width, height };
+}
+
+async function exportSvgToDataUrl(
+  svgText: string,
+  width: number,
+  height: number,
+  type: "image/png" | "image/jpeg",
+  backgroundColor: string,
+  pixelRatio: number = 2,
+  quality?: number
+) {
+  const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await loadImage(svgUrl);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not create an export canvas.");
+
+    canvas.width = Math.ceil(width * pixelRatio);
+    canvas.height = Math.ceil(height * pixelRatio);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = backgroundColor || "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    return canvas.toDataURL(type, quality);
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
 function dataUrlToBytes(dataUrl: string) {
   const base64 = dataUrl.split(",")[1] ?? "";
   const binary = window.atob(base64);
@@ -722,29 +818,23 @@ export default function OutputPanel({ outputResult, exportContext, tutorialInter
       await waitForImages(node);
       await waitForNextFrame();
 
-      const { toJpeg, toPng, toSvg } = await import("html-to-image");
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
       const stem = `lumixai-${sanitizeFilePart(taskTitle)}-${timestamp}`;
       const backgroundColor = getComputedStyle(node).backgroundColor || "#ffffff";
-      const commonOptions = {
-        cacheBust: true,
-        backgroundColor,
-        pixelRatio: 2,
-      };
+      const { svgText, width, height } = buildExportSvg(node);
 
       if (exportFormat === "svg") {
-        const dataUrl = await toSvg(node, commonOptions);
-        downloadBlob(await dataUrlToBlob(dataUrl), `${stem}.svg`);
+        downloadBlob(new Blob([svgText], { type: "image/svg+xml;charset=utf-8" }), `${stem}.svg`);
         return;
       }
 
       if (exportFormat === "jpg") {
-        const dataUrl = await toJpeg(node, { ...commonOptions, quality: 0.95 });
+        const dataUrl = await exportSvgToDataUrl(svgText, width, height, "image/jpeg", backgroundColor, 2, 0.95);
         downloadBlob(await dataUrlToBlob(dataUrl), `${stem}.jpg`);
         return;
       }
 
-      const dataUrl = await toPng(node, commonOptions);
+      const dataUrl = await exportSvgToDataUrl(svgText, width, height, "image/png", backgroundColor, 2);
 
       if (exportFormat === "pdf") {
         await savePdfFromPng(dataUrl, `${stem}.pdf`, exportLayout);
