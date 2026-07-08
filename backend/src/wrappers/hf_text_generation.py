@@ -73,6 +73,9 @@ class HFTextGenerationWrapper(BaseWrapper):
     probabilities and logits required for XAI attribution loops.
     """
 
+    # Whether to wrap prompts in the tokenizer's chat template when one exists.
+    use_chat_template: bool = True
+
     def __init__(self, model_id: str, device: str = "cpu"):
         """Initializes the wrapper and triggers model loading.
 
@@ -109,9 +112,7 @@ class HFTextGenerationWrapper(BaseWrapper):
 
     def tokenize_generation_prompt(self, prompt: str, disable_thinking: bool = False) -> Dict[str, torch.Tensor]:
         
-        force_plain = False  # Set to True to bypass chat template for test
-        
-        if not force_plain and self.has_chat_template():
+        if self.use_chat_template and self.has_chat_template():
             messages = [{"role": "user", "content": prompt}]
             chat_template_kwargs = {
                 "tokenize": True,
@@ -164,7 +165,7 @@ class HFTextGenerationWrapper(BaseWrapper):
             List[bool]: One flag per token; True where the token is template scaffolding.
         """
         ids = input_ids.detach().cpu().tolist() if hasattr(input_ids, "detach") else list(input_ids)
-        if not self.has_chat_template():
+        if not (self.use_chat_template and self.has_chat_template()):
             return [False] * len(ids)
 
         # The same content can tokenize slightly differently depending on the preceding
@@ -251,33 +252,39 @@ class HFTextGenerationWrapper(BaseWrapper):
                 "max_new_tokens": resolved_max_new_tokens,
                 "do_sample": False,
                 "pad_token_id": self.tokenizer.pad_token_id,
+                # Return per-step logits so we can read each chosen token's probability
+                # directly, instead of replaying the whole sequence in a second loop.
+                "return_dict_in_generate": True,
+                "output_scores": True,
             }
             if eos_token_id is not None:
                 generation_kwargs["eos_token_id"] = eos_token_id
 
-            output_ids = self.model.generate(**generation_kwargs)
-        
-        generated_ids = output_ids[0][input_length:]
+            generation_output = self.model.generate(**generation_kwargs)
+
+        generated_ids = generation_output.sequences[0][input_length:]
         full_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
-        
-        probs = []
-        tokens_text = []
         generated_token_ids = [int(token_id.item()) for token_id in generated_ids]
 
-        current_input_ids = inputs["input_ids"]
-        for token_id in generated_ids:
-            with torch.no_grad():
-                outputs = self.model(current_input_ids)
-                next_token_logits = outputs.logits[:, -1, :]
-                next_token_probs = F.softmax(next_token_logits, dim=-1)
-                
-                token_prob = next_token_probs[0, token_id].item()
-                probs.append(token_prob)
-                
-                token_str = self.tokenizer.decode([token_id], clean_up_tokenization_spaces=False)
-                tokens_text.append(token_str)
-                
-                current_input_ids = torch.cat([current_input_ids, token_id.unsqueeze(0).unsqueeze(0)], dim=1)
+        # `scores` holds the next-token logits for each generated step (greedy decoding,
+        # so these are the raw logits). The chosen token's softmax value is its probability.
+        step_scores = generation_output.scores
+        probs = []
+        for step_index, token_id in enumerate(generated_token_ids):
+            step_logits = step_scores[step_index][0]
+            probs.append(F.softmax(step_logits, dim=-1)[token_id].item())
+
+        # Decode incrementally (cumulative prefix, keep the delta) so multi-byte UTF-8
+        # characters that straddle two byte-level BPE tokens never surface as U+FFFD ('?').
+        tokens_text = []
+        decoded_so_far = ""
+        for step_index in range(len(generated_token_ids)):
+            prefix = self.tokenizer.decode(
+                generated_token_ids[: step_index + 1],
+                clean_up_tokenization_spaces=False,
+            )
+            tokens_text.append(prefix[len(decoded_so_far):])
+            decoded_so_far = prefix
 
         return full_text, generated_token_ids, tokens_text, probs
 

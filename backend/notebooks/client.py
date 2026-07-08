@@ -55,7 +55,8 @@ class Client:
         Run a batch of jobs with smart grouping and optional sorting.
         sort_strategy can be: "fastest_first", "slowest_first", or "none".
         device selects where models are loaded ("auto", "cuda:1", ...).
-        Each job may carry an optional "seed" for reproducible generation.
+        Each job may carry optional generation controls such as "seed",
+        "max_new_tokens", and "disable_thinking".
         """
         if not jobs:
             return []
@@ -109,7 +110,10 @@ class Client:
                         "ignore_special_tokens": job.get('ignore_special_tokens', False),
                         "seed": job.get('seed', None),
                         "guidance_scale": job.get('guidance_scale', None),
-                        "negative_prompt": job.get('negative_prompt', None)
+                        "negative_prompt": job.get('negative_prompt', None),
+                        "max_new_tokens": job.get('max_new_tokens', None),
+                        "disable_thinking": job.get('disable_thinking', False),
+                        "use_chat_template": job.get('use_chat_template', True),
                     })
                     res.raise_for_status()
                     job_ids_in_flight.append((job['_original_index'], res.json()["job_id"]))

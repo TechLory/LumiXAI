@@ -317,6 +317,8 @@ class ExplainRequest(BaseModel):
     seed: Optional[int] = None
     max_new_tokens: Optional[int] = None
     disable_thinking: bool = False
+    # Whether to wrap text-generation prompts in the model's chat template
+    use_chat_template: bool = True
     # DAAM image-generation overrides. When None the attributor keeps its own
     # defaults. negative_prompt == "" explicitly disables the negative prompt.
     guidance_scale: Optional[float] = None
@@ -340,7 +342,7 @@ app.add_middleware(
 )
 
 # --- 5. BACKGROUND ---
-def run_explanation_task(job_id: str, text: Optional[str], target_class: Optional[int], ignore_special_tokens: bool = True, seed: Optional[int] = None, guidance_scale: Optional[float] = None, negative_prompt: Optional[str] = None, disable_thinking: bool = False, max_new_tokens: Optional[int] = None, image_base64: Optional[str] = None):
+def run_explanation_task(job_id: str, text: Optional[str], target_class: Optional[int], ignore_special_tokens: bool = True, seed: Optional[int] = None, guidance_scale: Optional[float] = None, negative_prompt: Optional[str] = None, disable_thinking: bool = False, max_new_tokens: Optional[int] = None, image_base64: Optional[str] = None, use_chat_template: bool = True):
     """Executes the XAI attribution logic asynchronously.
 
     This function runs in a separate thread. It acquires the global `gpu_lock` to ensure
@@ -371,6 +373,11 @@ def run_explanation_task(job_id: str, text: Optional[str], target_class: Optiona
 
             if not attributor or not wrapper:
                 raise ValueError("Modello o Attributor disconnessi durante l'esecuzione")
+
+            # Applied under gpu_lock, so mutating the shared wrapper here is safe: jobs run
+            # one at a time. Only text-generation wrappers expose this attribute.
+            if hasattr(wrapper, "use_chat_template"):
+                wrapper.use_chat_template = use_chat_template
 
             input_data = decode_base64_image(image_base64) if image_base64 else text
 
@@ -632,7 +639,7 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
     job_prompt = req.text if req.text else (req.image_filename or "[Uploaded Image]")
     job_id = create_job(job_prompt, source_name, model_name, attributor_name)
 
-    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed, req.guidance_scale, req.negative_prompt, req.disable_thinking, req.max_new_tokens, req.image_base64)
+    background_tasks.add_task(run_explanation_task, job_id, req.text, req.target_class, req.ignore_special_tokens, req.seed, req.guidance_scale, req.negative_prompt, req.disable_thinking, req.max_new_tokens, req.image_base64, req.use_chat_template)
 
     return {"job_id": job_id, "status": "running"}
 
