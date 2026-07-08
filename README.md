@@ -148,27 +148,6 @@ poetry run mkdocs serve -a 127.0.0.1:8001
 
 ---
 
-## Showcase & Demos
-1. Autoregressive Text Generation (Captum IG): [GIF](/readme_files/demo_text-to-text.gif)
-2. Spatial Image Attribution (DAAM): [GIF](/readme_files/demo_1_token-pixel_attribution_gui.gif)
-
-More demos coming soon...
-<!-- <details>
-<summary><b>View Static Attribution Tests (Click to expand)</b></summary>
-
-* **Text Classification (DistilBERT):**
-  * Negative Sentiment: [Show Image](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_negative.png)
-  * Positive Sentiment: [Show Image](/readme_files/distilbert-base-uncased-finetuned-sst-2-english_captum_ig_positive.png)
-* **Image Generation Analysis (DAAM Attention Sinks):**
-  * Baseline Sinks: [Show Image](/readme_files/test-stable-diffusion-attention-sink.jpg)
-  * Special Tokens Removed: [Show Image](/readme_files/test-stable-diffusion-attention-sink-2-special-tokens-removed.png)
-  * Percentile Norm (Dreamlike Diffusion): [Show Image](/readme_files/test-stable-diffusion-attention-sink-3-new-normalization.png)
-</details> -->
-
-
-
----
-
 ## Guided Tutorials
 From the welcome screen, LumiXAI offers four self-contained, interactive walkthroughs — no model loading or backend inference required, since each one replays a real, pre-computed result:
 
