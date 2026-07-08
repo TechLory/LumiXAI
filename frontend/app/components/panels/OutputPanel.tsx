@@ -135,6 +135,124 @@ function loadImage(src: string) {
   });
 }
 
+function dataUrlToBytes(dataUrl: string) {
+  const base64 = dataUrl.split(",")[1] ?? "";
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
+function appendPdfString(chunks: Array<string | Uint8Array>, value: string) {
+  chunks.push(value);
+  return value.length;
+}
+
+function appendPdfBytes(chunks: Array<string | Uint8Array>, value: Uint8Array) {
+  chunks.push(value);
+  return value.byteLength;
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
+function buildImagePdfBlob(pages: Array<{
+  bytes: Uint8Array;
+  pixelWidth: number;
+  pixelHeight: number;
+  displayWidth: number;
+  displayHeight: number;
+  x: number;
+  y: number;
+}>, pageWidth: number, pageHeight: number) {
+  const chunks: Array<string | Uint8Array> = [];
+  const offsets: number[] = [0];
+  let byteOffset = 0;
+
+  const appendString = (value: string) => {
+    byteOffset += appendPdfString(chunks, value);
+  };
+  const appendBytes = (value: Uint8Array) => {
+    byteOffset += appendPdfBytes(chunks, value);
+  };
+  const addObject = (objectNumber: number, writeBody: () => void) => {
+    offsets[objectNumber] = byteOffset;
+    appendString(`${objectNumber} 0 obj\n`);
+    writeBody();
+    appendString("\nendobj\n");
+  };
+
+  appendString("%PDF-1.4\n");
+
+  addObject(1, () => {
+    appendString("<< /Type /Catalog /Pages 2 0 R >>");
+  });
+
+  addObject(2, () => {
+    const kids = pages.map((_, index) => `${3 + index * 3} 0 R`).join(" ");
+    appendString(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);
+  });
+
+  pages.forEach((page, index) => {
+    const pageObject = 3 + index * 3;
+    const contentObject = pageObject + 1;
+    const imageObject = pageObject + 2;
+    const imageName = `Im${index + 1}`;
+    const contentStream = [
+      "q",
+      `${page.displayWidth.toFixed(4)} 0 0 ${page.displayHeight.toFixed(4)} ${page.x.toFixed(4)} ${page.y.toFixed(4)} cm`,
+      `/${imageName} Do`,
+      "Q",
+    ].join("\n");
+
+    addObject(pageObject, () => {
+      appendString(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] ` +
+        `/Resources << /XObject << /${imageName} ${imageObject} 0 R >> >> ` +
+        `/Contents ${contentObject} 0 R >>`
+      );
+    });
+
+    addObject(contentObject, () => {
+      appendString(`<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`);
+    });
+
+    addObject(imageObject, () => {
+      appendString(
+        `<< /Type /XObject /Subtype /Image /Width ${page.pixelWidth} /Height ${page.pixelHeight} ` +
+        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.bytes.byteLength} >>\nstream\n`
+      );
+      appendBytes(page.bytes);
+      appendString("\nendstream");
+    });
+  });
+
+  const xrefOffset = byteOffset;
+  appendString(`xref\n0 ${offsets.length}\n`);
+  appendString("0000000000 65535 f \n");
+
+  for (let objectNumber = 1; objectNumber < offsets.length; objectNumber += 1) {
+    appendString(`${String(offsets[objectNumber]).padStart(10, "0")} 00000 n \n`);
+  }
+
+  appendString(
+    `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+  );
+
+  const blobParts = chunks.map((chunk) => (
+    typeof chunk === "string" ? chunk : toArrayBuffer(chunk)
+  ));
+
+  return new Blob(blobParts, { type: "application/pdf" });
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -233,16 +351,9 @@ function buildConfigRows(
 }
 
 async function savePdfFromPng(dataUrl: string, filename: string, layout: ExportLayout) {
-  const { jsPDF } = await import("jspdf");
   const image = await loadImage(dataUrl);
-  const pdf = new jsPDF({
-    orientation: layout === "side-by-side" ? "landscape" : "portrait",
-    unit: "pt",
-    format: "a4",
-  });
-
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
+  const pageWidth = layout === "side-by-side" ? 841.89 : 595.28;
+  const pageHeight = layout === "side-by-side" ? 595.28 : 841.89;
   const margin = 32;
   const contentWidth = pageWidth - margin * 2;
   const contentHeight = pageHeight - margin * 2;
@@ -252,20 +363,38 @@ async function savePdfFromPng(dataUrl: string, filename: string, layout: ExportL
   if (!ctx) throw new Error("Could not create a PDF canvas.");
 
   canvas.width = image.width;
+  const pages: Array<{
+    bytes: Uint8Array;
+    pixelWidth: number;
+    pixelHeight: number;
+    displayWidth: number;
+    displayHeight: number;
+    x: number;
+    y: number;
+  }> = [];
 
   for (let offsetY = 0; offsetY < image.height; offsetY += sliceHeightPx) {
     const sourceHeight = Math.min(sliceHeightPx, image.height - offsetY);
     canvas.height = sourceHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, offsetY, image.width, sourceHeight, 0, 0, image.width, sourceHeight);
 
-    if (offsetY > 0) pdf.addPage();
-    const sliceDataUrl = canvas.toDataURL("image/png");
-    const sliceHeightPt = (sourceHeight / image.width) * contentWidth;
-    pdf.addImage(sliceDataUrl, "PNG", margin, margin, contentWidth, sliceHeightPt, undefined, "FAST");
+    const sliceDataUrl = canvas.toDataURL("image/jpeg", 0.95);
+    const displayHeight = (sourceHeight / image.width) * contentWidth;
+    pages.push({
+      bytes: dataUrlToBytes(sliceDataUrl),
+      pixelWidth: canvas.width,
+      pixelHeight: canvas.height,
+      displayWidth: contentWidth,
+      displayHeight,
+      x: margin,
+      y: pageHeight - margin - displayHeight,
+    });
   }
 
-  pdf.save(filename);
+  downloadBlob(buildImagePdfBlob(pages, pageWidth, pageHeight), filename);
 }
 
 interface ResultVisualizationProps {
