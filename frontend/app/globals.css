@@ -130,7 +130,7 @@ body {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 46rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr));
   gap: 0.5rem;
   align-items: start;
 }
