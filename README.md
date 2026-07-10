@@ -160,6 +160,18 @@ Each tutorial walks step-by-step through the full workflow — choosing a source
 
 ---
 
+## Case Study Notebooks
+Beyond the guided tutorials, [`backend/notebooks/`](backend/notebooks) contains research-oriented Jupyter notebooks that drive the running backend through the shipped [`client.py`](backend/notebooks/client.py) via `run_smart_batch`, submitting real batches of jobs and exploring the results interactively in the frontend's Job History. Each one replicates a corresponding experiment under [`experiments/`](experiments):
+
+* **[`case_study_bold_generation.ipynb`](backend/notebooks/case_study_bold_generation.ipynb)** — a curated slice of the [BOLD](https://arxiv.org/abs/2101.11718) benchmark run deterministically through `gpt2` with `captum_ig`, so a generated word's attribution back to its prompt/context tokens can be inspected click-by-click.
+* **[`case_study_diffusion_style.ipynb`](backend/notebooks/case_study_diffusion_style.ipynb)** — a `content x style` prompt grid (e.g. `cow` vs. `Rembrandt`) run through SDXL with the `daam` attributor, comparing per-token attention heatmaps for content vs. style tokens on the same image.
+* **[`case_study_toxicity_classification.ipynb`](backend/notebooks/case_study_toxicity_classification.ipynb)** — curated [Civil Comments](https://huggingface.co/datasets/google/civil_comments) rows through `unitary/toxic-bert`, attributing each row to its own toxicity subtype to check whether attribution lands on genuinely abusive language or over-attributes to identity terms.
+* **[`case_study_1.ipynb`](backend/notebooks/case_study_1.ipynb)** and **[`case_study_2.ipynb`](backend/notebooks/case_study_2.ipynb)** — earlier examples covering IMDB sentiment classification bias and diffusion content/style attribution respectively.
+
+**Prerequisites**: the LumiXAI backend running on `http://localhost:8000` (the diffusion notebooks additionally require GPU access).
+
+---
+
 ## Extensibility & Architecture
 The framework uses a strict **Registry Pattern** in `backend/main.py` for effortless expansion.
 
