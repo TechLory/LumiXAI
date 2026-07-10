@@ -24,10 +24,10 @@ Moving beyond static heatmaps, this framework provides a **highly interactive, b
 * **Bidirectional Text Generation Analysis:** Click on any generated output token to see which input tokens influenced it, or click an input token to see its causal effect on future generated text.
 * **Interactive Pixel-Level Attribution:** Hover over high-resolution generated images to instantly inspect the textual attention (DAAM) driving specific spatial regions, directly mapping pixels back to prompt tokens.
 * **9 Attribution Methods:** Integrated Gradients, DeepLift, Saliency, Input x Gradient, GradientSHAP, Occlusion, and LIME (SLIC superpixels) run universally across text and image classification models; SmoothGrad and Grad-CAM are image-classification-only, plus DAAM for diffusion image generation.
-* **Plug-and-Play Architecture:** Built with a Registry Pattern, allowing researchers to seamlessly add new models or attribution algorithms.
+* **Plug-and-Play Architecture:** Built with a Registry Pattern, **allowing researchers to seamlessly add new models or attribution algorithms**.
 * **Hardware Auto-Detection:** Smart fallback routing across CUDA (NVIDIA), MPS (Apple Silicon), and CPU.
 
-### Supported Models
+### Currently Supported Models
 LumiXAI is designed with a dynamic routing heuristic that provides out-of-the-box support for the most widely used model families on the Hugging Face Hub:
 
 * **Standard Image Generation:** Stable Diffusion 1.5, 2.1, and SDXL 1.0 (defaults to 30 inference steps with CFG enabled).
