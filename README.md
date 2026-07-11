@@ -15,6 +15,19 @@
 ![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-green.svg)
 ![No AI Training](https://img.shields.io/badge/No%20AI%20Training-Prohibited-red)
 
+## Table of Contents
+- [Overview](#overview)
+  - [Key Features](#key-features)
+  - [Currently Supported Models](#currently-supported-models)
+- [Getting Started](#getting-started)
+  - [Option A: Running with Docker](#option-a-running-with-docker-recommended-for-linuxwindows-servers)
+  - [Option B: Local Installation via Poetry](#option-b-local-installation-via-poetry-recommended-for-macos)
+- [Guided Tutorials](#guided-tutorials)
+- [Case Study Notebooks](#case-study-notebooks)
+- [Extensibility & Architecture](#extensibility--architecture)
+- [About & Contact](#about--contact)
+  - [AI/ML Training Opt-Out](#aiml-training-opt-out)
+
 ## Overview
 **LumiXAI** is a modular, full-stack framework designed to unify and simplify the Explainable AI (XAI) workflow. 
 
