@@ -120,7 +120,7 @@ docker compose down
 
 *(Note: Downloaded HF models and SQLite database states are preserved locally via bind mounts).*
 
-By default, the frontend assumes the API and docs are reachable on the same host it was loaded from (it builds their URLs from the browser's hostname, replacing `localhost` above with whatever's in the address bar). If that's not the case — e.g. the frontend is accessed from a different machine than the one running the backend/docs — the `localhost` default can be overridden via `frontend/.env.local`:
+By default the frontend talks to the API on port 8000 of the host it was loaded from (it builds the URL from the browser's hostname). The documentation is served at `/docs` on the **same origin** — i.e. through the reverse proxy in a deployed setup (`http://<host>/docs`); when the app is opened on a local dev port (3000/3001) it instead loads the docs from port 8001 of the same host. Either can be overridden via `frontend/.env.local` — useful when the frontend is accessed from a different machine than the one running the backend/docs:
 ```
 NEXT_PUBLIC_API_BASE_URL=http://<backend-host>:8000
 NEXT_PUBLIC_DOCS_BASE_URL=http://<backend-host>:8001

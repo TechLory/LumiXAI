@@ -1,6 +1,12 @@
 site_name: LumiXAI Documentation
 site_description: Modular & Interactive Explainable AI Framework
 site_author: Lorenzo Gatta
+# Public URL: the docs are exposed under /docs/ by the gateway nginx, which
+# proxies /docs/ to this server and strips the prefix. `mkdocs serve` ignores
+# this path (it serves at root and emits relative URLs, so the site is portable
+# under any prefix); site_url is declared for correct canonical links / sitemap
+# and for `mkdocs build` output.
+site_url: http://lumixai.islab.di.unimi.it/docs/
 
 theme:
   name: material
