@@ -23,7 +23,11 @@ services:
       - "${LUMIXAI_DOCS_PORT:-8001}:8001"
     volumes:
       - ./backend:/app
-    command: poetry run mkdocs serve -a 0.0.0.0:8001
+    # Build the static site, then serve it. Unlike `mkdocs serve` (a dev server),
+    # this honors site_url for canonical links and injects no livereload script, so
+    # it behaves correctly behind the /docs/ reverse proxy. Output goes to /site
+    # (outside the ./backend mount) so it doesn't litter the source tree.
+    command: sh -c "poetry run mkdocs build --site-dir /site && poetry run python -m http.server 8001 --bind 0.0.0.0 --directory /site"
   
   frontend:
     build: ./frontend
