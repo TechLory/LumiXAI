@@ -87,7 +87,7 @@ docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.gpu
 - `.env.local` is ignored by git and is the right place for custom ports, `HF_TOKEN`, `LUMIXAI_DEFAULT_DEVICE`, and `LUMIXAI_VISIBLE_GPUS`.
 - The example file includes `LUMIXAI_FRONTEND_PORT`, `LUMIXAI_BACKEND_PORT`, and `LUMIXAI_DOCS_PORT` if you want host-side port overrides.
 - You can also set `LUMIXAI_TEXT_MAX_NEW_TOKENS` there to raise the text generation cap while still allowing EOS to stop generation earlier.
-- `LUMIXAI_MODEL_IDLE_TIMEOUT_SEC` (default `1800`) controls how long a loaded model may sit unused before the backend unloads it and frees the (V)RAM. The timer resets on every load and explanation, and never fires while a job is running. Set it to `0` to keep models resident until they are unloaded by hand.
+- `LUMIXAI_MODEL_IDLE_TIMEOUT_SEC` (default `300`) controls how long a loaded model may sit unused before the backend unloads it and frees the (V)RAM. The timer resets on every load and explanation, and never fires while a job is running. Set it to `0` to keep models resident until they are unloaded by hand.
 
 To pin the backend to a specific GPU, set one or both of these environment variables before starting Compose:
 ```bash
