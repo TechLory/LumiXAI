@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import { buildApiUrl } from "../lib/api";
 import { getTutorialExampleMeta, isTutorialExampleJobId, loadTutorialExamplePayload, tutorialExampleSummaries } from "../lib/tutorialExamples";
@@ -25,28 +25,46 @@ const mergeJobsWithTutorialExamples = (jobs: JobHistoryItem[]) => {
   return sortJobs([...jobs, ...builtInExamples]);
 };
 
+// A single failed poll is expected noise (backend restart, sleep/wake, page unload);
+// only a backend that stays unreachable this many polls in a row is worth reporting.
+const FAILED_POLLS_BEFORE_WARNING = 3;
+
 export function useJobsHistory() {
   const [jobs, setJobs] = useState<JobHistoryItem[]>(() => mergeJobsWithTutorialExamples([]));
   const [deletingJobIds, setDeletingJobIds] = useState<string[]>([]);
+  const consecutivePollFailures = useRef(0);
 
   const fetchJobs = async () => {
     try {
       const res = await fetch(buildApiUrl("/api/jobs"));
+      consecutivePollFailures.current = 0;
       if (res.ok) {
         const data = await res.json();
         setJobs(mergeJobsWithTutorialExamples(Array.isArray(data) ? data : []));
       }
     } catch (e) {
-      console.error("Failed to fetch jobs history", e);
+      consecutivePollFailures.current += 1;
+      if (consecutivePollFailures.current === FAILED_POLLS_BEFORE_WARNING) {
+        console.warn("Jobs history backend unreachable, keeping last known jobs", e);
+      }
       setJobs((currentJobs) => mergeJobsWithTutorialExamples(currentJobs.filter((job) => !job.is_builtin_example)));
     }
   };
 
   useEffect(() => {
     fetchJobs();
-    // Polling
-    const interval = setInterval(fetchJobs, 5000);
-    return () => clearInterval(interval);
+    // Polling; paused while the tab is hidden, with a refresh when it becomes visible again.
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchJobs();
+    }, 5000);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) fetchJobs();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   // Download job payload for a specific job ID
