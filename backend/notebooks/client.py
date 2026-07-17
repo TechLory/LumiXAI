@@ -1,14 +1,35 @@
 import requests
 import time
+import uuid
 from typing import List, Dict, Any
 from collections import defaultdict
 from tqdm import tqdm
 
 
 class Client:
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    """Batch client for the LumiXAI backend.
+
+    Each instance is a session: it claims the model it loads, so a browser user cannot
+    replace the model halfway through a batch, and it passes the backend's configuration
+    token with every job, so a job that would run against someone else's model fails
+    loudly instead of returning an attribution of the wrong thing.
+
+    Args:
+        base_url (str): Backend root URL.
+        force (bool): Take the model over even when another session still holds it.
+            Off by default, so a batch cannot trample someone's live session by accident.
+    """
+
+    def __init__(self, base_url: str = "http://localhost:8000", force: bool = False):
         self.base_url = base_url.rstrip("/")
+        self.session_id = uuid.uuid4().hex
+        self.force = force
+        self.config_id = None
         self._check_connection()
+
+    @property
+    def _headers(self) -> Dict[str, str]:
+        return {"X-LumiXAI-Session": self.session_id}
 
     def _check_connection(self):
         try:
@@ -19,14 +40,30 @@ class Client:
             print(f"Error connecting to {self.base_url}.")
 
     def _load_model(self, source: str, model_name: str, device: str = "auto"):
-        res = requests.post(f"{self.base_url}/api/load", json={"source": source, "model_name": model_name, "device": device})
+        res = requests.post(
+            f"{self.base_url}/api/load",
+            json={"source": source, "model_name": model_name, "device": device, "force": self.force},
+            headers=self._headers,
+        )
+        if res.status_code == 423:
+            raise RuntimeError(
+                f"{res.json().get('detail')} Pass force=True to Client(...) to take it over."
+            )
         res.raise_for_status()
-        return res.json()
+        data = res.json()
+        self.config_id = data.get("config_id")
+        return data
 
     def _set_attributor(self, attributor_id: str):
-        res = requests.post(f"{self.base_url}/api/set_attributor", json={"attributor_id": attributor_id})
+        res = requests.post(
+            f"{self.base_url}/api/set_attributor",
+            json={"attributor_id": attributor_id, "force": self.force},
+            headers=self._headers,
+        )
         res.raise_for_status()
-        return res.json()
+        data = res.json()
+        self.config_id = data.get("config_id")
+        return data
 
     def clear_history(self) -> Dict[str, Any]:
         """
@@ -44,7 +81,7 @@ class Client:
         Request the backend to free VRAM by unloading the current model and clearing caches.
         """
         print("Requesting VRAM cleanup...")
-        res = requests.post(f"{self.base_url}/api/unload")
+        res = requests.post(f"{self.base_url}/api/unload", json={"force": self.force}, headers=self._headers)
         res.raise_for_status()
         data = res.json()
         print(f"{data.get('message')}")
@@ -114,7 +151,10 @@ class Client:
                         "max_new_tokens": job.get('max_new_tokens', None),
                         "disable_thinking": job.get('disable_thinking', False),
                         "use_chat_template": job.get('use_chat_template', True),
-                    })
+                        # Ties the job to the model this group loaded: if it is gone, the
+                        # backend refuses rather than explaining a different model.
+                        "config_id": self.config_id,
+                    }, headers=self._headers)
                     res.raise_for_status()
                     job_ids_in_flight.append((job['_original_index'], res.json()["job_id"]))
 

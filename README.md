@@ -24,6 +24,7 @@
   - [Option B: Local Installation via Poetry](#option-b-local-installation-via-poetry-recommended-for-macos)
 - [Guided Tutorials](#guided-tutorials)
 - [Case Study Notebooks](#case-study-notebooks)
+- [Sharing One Backend](#sharing-one-backend)
 - [Extensibility & Architecture](#extensibility--architecture)
 - [About & Contact](#about--contact)
   - [AI/ML Training Opt-Out](#aiml-training-opt-out)
@@ -86,6 +87,7 @@ docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.gpu
 - `.env.local` is ignored by git and is the right place for custom ports, `HF_TOKEN`, `LUMIXAI_DEFAULT_DEVICE`, and `LUMIXAI_VISIBLE_GPUS`.
 - The example file includes `LUMIXAI_FRONTEND_PORT`, `LUMIXAI_BACKEND_PORT`, and `LUMIXAI_DOCS_PORT` if you want host-side port overrides.
 - You can also set `LUMIXAI_TEXT_MAX_NEW_TOKENS` there to raise the text generation cap while still allowing EOS to stop generation earlier.
+- `LUMIXAI_MODEL_IDLE_TIMEOUT_SEC` (default `1800`) controls how long a loaded model may sit unused before the backend unloads it and frees the (V)RAM. The timer resets on every load and explanation, and never fires while a job is running. Set it to `0` to keep models resident until they are unloaded by hand.
 
 To pin the backend to a specific GPU, set one or both of these environment variables before starting Compose:
 ```bash
@@ -182,6 +184,18 @@ Beyond the guided tutorials, [`backend/notebooks/`](backend/notebooks) contains 
 * **[`case_study_1.ipynb`](backend/notebooks/case_study_1.ipynb)** and **[`case_study_2.ipynb`](backend/notebooks/case_study_2.ipynb)** — earlier examples covering IMDB sentiment classification bias and diffusion content/style attribution respectively.
 
 **Prerequisites**: the LumiXAI backend running on `http://localhost:8000` (the diffusion notebooks additionally require GPU access).
+
+---
+
+## Sharing One Backend
+The backend holds a **single model at a time**, while the frontend, notebooks and experiment scripts can all reach it at once. Two rules keep concurrent users from stepping on each other, and both surface as ordinary HTTP responses:
+
+* **Results are pinned to a configuration.** Every load and attributor change mints a `config_id`, returned by `/api/load` and `/api/set_attributor`. Clients send it back on `/api/explain`, and a job whose configuration is no longer live is refused (`409`) rather than being answered by whatever model happens to be loaded now. Jobs are pinned at submission too, so a swap that happens while a job waits in the queue fails that job instead of mislabelling its result.
+* **Whoever loads a model keeps it.** A client identifies itself with an `X-LumiXAI-Session` header and holds a lease on the configuration it loaded. Another client trying to load, change the attributor, or unload gets `423 Locked`, naming the model and when the claim lapses. The lease expires exactly when the idle reaper would release the model (see `LUMIXAI_MODEL_IDLE_TIMEOUT_SEC`), so nothing is ever locked forever. Send `"force": true` to take over deliberately — the frontend shows a **Take over and load anyway** button when this happens. Running attributions is never gated: clients share the loaded model freely, since that's the point of a shared box.
+
+A configuration change is also refused (`409`) while any job is running, so weights are never freed out from under a computation in progress.
+
+The shipped [`client.py`](backend/notebooks/client.py) does all of this for you — each `Client` instance is its own session. Pass `Client(base_url, force=True)` for a batch that should claim the backend regardless of who is using it. `GET /api/status` reports what is loaded, whether it is yours, and how long the lease and the model have left.
 
 ---
 

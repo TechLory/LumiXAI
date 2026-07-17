@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { MouseEvent } from "react";
 
 import Navbar from "./layout/Navbar";
@@ -11,6 +11,7 @@ import TutorialOverlay from "./tutorial/TutorialOverlay";
 
 import { useSystemBoot } from "../hooks/useSystemBoot";
 import { useModelManager } from "../hooks/useModelManager";
+import { useBackendStatus } from "../hooks/useBackendStatus";
 import { useInference } from "../hooks/useInference";
 import { useJobsHistory } from "../hooks/useJobsHistory";
 import { getTutorialExampleForKind, loadTutorialExamplePayload } from "../lib/tutorialExamples";
@@ -53,14 +54,20 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     lastLoadedConfiguration,
     hasActiveConfiguration,
     activeAttributorId,
+    activeConfigId,
     detectedWrapperName,
     detectedTask,
     isDirty,
     handleLoadConfiguration,
     handleResetConfiguration,
     handleUnloadConfiguration,
-    hydrateConfiguration
+    hydrateConfiguration,
+    notifyBackendUnload
   } = useModelManager(effectiveSystemState.data?.attributors ?? []);
+
+  // Tutorial mode fakes an active configuration without ever loading anything, so polling
+  // the real backend there would immediately "correct" that state away.
+  const backendStatus = useBackendStatus(!isTutorialActive);
 
   const {
     inputText, setInputText,
@@ -176,6 +183,42 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     if (hasActiveConfiguration) setReviewedJob(null);
   }, [hasActiveConfiguration, isTutorialActive]);
 
+  // When the configuration went live, in client-clock terms. Compared against the poll's
+  // own send time below to ignore replies that left before the model was loaded.
+  const configActivatedAtRef = useRef(0);
+  useEffect(() => {
+    if (hasActiveConfiguration) configActivatedAtRef.current = Date.now();
+  }, [hasActiveConfiguration]);
+
+  // Give up the active configuration when the backend no longer holds the one this tab
+  // loaded — the idle reaper reclaimed it, or another session took the model over. Either
+  // way the UI must stop offering Explain against a configuration that isn't there.
+  useEffect(() => {
+    if (isTutorialActive || !backendStatus || !hasActiveConfiguration) return;
+    if (backendStatus.requestedAt < configActivatedAtRef.current) return;
+
+    if (!backendStatus.model_loaded) {
+      const unloadedModel = backendStatus.last_unload?.model_name
+        ? `'${backendStatus.last_unload.model_name}'`
+        : "The model";
+      notifyBackendUnload(
+        backendStatus.last_unload?.reason === 'idle_timeout'
+          ? `${unloadedModel} was unloaded to free memory after a period of inactivity. Click "Load Configuration" to bring it back.`
+          : `${unloadedModel} is no longer loaded on the backend. Click "Load Configuration" to bring it back.`
+      );
+      return;
+    }
+
+    // A model is loaded, but not the one this tab configured: another session replaced it.
+    // Compared by token, so an attributor change counts as a different configuration too.
+    if (activeConfigId && backendStatus.config_id !== activeConfigId) {
+      const activeModel = backendStatus.model_name ? `'${backendStatus.model_name}'` : "another configuration";
+      notifyBackendUnload(
+        `Another session loaded ${activeModel} on the backend, replacing your configuration. Click "Load Configuration" to take it back.`
+      );
+    }
+  }, [backendStatus, hasActiveConfiguration, isTutorialActive, activeConfigId, notifyBackendUnload]);
+
   // Status badge shown in the collapsed System Logs header.
   const statusMeta =
     effectiveSystemState.status === 'running'
@@ -201,6 +244,18 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
     };
   };
   const shortModelName = modelName?.split('/').pop();
+
+  // Countdown to the backend's idle unload, so a model vanishing is never a surprise.
+  // Refreshes on the status poll, hence the coarse rounding.
+  const idleUnloadLabel = (() => {
+    if (isTutorialActive || !hasActiveConfiguration || !backendStatus?.model_loaded) return null;
+
+    const secondsLeft = backendStatus.seconds_until_unload;
+    if (secondsLeft === null) return null;
+    if (backendStatus.busy) return "in use";
+    if (secondsLeft < 60) return "idle unload imminent";
+    return `idle unload in ~${Math.round(secondsLeft / 60)}m`;
+  })();
   const inputWrapperName = hasActiveConfiguration
     ? guessWrapperFromTask(lastLoadedConfiguration?.detectedTask)
     : detectedWrapperName;
@@ -292,7 +347,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   };
 
   const handleLiveExplain = (ignoreSpecialTokens: boolean, disableThinking: boolean) => {
-    handleExplain(ignoreSpecialTokens, disableThinking, getLoadedResultMetadata());
+    handleExplain(ignoreSpecialTokens, disableThinking, getLoadedResultMetadata(), activeConfigId, notifyBackendUnload);
   };
 
   const getTutorialTargetClass = (target: string) => (
@@ -514,6 +569,17 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                         <span className="text-fg-muted">{shortModelName}</span>
                         <span className="text-fg-faint">·</span>
                         <span className="text-fg-subtle">{activeAttributorName}</span>
+                        {idleUnloadLabel && (
+                          <>
+                            <span className="text-fg-faint">·</span>
+                            <span
+                              className="text-fg-faint normal-case text-xs italic"
+                              title="The backend frees the model's memory once it goes unused. Running a job resets the timer."
+                            >
+                              {idleUnloadLabel}
+                            </span>
+                          </>
+                        )}
                       </div>
                     )
                   )}

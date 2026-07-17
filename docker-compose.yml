@@ -16,6 +16,8 @@ services:
       - HF_TOKEN=${HF_TOKEN:-}
       - LUMIXAI_DEFAULT_DEVICE=${LUMIXAI_DEFAULT_DEVICE:-auto}
       - LUMIXAI_TEXT_MAX_NEW_TOKENS=${LUMIXAI_TEXT_MAX_NEW_TOKENS:-64}
+      # Unload the active model after this many seconds without use. 0 keeps it resident.
+      - LUMIXAI_MODEL_IDLE_TIMEOUT_SEC=${LUMIXAI_MODEL_IDLE_TIMEOUT_SEC:-1800}
   
   docs:
     build: ./backend

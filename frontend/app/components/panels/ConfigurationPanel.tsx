@@ -22,14 +22,14 @@ interface ConfigurationPanelProps {
   onSourceChange: (newValue: string) => void;
   onModelNameChange: (newValue: string, task?: string) => void;
   onAttributorChange: (newValue: string) => void;
-  onLoadConfiguration: () => void;
+  onLoadConfiguration: (takeOver?: boolean) => void;
   onResetConfiguration: () => void;
   onUnloadConfiguration: () => void;
   tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 export default function ConfigurationPanel(props: ConfigurationPanelProps) {
-  const { status, step, errorField, errorMessage, logs } = props.configState;
+  const { status, step, errorField, errorMessage, logs, canTakeOver } = props.configState;
   const isRunning = status === 'running';
   const isInteractionDisabled = isRunning || props.isInferenceRunning;
   const isUnloadRunning = isRunning && step === 'unloading_model';
@@ -173,7 +173,7 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 className="bg-ok-soft hover:bg-ok-hover border border-ok-line text-ok flex-1 p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-                onClick={props.onLoadConfiguration}
+                onClick={() => props.onLoadConfiguration()}
                 disabled={isInteractionDisabled}
               >
                 Load Configuration
@@ -189,10 +189,22 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
           ) : (
             <button
               className="bg-ok-soft hover:bg-ok-hover border border-ok-line text-ok w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-              onClick={props.onLoadConfiguration}
+              onClick={() => props.onLoadConfiguration()}
               disabled={isInteractionDisabled}
             >
               Load Configuration
+            </button>
+          )}
+
+          {/* TAKE OVER (only after the backend refused because another session holds the model) */}
+          {canTakeOver && !isRunning && (
+            <button
+              className="bg-warn-soft hover:opacity-80 border border-warn text-warn w-full p-3 mt-2 font-mono font-semibold text-sm uppercase cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              onClick={() => props.onLoadConfiguration(true)}
+              disabled={isInteractionDisabled}
+              title="Replace the configuration another session is using with yours"
+            >
+              <><i className='bx bx-transfer text-lg'></i> Take over and load anyway</>
             </button>
           )}
 

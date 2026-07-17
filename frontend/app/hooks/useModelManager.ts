@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { buildApiUrl } from "../lib/api";
+import { useCallback, useState } from "react";
+import { apiFetch } from "../lib/api";
 import { guessWrapperFromTask } from "../lib/taskToWrapper";
 
 export type ConfigStep =
@@ -17,6 +17,9 @@ export interface ConfigurationState {
   errorField: 'source' | 'model' | 'attributor' | 'general' | null;
   errorMessage: string | null;
   logs: string[];
+  // Set when the backend refused the load because another session still holds the model
+  // (423). Offers the user the deliberate takeover rather than retrying behind their back.
+  canTakeOver?: boolean;
 }
 
 export interface LoadedConfiguration {
@@ -47,6 +50,9 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
   const [lastLoadedConfiguration, setLastLoadedConfiguration] = useState<LoadedConfiguration | null>(null);
   const [hasActiveConfiguration, setHasActiveConfiguration] = useState(false);
   const [activeAttributorId, setActiveAttributorId] = useState<string | null>(null);
+  // The backend's token for the configuration this tab loaded. Sent with every explain so
+  // the backend can refuse rather than attribute against a model someone else swapped in.
+  const [activeConfigId, setActiveConfigId] = useState<string | null>(null);
   const [detectedWrapperName, setDetectedWrapperName] = useState<string | null>(null);
   const [detectedTask, setDetectedTask] = useState<string | null>(null);
 
@@ -122,6 +128,7 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
   const invalidateActiveConfiguration = () => {
     setHasActiveConfiguration(false);
     setActiveAttributorId(null);
+    setActiveConfigId(null);
   };
 
   const restoreLoadedConfiguration = () => {
@@ -163,6 +170,9 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
       setLastLoadedConfiguration(loadedConfiguration);
       setHasActiveConfiguration(true);
       setActiveAttributorId(nextAttributor);
+      // The tutorial replays bundled data and never loads a model, so there is no backend
+      // configuration to hold a token for.
+      setActiveConfigId(null);
       setConfigState({
         status: 'success',
         step: 'ready',
@@ -181,6 +191,7 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
     setLastLoadedConfiguration(null);
     setHasActiveConfiguration(false);
     setActiveAttributorId(null);
+    setActiveConfigId(null);
     setConfigState({
       status: 'idle',
       step: 'idle',
@@ -190,13 +201,13 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
     });
   };
 
-  const handleLoadConfiguration = async () => {
+  const handleLoadConfiguration = async (takeOver: boolean = false) => {
     setConfigState({
       status: 'running',
       step: 'checking_inputs',
       errorField: null,
       errorMessage: null,
-      logs: ["Validating selections..."]
+      logs: takeOver ? ["Taking over the loaded configuration..."] : ["Validating selections..."]
     });
 
     // 1. Input Validation
@@ -220,10 +231,10 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
 
     try {
       hasStartedBackendLoad = true;
-      const modelRes = await fetch(buildApiUrl("/api/load"), {
+      const modelRes = await apiFetch("/api/load", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: selectedSource, model_name: modelName, device: "auto" })
+        body: JSON.stringify({ source: selectedSource, model_name: modelName, device: "auto", force: takeOver })
       });
 
       if (!modelRes.ok) {
@@ -231,12 +242,17 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
         let errorDetail = errorText;
         try { errorDetail = JSON.parse(errorText).detail; } catch {}
 
-        invalidateActiveConfiguration();
+        // 423: someone else's model is still live. Nothing was touched on the backend, so
+        // this tab keeps whatever it had and the user decides whether to take over.
+        const isLeaseConflict = modelRes.status === 423;
+        if (!isLeaseConflict) invalidateActiveConfiguration();
+
         setConfigState(prev => ({
           ...prev,
           status: 'error',
           errorField: 'model',
           errorMessage: errorDetail,
+          canTakeOver: isLeaseConflict,
           logs: [...prev.logs, `Load failed: ${errorDetail}`]
         }));
         return;
@@ -254,10 +270,10 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
       setConfigState(prev => ({ ...prev, step: 'setting_attributor' }));
       addLog(`Setting attributor to '${selectedAttributor}'...`);
 
-      const attrRes = await fetch(buildApiUrl("/api/set_attributor"), {
+      const attrRes = await apiFetch("/api/set_attributor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attributor_id: selectedAttributor })
+        body: JSON.stringify({ attributor_id: selectedAttributor, force: takeOver })
       });
 
       if (!attrRes.ok) {
@@ -278,6 +294,7 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
         return;
       }
 
+      const attrData = await attrRes.json();
       const loadedConfiguration = {
         source: selectedSource,
         modelName,
@@ -288,10 +305,13 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
       setLastLoadedConfiguration(loadedConfiguration);
       setHasActiveConfiguration(true);
       setActiveAttributorId(selectedAttributor);
-      setConfigState(prev => ({ 
-        ...prev, 
-        status: 'success', 
+      // Attaching the attributor re-mints the token, so this is the one to keep.
+      setActiveConfigId(attrData.config_id ?? modelData.config_id ?? null);
+      setConfigState(prev => ({
+        ...prev,
+        status: 'success',
         step: 'ready',
+        canTakeOver: false,
         logs: [...prev.logs, "Configuration fully loaded and ready."]
       }));
 
@@ -325,8 +345,10 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
     });
 
     try {
-      const res = await fetch(buildApiUrl("/api/unload"), {
-        method: "POST"
+      const res = await apiFetch("/api/unload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: false })
       });
 
       if (!res.ok) {
@@ -348,8 +370,7 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
       }
 
       const data = await res.json();
-      setHasActiveConfiguration(false);
-      setActiveAttributorId(null);
+      invalidateActiveConfiguration();
       setConfigState({
         status: 'idle',
         step: 'unloaded',
@@ -370,6 +391,22 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
     }
   };
 
+  // The backend can drop the model without us asking (the idle reaper), so the active
+  // configuration has to be surrendered on its say-so, not only through the Unload button.
+  // Keeps the draft selections intact so re-loading is a single click.
+  const notifyBackendUnload = useCallback((message: string) => {
+    setHasActiveConfiguration(false);
+    setActiveAttributorId(null);
+    setActiveConfigId(null);
+    setConfigState({
+      status: 'idle',
+      step: 'unloaded',
+      errorField: null,
+      errorMessage: null,
+      logs: [message]
+    });
+  }, []);
+
   const isDirty = !!lastLoadedConfiguration && (
     selectedSource !== lastLoadedConfiguration.source ||
     modelName !== lastLoadedConfiguration.modelName ||
@@ -384,12 +421,14 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
     lastLoadedConfiguration,
     hasActiveConfiguration,
     activeAttributorId,
+    activeConfigId,
     detectedWrapperName,
     detectedTask,
     isDirty,
     handleLoadConfiguration,
     handleResetConfiguration,
     handleUnloadConfiguration,
-    hydrateConfiguration
+    hydrateConfiguration,
+    notifyBackendUnload
   };
 }

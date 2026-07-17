@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { getSessionId } from "./session";
 
 const DEFAULT_API_PORT = "8000";
 const DEFAULT_DOCS_PORT = "8001";
+export const SESSION_HEADER = "X-LumiXAI-Session";
 
 function normalizeBrowserHostname(hostname: string) {
   if (!hostname || hostname === "0.0.0.0" || hostname === "::" || hostname === "[::]") {
@@ -28,6 +30,21 @@ export function getApiBaseUrl() {
 export function buildApiUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${getApiBaseUrl()}${normalizedPath}`;
+}
+
+/**
+ * fetch() against the backend with this tab's session id attached. Use it for anything
+ * that loads, changes or inspects the active configuration: the backend needs to know who
+ * is asking to decide whether the model is theirs to replace.
+ */
+export function apiFetch(path: string, init: RequestInit = {}) {
+  return fetch(buildApiUrl(path), {
+    ...init,
+    headers: {
+      ...init.headers,
+      [SESSION_HEADER]: getSessionId(),
+    },
+  });
 }
 
 // The docs are exposed at /docs on the app's own origin by the production reverse

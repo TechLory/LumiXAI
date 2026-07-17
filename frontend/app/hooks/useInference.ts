@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { buildApiUrl } from "../lib/api";
+import { apiFetch, buildApiUrl } from "../lib/api";
 import { AsyncState, ResultMetadata } from "../types";
 
 export function useInference() {
@@ -72,7 +72,11 @@ export function useInference() {
   const handleExplain = async (
     ignoreSpecialTokens: boolean = true,
     disableThinking: boolean = false,
-    nextResultMetadata: ResultMetadata | null = null
+    nextResultMetadata: ResultMetadata | null = null,
+    // Names the configuration these results must be about. The backend refuses the job if
+    // another session has since loaded something else, instead of explaining that instead.
+    configId: string | null = null,
+    onConfigLost: ((message: string) => void) | null = null
   ) => {
     if (!inputImageBase64 && !inputText.trim()) return;
 
@@ -95,7 +99,7 @@ export function useInference() {
         : null;
 
       // 1. Creiamo il Job
-      const res = await fetch(buildApiUrl("/api/explain"), {
+      const res = await apiFetch("/api/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -105,11 +109,20 @@ export function useInference() {
           ignore_special_tokens: ignoreSpecialTokens,
           seed: seedValue,
           max_new_tokens: maxNewTokensValue,
-          disable_thinking: disableThinking
+          disable_thinking: disableThinking,
+          config_id: configId ?? undefined
         })
       });
 
       const data = await res.json();
+
+      // 409: this tab's configuration is gone (another session loaded its own, or the
+      // model was reaped). Hand it to the caller so the Configuration panel can recover.
+      if (res.status === 409) {
+        onConfigLost?.(data.detail || "Your configuration is no longer loaded on the backend.");
+        throw new Error(data.detail || "Your configuration is no longer loaded on the backend.");
+      }
+
       if (!res.ok) throw new Error(data.detail || "Failed to start inference job");
 
       // 2. Got job_id -> Start polling
