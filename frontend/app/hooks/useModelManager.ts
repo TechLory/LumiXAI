@@ -43,6 +43,38 @@ export interface AttributorCompatibility {
   compatible_wrappers: string[];
 }
 
+interface LoadModelResponse {
+  wrapper?: string;
+  device?: string;
+  detected_task?: string | null;
+  config_id?: string | null;
+  device_warning?: string | null;
+  docker_gpu_mode?: boolean;
+  nvidia_visible_devices?: string | null;
+  cuda_available?: boolean;
+  cuda_device_count?: number;
+}
+
+const formatBackendRuntimeLog = (modelData: LoadModelResponse): string | null => {
+  if (typeof modelData.docker_gpu_mode !== "boolean" && typeof modelData.cuda_available !== "boolean") {
+    return null;
+  }
+
+  const dockerMode = modelData.docker_gpu_mode
+    ? `Docker GPU mode detected (NVIDIA_VISIBLE_DEVICES=${modelData.nvidia_visible_devices || "<empty>"})`
+    : "Docker GPU mode not detected";
+  const cudaCount = typeof modelData.cuda_device_count === "number" ? modelData.cuda_device_count : 0;
+  const cudaMode = modelData.cuda_available
+    ? `CUDA visible to PyTorch (${cudaCount} GPU(s))`
+    : "CUDA not visible to PyTorch";
+
+  return `Backend runtime: ${dockerMode}; ${cudaMode}.`;
+};
+
+const getErrorMessage = (error: unknown, fallback = "Network error.") => {
+  return error instanceof Error && error.message ? error.message : fallback;
+};
+
 export function useModelManager(availableAttributors: AttributorCompatibility[] = []) {
   const [selectedSource, setSelectedSource] = useState("");
   const [modelName, setModelName] = useState("");
@@ -258,8 +290,16 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
         return;
       }
 
-      const modelData = await modelRes.json();
-      addLog(`Model loaded successfully. Task: ${modelData.detected_task}`);
+      const modelData = await modelRes.json() as LoadModelResponse;
+      const runtimeLog = formatBackendRuntimeLog(modelData);
+      if (runtimeLog) addLog(runtimeLog);
+
+      if (typeof modelData.device_warning === "string" && modelData.device_warning) {
+        addLog(`Warning: ${modelData.device_warning}`);
+      }
+
+      const loadedDevice = typeof modelData.device === "string" ? modelData.device : "unknown device";
+      addLog(`Model loaded successfully on '${loadedDevice}'. Task: ${modelData.detected_task}`);
 
       // Authoritative update from the backend (covers manually-typed model ids that never
       // went through ModelSelector's search results). Strips any " (fallback)" suffix so
@@ -315,12 +355,12 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
         logs: [...prev.logs, "Configuration fully loaded and ready."]
       }));
 
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (hasStartedBackendLoad) {
         invalidateActiveConfiguration();
       }
 
-      const errorMessage = e.message || "Network error.";
+      const errorMessage = getErrorMessage(e);
       setConfigState(prev => ({
         ...prev,
         status: 'error',
@@ -378,8 +418,8 @@ export function useModelManager(availableAttributors: AttributorCompatibility[] 
         errorMessage: null,
         logs: [data.message || "Configuration unloaded and memory freed."]
       });
-    } catch (e: any) {
-      const errorMessage = e.message || "Network error.";
+    } catch (e: unknown) {
+      const errorMessage = getErrorMessage(e);
       setConfigState(prev => ({
         ...prev,
         status: 'error',

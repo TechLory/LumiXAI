@@ -32,7 +32,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Tuple
 from huggingface_hub import HfApi
 
 # --- IMPORTS ---
@@ -72,6 +72,7 @@ print(f"hf cache dir set to: {HF_CACHE_DIR}")
 os.environ["HF_HOME"] = str(HF_CACHE_DIR)
 
 DEFAULT_DEVICE_ENV_VAR = "LUMIXAI_DEFAULT_DEVICE"
+NVIDIA_VISIBLE_DEVICES_ENV_VAR = "NVIDIA_VISIBLE_DEVICES"
 MODEL_IDLE_TIMEOUT_ENV_VAR = "LUMIXAI_MODEL_IDLE_TIMEOUT_SEC"
 DEFAULT_MODEL_IDLE_TIMEOUT_SEC = 300.0
 MODEL_IDLE_CHECK_INTERVAL_ENV_VAR = "LUMIXAI_MODEL_IDLE_CHECK_INTERVAL_SEC"
@@ -117,11 +118,59 @@ def format_duration(seconds: float) -> str:
         return f"{round(seconds / 60)} minutes"
     return f"{round(seconds)} seconds"
 
-def normalize_requested_device(requested_device: Optional[str] = "auto") -> str:
+def resolve_requested_device(requested_device: Optional[str] = "auto") -> Tuple[str, str]:
     device = (requested_device or "auto").strip().lower()
     if device == "auto":
-        device = os.getenv(DEFAULT_DEVICE_ENV_VAR, "auto").strip().lower() or "auto"
+        env_device = os.getenv(DEFAULT_DEVICE_ENV_VAR, "auto").strip().lower() or "auto"
+        return env_device, DEFAULT_DEVICE_ENV_VAR if env_device != "auto" else "request"
+    return device, "request"
+
+def normalize_requested_device(requested_device: Optional[str] = "auto") -> str:
+    device, _source = resolve_requested_device(requested_device)
     return device
+
+def get_runtime_device_info() -> Dict[str, Any]:
+    nvidia_visible_devices = os.getenv(NVIDIA_VISIBLE_DEVICES_ENV_VAR)
+    cuda_available = torch.cuda.is_available()
+    return {
+        "docker_gpu_mode": nvidia_visible_devices is not None,
+        "nvidia_visible_devices": nvidia_visible_devices,
+        "cuda_available": cuda_available,
+        "cuda_device_count": torch.cuda.device_count() if cuda_available else 0,
+    }
+
+def get_non_cuda_fallback_device() -> str:
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+def format_docker_gpu_mode(runtime_info: Dict[str, Any]) -> str:
+    if runtime_info["docker_gpu_mode"]:
+        visible_devices = runtime_info["nvidia_visible_devices"] or "<empty>"
+        return f"Docker GPU mode detected (NVIDIA_VISIBLE_DEVICES={visible_devices})"
+    return "Docker GPU mode not detected (NVIDIA_VISIBLE_DEVICES is not set)"
+
+def build_cuda_fallback_warning(
+    requested_cuda_device: str,
+    fallback_device: str,
+    request_source: str,
+    runtime_info: Dict[str, Any],
+) -> str:
+    if request_source == DEFAULT_DEVICE_ENV_VAR:
+        request_description = f"{DEFAULT_DEVICE_ENV_VAR} resolved to {requested_cuda_device}"
+    else:
+        request_description = f"{requested_cuda_device} was requested"
+
+    cuda_description = (
+        f"PyTorch can see {runtime_info['cuda_device_count']} CUDA GPU(s)"
+        if runtime_info["cuda_available"]
+        else "PyTorch cannot see any CUDA GPUs"
+    )
+    return (
+        f"{request_description}, but no NVIDIA GPU is available to the backend. "
+        f"{format_docker_gpu_mode(runtime_info)}; {cuda_description}. "
+        f"Using {fallback_device} instead."
+    )
 
 def is_unrecoverable_cuda_error(error: Any) -> bool:
     error_text = str(error).lower()
@@ -169,7 +218,7 @@ def clear_cuda_memory(device: Optional[str] = None) -> None:
     torch.cuda.empty_cache()
     torch.cuda.ipc_collect()
 
-def get_optimal_device(requested_device: str = "auto") -> str:
+def select_optimal_device(requested_device: str = "auto") -> Dict[str, Any]:
     """Determines the best available hardware accelerator.
 
     Args:
@@ -177,51 +226,73 @@ def get_optimal_device(requested_device: str = "auto") -> str:
             "cuda:0", "cuda:1", "mps"). Defaults to "auto".
 
     Returns:
-        str: The optimal device string compatible with PyTorch.
+        dict: Device selection metadata, including the PyTorch device string.
     """
-    resolved_request = normalize_requested_device(requested_device)
+    resolved_request, request_source = resolve_requested_device(requested_device)
+    runtime_info = get_runtime_device_info()
+
+    def selection(device: str, warning: Optional[str] = None) -> Dict[str, Any]:
+        return {
+            "device": device,
+            "requested_device": requested_device,
+            "resolved_device_request": resolved_request,
+            "device_request_source": request_source,
+            "device_warning": warning,
+            **runtime_info,
+        }
 
     if resolved_request == "auto":
-        if torch.cuda.is_available():
-            return "cuda"
+        if runtime_info["cuda_available"]:
+            return selection("cuda")
         if torch.backends.mps.is_available():
-            return "mps"
-        return "cpu"
+            return selection("mps")
+        return selection("cpu")
 
     if resolved_request == "cpu":
-        return "cpu"
+        return selection("cpu")
 
     if resolved_request == "cuda":
-        if not torch.cuda.is_available():
-            raise ValueError("CUDA was requested, but no NVIDIA GPU is available to the backend.")
-        return "cuda"
+        if not runtime_info["cuda_available"]:
+            fallback_device = get_non_cuda_fallback_device()
+            return selection(
+                fallback_device,
+                build_cuda_fallback_warning(resolved_request, fallback_device, request_source, runtime_info),
+            )
+        return selection("cuda")
 
     if resolved_request.startswith("cuda:"):
-        if not torch.cuda.is_available():
-            raise ValueError(f"{resolved_request} was requested, but no NVIDIA GPU is available to the backend.")
-
         try:
             gpu_index = int(resolved_request.split(":", 1)[1])
         except ValueError as exc:
             raise ValueError(f"Invalid CUDA device '{resolved_request}'. Use 'cuda' or 'cuda:<index>'.") from exc
 
-        visible_gpu_count = torch.cuda.device_count()
+        if not runtime_info["cuda_available"]:
+            fallback_device = get_non_cuda_fallback_device()
+            return selection(
+                fallback_device,
+                build_cuda_fallback_warning(resolved_request, fallback_device, request_source, runtime_info),
+            )
+
+        visible_gpu_count = runtime_info["cuda_device_count"]
         if gpu_index < 0 or gpu_index >= visible_gpu_count:
             raise ValueError(
                 f"Requested CUDA device '{resolved_request}' is not available. "
                 f"The backend can currently see {visible_gpu_count} GPU(s)."
             )
-        return resolved_request
+        return selection(resolved_request)
 
     if resolved_request == "mps":
         if not torch.backends.mps.is_available():
             raise ValueError("MPS was requested, but it is not available on this machine.")
-        return "mps"
+        return selection("mps")
 
     raise ValueError(
         f"Unsupported device '{resolved_request}'. "
         "Use one of: auto, cpu, cuda, cuda:<index>, mps."
     )
+
+def get_optimal_device(requested_device: str = "auto") -> str:
+    return select_optimal_device(requested_device)["device"]
 
 # --- 1. REGISTRY ---
 AVAILABLE_WRAPPERS = {
@@ -850,7 +921,8 @@ def load_model_into_state(req: LoadRequest, session_id: Optional[str] = None):
     try:
         release_active_model(reason="model_switch")
 
-        real_device = get_optimal_device(req.device)
+        device_selection = select_optimal_device(req.device)
+        real_device = device_selection["device"]
         if is_indexed_cuda_device(real_device):
             torch.cuda.set_device(torch.device(real_device))
 
@@ -909,6 +981,14 @@ def load_model_into_state(req: LoadRequest, session_id: Optional[str] = None):
         return {
             "status": "loaded", "model": req.model_name,
             "wrapper": wrapper_name, "device": real_device,
+            "requested_device": device_selection["requested_device"],
+            "resolved_device_request": device_selection["resolved_device_request"],
+            "device_request_source": device_selection["device_request_source"],
+            "device_warning": device_selection["device_warning"],
+            "docker_gpu_mode": device_selection["docker_gpu_mode"],
+            "nvidia_visible_devices": device_selection["nvidia_visible_devices"],
+            "cuda_available": device_selection["cuda_available"],
+            "cuda_device_count": device_selection["cuda_device_count"],
             "detected_task": detected_task,
             "config_id": config_id
         }
@@ -958,6 +1038,7 @@ def get_status(session_id: Optional[str] = Header(None, alias=SESSION_HEADER)):
     which would otherwise let an idle browser tab pin the GPU forever.
     """
     active_wrapper = app_state.get("active_wrapper")
+    runtime_info = get_runtime_device_info()
     idle_timeout_sec = get_model_idle_timeout_sec()
     idle_seconds = get_idle_seconds()
 
@@ -978,6 +1059,10 @@ def get_status(session_id: Optional[str] = Header(None, alias=SESSION_HEADER)):
         "source": app_state.get("active_source"),
         "wrapper": app_state.get("active_wrapper_name"),
         "device": getattr(active_wrapper, "device", None),
+        "docker_gpu_mode": runtime_info["docker_gpu_mode"],
+        "nvidia_visible_devices": runtime_info["nvidia_visible_devices"],
+        "cuda_available": runtime_info["cuda_available"],
+        "cuda_device_count": runtime_info["cuda_device_count"],
         "attributor_id": app_state.get("active_attributor_id"),
         "busy": is_backend_busy(),
         "idle_seconds": round(idle_seconds, 1),

@@ -60,6 +60,12 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
     return `// ${defaultText}`;
   };
 
+  const getLogClass = (log: string, idx: number) => {
+    if (log.startsWith("Warning:")) return "text-warn";
+    if (idx === logs.length - 1 && status === 'success') return "text-ok";
+    return "";
+  };
+
   return (
     <div className="mt-5 min-w-0">
       <div className="flex min-w-0 flex-col gap-1.5">
@@ -216,10 +222,10 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
               </div>
             )}
             {logs.length === 0 && status !== 'error' && !props.hasResetTarget && (
-              <div>No configuration loaded. Please select a model source, a model name, and an attributor, then click "Load Configuration".</div>
+              <div>No configuration loaded. Please select a model source, a model name, and an attributor, then click &quot;Load Configuration&quot;.</div>
             )}
             {logs.map((log, idx) => (
-              <div key={idx} className={`${idx === logs.length - 1 && status === 'success' ? 'text-ok' : ''}`}>
+              <div key={idx} className={getLogClass(log, idx)}>
                 {log}
               </div>
             ))}

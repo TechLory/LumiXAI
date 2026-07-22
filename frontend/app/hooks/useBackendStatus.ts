@@ -15,6 +15,10 @@ export interface BackendStatus {
   source: string | null;
   wrapper: string | null;
   device: string | null;
+  docker_gpu_mode: boolean;
+  nvidia_visible_devices: string | null;
+  cuda_available: boolean;
+  cuda_device_count: number;
   attributor_id: string | null;
   busy: boolean;
   idle_seconds: number;
