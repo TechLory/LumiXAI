@@ -15,6 +15,8 @@
 ![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-green.svg)
 ![No AI Training](https://img.shields.io/badge/No%20AI%20Training-Prohibited-red)
 
+> **⚠️ Scheduled Maintenance:** Due to maintenance issues, the app may be down from July 27th to July 30th.
+
 ## Table of Contents
 - [Overview](#overview)
   - [Key Features](#key-features)
