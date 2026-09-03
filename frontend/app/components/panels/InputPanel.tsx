@@ -17,6 +17,7 @@ interface InputPanelProps {
   isConfigReady: boolean;
   activeAttributorId: string | null;
   activeWrapperName: string | null;
+  liveInferenceDisabled?: boolean;
   tutorialFocusTarget?: TutorialFocusTarget;
 }
 
@@ -31,7 +32,7 @@ export default function InputPanel(props: InputPanelProps) {
   const isImageClassification = props.activeWrapperName === "hf_image_classification";
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isButtonDisabled = !props.isConfigReady || isRunning || (isImageClassification ? !props.inputImageBase64 : wordCount === 0);
+  const isButtonDisabled = props.liveInferenceDisabled || !props.isConfigReady || isRunning || (isImageClassification ? !props.inputImageBase64 : wordCount === 0);
 
   const getTutorialFocusClass = (target: TutorialFocusTarget) => (
     props.tutorialFocusTarget === target ? " tutorial-inner-highlight" : ""
@@ -242,7 +243,9 @@ export default function InputPanel(props: InputPanelProps) {
             onClick={() => props.onExplainClick(isSpecialTokensDisabled, showDisableThinkingToggle && isThinkingDisabled)}
             disabled={isButtonDisabled}
           >
-            {!props.isConfigReady ? (
+            {props.liveInferenceDisabled ? (
+              <><i className='bx bx-lock-alt text-lg'></i> Inference Disabled</>
+            ) : !props.isConfigReady ? (
               <><i className='bx bx-lock-alt text-lg'></i> Waiting for Configuration</>
             ) : isRunning ? (
               <><i className='bx bx-loader animate-spin text-lg'></i> Running Inference...</>

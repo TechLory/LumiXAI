@@ -1227,17 +1227,11 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
 @app.get("/api/jobs")
 def get_jobs():
     """Retrieves metadata for all historical jobs."""
-    if is_examples_only_mode():
-        return []
-
     return get_all_jobs()
 
 @app.get("/api/jobs/{job_id}")
 def get_job_status(job_id: str):
     """Retrieves the status and the payload (if completed) of a specific job."""
-    if is_examples_only_mode():
-        raise HTTPException(404, "Job not found")
-
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")

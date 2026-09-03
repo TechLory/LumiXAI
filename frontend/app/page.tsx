@@ -15,12 +15,6 @@ export default function Home() {
   const examplesOnly = isExamplesOnlyMode;
 
   const openTool = () => {
-    if (examplesOnly) {
-      setActiveTutorial("text-classification");
-      setScreen("tool");
-      return;
-    }
-
     setActiveTutorial(null);
     setScreen("tool");
   };
@@ -30,9 +24,7 @@ export default function Home() {
     setScreen("tool");
   };
 
-  const shouldShowWelcome = screen === "welcome" || (examplesOnly && !activeTutorial);
-
-  if (shouldShowWelcome) {
+  if (screen === "welcome") {
     return <WelcomeScreen examplesOnly={examplesOnly} onEnterTool={openTool} onSelectTutorial={openTutorial} />;
   }
 
@@ -41,10 +33,7 @@ export default function Home() {
       activeTutorial={activeTutorial}
       onOpenWelcome={() => setScreen("welcome")}
       onSelectTutorial={openTutorial}
-      onCloseTutorial={() => {
-        setActiveTutorial(null);
-        if (examplesOnly) setScreen("welcome");
-      }}
+      onCloseTutorial={() => setActiveTutorial(null)}
     />
   );
 }

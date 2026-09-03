@@ -31,13 +31,13 @@ const mergeJobsWithTutorialExamples = (jobs: JobHistoryItem[]) => {
 const FAILED_POLLS_BEFORE_WARNING = 3;
 
 export function useJobsHistory(enabled = true) {
-  const effectiveEnabled = enabled && !isExamplesOnlyMode;
+  const mutationsEnabled = enabled && !isExamplesOnlyMode;
   const [jobs, setJobs] = useState<JobHistoryItem[]>(() => mergeJobsWithTutorialExamples([]));
   const [deletingJobIds, setDeletingJobIds] = useState<string[]>([]);
   const consecutivePollFailures = useRef(0);
 
   const fetchJobs = useCallback(async () => {
-    if (!effectiveEnabled) {
+    if (!enabled) {
       consecutivePollFailures.current = 0;
       setJobs(mergeJobsWithTutorialExamples([]));
       return;
@@ -57,10 +57,10 @@ export function useJobsHistory(enabled = true) {
       }
       setJobs((currentJobs) => mergeJobsWithTutorialExamples(currentJobs.filter((job) => !job.is_builtin_example)));
     }
-  }, [effectiveEnabled]);
+  }, [enabled]);
 
   useEffect(() => {
-    if (!effectiveEnabled) {
+    if (!enabled) {
       setJobs(mergeJobsWithTutorialExamples([]));
       return;
     }
@@ -78,7 +78,7 @@ export function useJobsHistory(enabled = true) {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [effectiveEnabled, fetchJobs]);
+  }, [enabled, fetchJobs]);
 
   // Download job payload for a specific job ID
   const fetchJobPayload = async (jobId: string) => {
@@ -89,7 +89,7 @@ export function useJobsHistory(enabled = true) {
       return { ...jobSummary, payload };
     }
 
-    if (!effectiveEnabled) {
+    if (!enabled) {
       return null;
     }
 
@@ -108,8 +108,8 @@ export function useJobsHistory(enabled = true) {
     if (isTutorialExampleJobId(jobId)) {
       throw new Error("Built-in tutorial examples are always available and cannot be deleted.");
     }
-    if (!effectiveEnabled) {
-      throw new Error("Stored jobs are not available in examples-only mode.");
+    if (!mutationsEnabled) {
+      throw new Error("Stored jobs cannot be changed in examples-only mode.");
     }
 
     setDeletingJobIds(prev => prev.includes(jobId) ? prev : [...prev, jobId]);
@@ -140,7 +140,7 @@ export function useJobsHistory(enabled = true) {
 
   const togglePinJob = async (jobId: string) => {
     if (isTutorialExampleJobId(jobId)) return; // built-in examples are always pinned
-    if (!effectiveEnabled) return;
+    if (!mutationsEnabled) return;
 
     const targetJob = jobs.find((job) => job.id === jobId);
     if (!targetJob) return;

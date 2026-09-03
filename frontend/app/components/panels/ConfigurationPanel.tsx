@@ -25,13 +25,14 @@ interface ConfigurationPanelProps {
   onLoadConfiguration: (takeOver?: boolean) => void;
   onResetConfiguration: () => void;
   onUnloadConfiguration: () => void;
+  liveInferenceDisabled?: boolean;
   tutorialFocusTarget?: TutorialFocusTarget;
 }
 
 export default function ConfigurationPanel(props: ConfigurationPanelProps) {
   const { status, step, errorField, errorMessage, logs, canTakeOver } = props.configState;
   const isRunning = status === 'running';
-  const isInteractionDisabled = isRunning || props.isInferenceRunning;
+  const isInteractionDisabled = props.liveInferenceDisabled || isRunning || props.isInferenceRunning;
   const isUnloadRunning = isRunning && step === 'unloading_model';
   const isLoadRunning = isRunning && step !== 'unloading_model';
 
@@ -153,7 +154,14 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
 
         {/* LOAD CONFIGURATION BUTTON */}
         <div className={`mt-5${getTutorialFocusClass("configuration-action")}`}>
-          {isLoadRunning ? (
+          {props.liveInferenceDisabled ? (
+            <button
+              className="bg-fill border border-border text-fg-subtle w-full p-3 font-mono font-semibold text-sm uppercase cursor-not-allowed transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
+              disabled
+            >
+              <><i className='bx bx-lock-alt text-lg'></i> Live Inference Disabled</>
+            </button>
+          ) : isLoadRunning ? (
             <button
               className="bg-ok-soft border border-ok-line text-ok w-full p-3 font-mono font-semibold text-sm uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
               disabled
@@ -221,7 +229,12 @@ export default function ConfigurationPanel(props: ConfigurationPanelProps) {
                 Draft changes are not active yet. The backend is still using the previously loaded configuration.
               </div>
             )}
-            {logs.length === 0 && status !== 'error' && !props.hasResetTarget && (
+            {props.liveInferenceDisabled && (
+              <div>
+                Select a past inference or built-in example from Job History, or open a tutorial. Model loading is disabled on this deployment.
+              </div>
+            )}
+            {logs.length === 0 && status !== 'error' && !props.hasResetTarget && !props.liveInferenceDisabled && (
               <div>No configuration loaded. Please select a model source, a model name, and an attributor, then click &quot;Load Configuration&quot;.</div>
             )}
             {logs.map((log, idx) => (

@@ -117,21 +117,23 @@ export default function WelcomeScreen({ examplesOnly = false, onEnterTool, onSel
           </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            {!examplesOnly && (
-              <button
-                type="button"
-                onClick={onEnterTool}
-                className="welcome-action welcome-action-primary group flex min-h-24 items-center gap-4 border-2 border-fg bg-fg px-4 py-3 text-left text-page transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-info focus:ring-offset-2 focus:ring-offset-page sm:col-span-2"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-page bg-page text-fg">
-                  <i className="bx bx-right-arrow-alt text-2xl" aria-hidden="true"></i>
+            <button
+              type="button"
+              onClick={onEnterTool}
+              className="welcome-action welcome-action-primary group flex min-h-24 items-center gap-4 border-2 border-fg bg-fg px-4 py-3 text-left text-page transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-info focus:ring-offset-2 focus:ring-offset-page sm:col-span-2"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-page bg-page text-fg">
+                <i className="bx bx-right-arrow-alt text-2xl" aria-hidden="true"></i>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold uppercase">Open tool</span>
+                <span className="mt-1 block text-xs leading-5 opacity-80">
+                  {examplesOnly
+                    ? "Browse past inferences and prepared examples"
+                    : "Go directly to the attribution interface"}
                 </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold uppercase">Open tool</span>
-                  <span className="mt-1 block text-xs leading-5 opacity-80">Go directly to the attribution interface</span>
-                </span>
-              </button>
-            )}
+              </span>
+            </button>
 
             {tutorialActions.map((action) => (
               <button

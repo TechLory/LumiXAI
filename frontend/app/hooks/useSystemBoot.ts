@@ -10,7 +10,7 @@ const offlineManifest: Manifest = {
 
 const offlineBootLogs = [
   "Examples-only mode active.",
-  "Using bundled prepared example data. Backend calls are skipped.",
+  "Using bundled prepared example data. Live inference calls are skipped.",
 ];
 
 export function useSystemBoot(enabled = true) {

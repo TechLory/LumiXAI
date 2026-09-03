@@ -14,6 +14,7 @@ import { useModelManager } from "../hooks/useModelManager";
 import { useBackendStatus } from "../hooks/useBackendStatus";
 import { useInference } from "../hooks/useInference";
 import { useJobsHistory } from "../hooks/useJobsHistory";
+import { isExamplesOnlyMode } from "../lib/examplesOnlyMode";
 import { getTutorialExampleForKind, loadTutorialExamplePayload } from "../lib/tutorialExamples";
 import { getTutorialSteps } from "../lib/tutorialGuide";
 import { guessWrapperFromTask } from "../lib/taskToWrapper";
@@ -33,6 +34,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
 
   const tutorialExample = activeTutorial ? getTutorialExampleForKind(activeTutorial) : null;
   const isTutorialActive = !!activeTutorial && !!tutorialExample;
+  const liveInferenceDisabled = isExamplesOnlyMode && !isTutorialActive;
   const tutorialConfig = tutorialExample?.config;
   const tutorialManifest = tutorialConfig ? {
     sources: [{ id: tutorialConfig.sourceId, name: tutorialConfig.sourceName, type: "remote" }],
@@ -102,7 +104,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
   }, [tutorialExample?.id]);
   const currentTutorialStep = isTutorialActive ? tutorialSteps[Math.min(tutorialStepIndex, tutorialSteps.length - 1)] : null;
   const effectiveBootLogs = isTutorialActive
-    ? ["Tutorial mode active.", "Using bundled prepared example data. Backend calls are skipped."]
+    ? ["Tutorial mode active.", "Using bundled prepared example data. Live inference calls are skipped."]
     : bootLogs;
 
   useEffect(() => {
@@ -406,7 +408,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   >
                     {job.status === 'running' && <i className='bx bx-loader animate-spin text-info'></i>}
                     {job.execution_time_sec && <div>{job.execution_time_sec}s</div>}
-                    {!job.is_builtin_example && job.status !== 'running' && (
+                    {!isExamplesOnlyMode && !job.is_builtin_example && job.status !== 'running' && (
                       <button
                         type="button"
                         onClick={(event) => handleTogglePin(event, job.id)}
@@ -422,7 +424,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                         <i className="bx bxs-pin text-base" title="Pinned"></i>
                         Built-in
                       </div>
-                    ) : pendingDeleteJobId === job.id ? (
+                    ) : isExamplesOnlyMode ? null : pendingDeleteJobId === job.id ? (
                       <>
                         <button
                           type="button"
@@ -621,6 +623,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                   onLoadConfiguration={isTutorialActive ? handleTutorialLoadConfiguration : handleLoadConfiguration}
                   onResetConfiguration={handleResetConfiguration}
                   onUnloadConfiguration={handleUnloadConfiguration}
+                  liveInferenceDisabled={liveInferenceDisabled}
                   tutorialFocusTarget={currentTutorialStep?.focusTarget}
                 />
               </div>
@@ -660,6 +663,7 @@ export default function MainApp({ activeTutorial = null, onOpenWelcome, onSelect
                     isConfigReady={hasActiveConfiguration}
                     activeAttributorId={activeAttributorId}
                     activeWrapperName={inputWrapperName}
+                    liveInferenceDisabled={liveInferenceDisabled}
                     tutorialFocusTarget={currentTutorialStep?.focusTarget}
                   />
                 </div>
