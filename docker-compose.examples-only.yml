@@ -1,0 +1,9 @@
+services:
+  backend:
+    environment:
+      - LUMIXAI_EXAMPLES_ONLY=true
+
+  frontend:
+    environment:
+      - NEXT_PUBLIC_LUMIXAI_EXAMPLES_ONLY=true
+

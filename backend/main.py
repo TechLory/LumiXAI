@@ -77,6 +77,7 @@ MODEL_IDLE_TIMEOUT_ENV_VAR = "LUMIXAI_MODEL_IDLE_TIMEOUT_SEC"
 DEFAULT_MODEL_IDLE_TIMEOUT_SEC = 300.0
 MODEL_IDLE_CHECK_INTERVAL_ENV_VAR = "LUMIXAI_MODEL_IDLE_CHECK_INTERVAL_SEC"
 DEFAULT_MODEL_IDLE_CHECK_INTERVAL_SEC = 30.0
+EXAMPLES_ONLY_ENV_VAR = "LUMIXAI_EXAMPLES_ONLY"
 UNRECOVERABLE_CUDA_ERROR_MARKERS = (
     "device-side assert triggered",
 )
@@ -104,6 +105,29 @@ def read_seconds_env(env_var: str, default_value: float, allow_zero: bool = Fals
         return default_value
 
     return parsed_value
+
+def read_boolean_env(env_var: str, default_value: bool = False) -> bool:
+    raw_value = os.getenv(env_var, "").strip().lower()
+    if not raw_value:
+        return default_value
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+
+    print(f"Ignoring invalid {env_var}='{raw_value}'; falling back to {default_value}.")
+    return default_value
+
+def is_examples_only_mode() -> bool:
+    """Whether this deployment should expose only bundled tutorial examples."""
+    return read_boolean_env(EXAMPLES_ONLY_ENV_VAR, False)
+
+def require_live_inference_enabled() -> None:
+    if is_examples_only_mode():
+        raise HTTPException(
+            403,
+            "Live inference is disabled on this deployment. Use the built-in tutorials and pre-computed examples.",
+        )
 
 def get_model_idle_timeout_sec() -> float:
     """Seconds a loaded model may sit unused before the reaper releases it. 0 disables it."""
@@ -567,6 +591,11 @@ def model_idle_reaper_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if is_examples_only_mode():
+        print(f"Examples-only mode enabled ({EXAMPLES_ONLY_ENV_VAR}=true). Live inference endpoints are disabled.")
+        yield
+        return
+
     idle_timeout_sec = get_model_idle_timeout_sec()
     if idle_timeout_sec > 0:
         print(f"Idle model reaper enabled: unloading after {format_duration(idle_timeout_sec)} of inactivity.")
@@ -868,19 +897,30 @@ def run_explanation_task(job_id: str, text: Optional[str], target_class: Optiona
 @app.get("/")
 def health_check():
     """Returns the basic health status of the API."""
-    return {"status": "LumiXAI Backend Online", "version": "0.2.0"}
+    examples_only = is_examples_only_mode()
+    return {
+        "status": "LumiXAI Backend Online",
+        "version": "0.2.0",
+        "examples_only": examples_only,
+        "inference_enabled": not examples_only,
+    }
 
 @app.get("/api/manifest")
 def get_manifest():
     """Returns the list of available model sources and attributor algorithms."""
+    examples_only = is_examples_only_mode()
     return {
         "sources": AVAILABLE_SOURCES,
-        "attributors": get_available_attributors()
+        "attributors": get_available_attributors(),
+        "examples_only": examples_only,
+        "inference_enabled": not examples_only,
     }
 
 @app.get("/api/search", response_model=List[SearchResult])
 def search_models(source: str, q: str, limit: int = MODEL_SEARCH_LIMIT):
     """Proxies the search request to the appropriate external Hub."""
+    require_live_inference_enabled()
+
     if source == "huggingface":
         bounded_limit = max(1, min(limit, 50))
         return search_hf_models(query=q, limit=bounded_limit)
@@ -897,6 +937,7 @@ def load_model(req: LoadRequest, session_id: Optional[str] = Header(None, alias=
     Loading replaces the single model the backend holds, so it is refused (423) while another
     session's lease is alive unless `force` is set, and (409) while any job is running.
     """
+    require_live_inference_enabled()
     require_config_control(session_id, req.force)
 
     with activity_scope():
@@ -1018,6 +1059,7 @@ def unload_model(
     Unloading is a configuration change like any other, so another session's live lease
     protects the model from it unless `force` is set.
     """
+    require_live_inference_enabled()
     require_config_control(session_id, bool(req and req.force))
 
     with gpu_lock:
@@ -1074,6 +1116,8 @@ def get_status(session_id: Optional[str] = Header(None, alias=SESSION_HEADER)):
         "owned_by_you": owned_by_you,
         "held_by_other_session": is_lease_held_by_other(session_id),
         "lease_seconds_remaining": round(lease_seconds_remaining, 1) if lease_seconds_remaining is not None else None,
+        "examples_only": is_examples_only_mode(),
+        "inference_enabled": not is_examples_only_mode(),
     }
 
 @app.post("/api/set_attributor")
@@ -1083,6 +1127,8 @@ def set_attributor(req: AttributorRequest, session_id: Optional[str] = Header(No
     The attributor is part of the configuration, so this mints a fresh `config_id`: clients
     holding the previous token are no longer explaining the same thing.
     """
+    require_live_inference_enabled()
+
     if not app_state["active_wrapper"]:
         raise HTTPException(400, build_no_active_model_error())
     if req.attributor_id not in AVAILABLE_ATTRIBUTORS:
@@ -1140,6 +1186,8 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
     checked is `config_id`, so results are never quietly produced by a model the caller
     didn't ask for.
     """
+    require_live_inference_enabled()
+
     if not app_state.get("active_attributor") or not app_state.get("active_wrapper"):
         raise HTTPException(400, build_no_active_model_error())
 
@@ -1179,11 +1227,17 @@ def explain(req: ExplainRequest, background_tasks: BackgroundTasks):
 @app.get("/api/jobs")
 def get_jobs():
     """Retrieves metadata for all historical jobs."""
+    if is_examples_only_mode():
+        return []
+
     return get_all_jobs()
 
 @app.get("/api/jobs/{job_id}")
 def get_job_status(job_id: str):
     """Retrieves the status and the payload (if completed) of a specific job."""
+    if is_examples_only_mode():
+        raise HTTPException(404, "Job not found")
+
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
@@ -1192,6 +1246,8 @@ def get_job_status(job_id: str):
 @app.patch("/api/jobs/{job_id}/pin")
 def pin_job(job_id: str, req: PinRequest):
     """Pins or unpins a job so it can be kept at the top of the history list."""
+    require_live_inference_enabled()
+
     was_updated = set_job_pinned(job_id, req.pinned)
     if not was_updated:
         raise HTTPException(404, "Job not found")
@@ -1200,6 +1256,8 @@ def pin_job(job_id: str, req: PinRequest):
 @app.delete("/api/jobs/{job_id}")
 def delete_job_by_id(job_id: str):
     """Deletes a single job record and its persisted payload, if present."""
+    require_live_inference_enabled()
+
     try:
         was_deleted = delete_job(job_id)
         if not was_deleted:
@@ -1213,6 +1271,8 @@ def delete_job_by_id(job_id: str):
 @app.delete("/api/jobs")
 def clear_all_jobs():
     """Deletes all job records from the SQLite DB and removes JSON payloads from the disk."""
+    require_live_inference_enabled()
+
     try:
         delete_all_jobs()
         return {"status": "success", "message": "Database and result files cleared."}

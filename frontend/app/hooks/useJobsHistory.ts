@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 
 import { buildApiUrl } from "../lib/api";
+import { isExamplesOnlyMode } from "../lib/examplesOnlyMode";
 import { getTutorialExampleMeta, isTutorialExampleJobId, loadTutorialExamplePayload, tutorialExampleSummaries } from "../lib/tutorialExamples";
 import type { JobHistoryItem } from "../types";
 
@@ -29,12 +30,19 @@ const mergeJobsWithTutorialExamples = (jobs: JobHistoryItem[]) => {
 // only a backend that stays unreachable this many polls in a row is worth reporting.
 const FAILED_POLLS_BEFORE_WARNING = 3;
 
-export function useJobsHistory() {
+export function useJobsHistory(enabled = true) {
+  const effectiveEnabled = enabled && !isExamplesOnlyMode;
   const [jobs, setJobs] = useState<JobHistoryItem[]>(() => mergeJobsWithTutorialExamples([]));
   const [deletingJobIds, setDeletingJobIds] = useState<string[]>([]);
   const consecutivePollFailures = useRef(0);
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
+    if (!effectiveEnabled) {
+      consecutivePollFailures.current = 0;
+      setJobs(mergeJobsWithTutorialExamples([]));
+      return;
+    }
+
     try {
       const res = await fetch(buildApiUrl("/api/jobs"));
       consecutivePollFailures.current = 0;
@@ -49,9 +57,14 @@ export function useJobsHistory() {
       }
       setJobs((currentJobs) => mergeJobsWithTutorialExamples(currentJobs.filter((job) => !job.is_builtin_example)));
     }
-  };
+  }, [effectiveEnabled]);
 
   useEffect(() => {
+    if (!effectiveEnabled) {
+      setJobs(mergeJobsWithTutorialExamples([]));
+      return;
+    }
+
     fetchJobs();
     // Polling; paused while the tab is hidden, with a refresh when it becomes visible again.
     const interval = setInterval(() => {
@@ -65,15 +78,19 @@ export function useJobsHistory() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [effectiveEnabled, fetchJobs]);
 
   // Download job payload for a specific job ID
   const fetchJobPayload = async (jobId: string) => {
     const tutorialExampleMeta = getTutorialExampleMeta(jobId);
     if (tutorialExampleMeta) {
-      const { config, payloadUrl, ...jobSummary } = tutorialExampleMeta;
       const payload = await loadTutorialExamplePayload(tutorialExampleMeta);
+      const jobSummary = tutorialExampleSummaries.find((job) => job.id === jobId) ?? tutorialExampleMeta;
       return { ...jobSummary, payload };
+    }
+
+    if (!effectiveEnabled) {
+      return null;
     }
 
     try {
@@ -90,6 +107,9 @@ export function useJobsHistory() {
   const deleteJob = async (jobId: string) => {
     if (isTutorialExampleJobId(jobId)) {
       throw new Error("Built-in tutorial examples are always available and cannot be deleted.");
+    }
+    if (!effectiveEnabled) {
+      throw new Error("Stored jobs are not available in examples-only mode.");
     }
 
     setDeletingJobIds(prev => prev.includes(jobId) ? prev : [...prev, jobId]);
@@ -120,6 +140,7 @@ export function useJobsHistory() {
 
   const togglePinJob = async (jobId: string) => {
     if (isTutorialExampleJobId(jobId)) return; // built-in examples are always pinned
+    if (!effectiveEnabled) return;
 
     const targetJob = jobs.find((job) => job.id === jobId);
     if (!targetJob) return;

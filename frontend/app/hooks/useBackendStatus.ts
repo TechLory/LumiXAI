@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
+import { isExamplesOnlyMode } from "../lib/examplesOnlyMode";
 
 const STATUS_POLL_INTERVAL_MS = 10000;
 
@@ -48,10 +49,11 @@ export interface BackendStatus {
  * poll fails: a blip in connectivity is not evidence that the model went away.
  */
 export function useBackendStatus(enabled = true) {
+  const effectiveEnabled = enabled && !isExamplesOnlyMode;
   const [status, setStatus] = useState<BackendStatus | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!effectiveEnabled) return;
 
     let cancelled = false;
 
@@ -76,8 +78,8 @@ export function useBackendStatus(enabled = true) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled]);
+  }, [effectiveEnabled]);
 
   // While disabled, report "unknown" rather than the last status polled before that.
-  return enabled ? status : null;
+  return effectiveEnabled ? status : null;
 }

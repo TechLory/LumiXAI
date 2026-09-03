@@ -9,6 +9,7 @@ import type { TutorialKind } from "../types";
 import ThemeToggle from "./layout/ThemeToggle";
 
 type WelcomeScreenProps = {
+  examplesOnly?: boolean;
   onEnterTool: () => void;
   onSelectTutorial: (tutorial: TutorialKind) => void;
 };
@@ -50,7 +51,7 @@ const tutorialActions: TutorialAction[] = [
 const heatCells = Array.from({ length: 96 }, (_, index) => index);
 const sampleTokens = ["prompt", "model", "attr", "input", "output", "history"];
 
-export default function WelcomeScreen({ onEnterTool, onSelectTutorial }: WelcomeScreenProps) {
+export default function WelcomeScreen({ examplesOnly = false, onEnterTool, onSelectTutorial }: WelcomeScreenProps) {
   const docsUrl = useDocsUrl();
 
   return (
@@ -110,23 +111,27 @@ export default function WelcomeScreen({ onEnterTool, onSelectTutorial }: Welcome
           </div>
 
           <p className="max-w-2xl text-base leading-7 text-fg-muted sm:text-lg">
-            A modular explainability workspace for inspecting classifiers, text generators, and text-to-image models through interactive bidirectional heatmaps.
+            {examplesOnly
+              ? "Explore prepared explainability walkthroughs through interactive bidirectional heatmaps, using bundled results from real completed runs."
+              : "A modular explainability workspace for inspecting classifiers, text generators, and text-to-image models through interactive bidirectional heatmaps."}
           </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={onEnterTool}
-              className="welcome-action welcome-action-primary group flex min-h-24 items-center gap-4 border-2 border-fg bg-fg px-4 py-3 text-left text-page transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-info focus:ring-offset-2 focus:ring-offset-page sm:col-span-2"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-page bg-page text-fg">
-                <i className="bx bx-right-arrow-alt text-2xl" aria-hidden="true"></i>
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold uppercase">Open tool</span>
-                <span className="mt-1 block text-xs leading-5 opacity-80">Go directly to the attribution interface</span>
-              </span>
-            </button>
+            {!examplesOnly && (
+              <button
+                type="button"
+                onClick={onEnterTool}
+                className="welcome-action welcome-action-primary group flex min-h-24 items-center gap-4 border-2 border-fg bg-fg px-4 py-3 text-left text-page transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-info focus:ring-offset-2 focus:ring-offset-page sm:col-span-2"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-page bg-page text-fg">
+                  <i className="bx bx-right-arrow-alt text-2xl" aria-hidden="true"></i>
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold uppercase">Open tool</span>
+                  <span className="mt-1 block text-xs leading-5 opacity-80">Go directly to the attribution interface</span>
+                </span>
+              </button>
+            )}
 
             {tutorialActions.map((action) => (
               <button
@@ -150,7 +155,7 @@ export default function WelcomeScreen({ onEnterTool, onSelectTutorial }: Welcome
         <div className="welcome-preview relative min-h-[420px] overflow-hidden border-2 border-border-strong bg-surface/80 p-4 shadow-[8px_8px_0_var(--border-strong)]" aria-hidden="true">
           <div className="mb-4 flex items-center justify-between border-b-2 border-border-strong pb-3 text-xs uppercase text-fg-subtle">
             <span>{"// Attribution buffer"}</span>
-            <span className="welcome-heat-text font-bold">live</span>
+            <span className="welcome-heat-text font-bold">{examplesOnly ? "saved" : "live"}</span>
           </div>
 
           <div className="welcome-demo-grid grid grid-cols-12 gap-1">
